@@ -1,4 +1,4 @@
-"""`perry-context-budget` — the gate that makes a long run affordable."""
+"""Session telemetry reports facts; the host/user owns session continuation."""
 
 from __future__ import annotations
 
@@ -21,8 +21,6 @@ import io
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-context-budget"
 SID, TID = "11111111-aaaa", "0199-codex-thread"
-SCHEMA_CEILING = json.loads((ROOT / "schema" / "state-schema.json").read_text())[
-    "thresholds"]["session_context_ceiling"]["value"]
 
 
 def mod():
@@ -115,24 +113,50 @@ class TestTheFigureIsTheHostsOwnAccounting(BudgetCase):
         self.assertEqual(report["context"], 777)
 
 
-class TestTheGate(BudgetCase):
-    def test_under_the_ceiling_exits_zero(self):
-        self.write(turn(cache_read=50_000))
-        report, code = self.json_out("--ceiling", "200k")
-        self.assertEqual((report["verdict"], code), ("OK", 0))
+class TestSessionReportsNeverGate(BudgetCase):
+    def test_large_live_context_without_reference_is_reported_not_refused(self):
+        for amount in (50_000, 200_000, 10_000_000):
+            with self.subTest(amount=amount):
+                self.rollout(*codex((amount, 0, 1, 0)))
+                report, code = self.json_out(CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
+                self.assertEqual((report["context"], report["verdict"], code),
+                                 (amount, "measured", 0))
+                self.assertTrue(report["report_only"])
+                self.assertIsNone(report["ceiling"])
+                self.assertNotIn("pct", report)
 
-    def test_at_or_over_the_ceiling_exits_one(self):
-        self.write(turn(cache_read=200_000))
-        report, code = self.json_out("--ceiling", "200k")
-        self.assertEqual((report["verdict"], code), ("OVER", 1))
+    def test_explicit_reference_never_limits_live_or_asserted_session(self):
+        self.write(turn(cache_read=900_000))
+        self.rollout(*codex((900_000, 0, 1, 0)))
+        for env in ({}, {"CODEX_THREAD_ID": TID, "PERRY_HOST": "codex-cli"}):
+            with self.subTest(env=env):
+                report, code = self.json_out("--ceiling", "200k", **env)
+                self.assertEqual((report["verdict"], code), ("measured", 0))
+                self.assertEqual((report["ceiling"], report["pct"]), (200_000, 450.0))
+                self.assertIn("reference only", report["ceiling_from"])
 
-    def test_the_ceiling_comes_from_the_schema_by_default(self):
-        self.write(turn(cache_read=1))
-        report, _ = self.json_out()
-        self.assertEqual(report["ceiling"], SCHEMA_CEILING)
-        self.assertIn("schema", report["ceiling_from"])
+    def test_plain_report_does_not_order_a_handoff(self):
+        self.rollout(*codex((900_000, 0, 1, 0)))
+        for args in ([], ["--ceiling", "1"]):
+            result = self.run_tool(*args, host="codex-cli", CODEX_THREAD_ID=TID)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("report only", result.stdout)
+            self.assertNotIn("OVER", result.stdout)
+            self.assertNotIn("hand off", result.stdout)
+            self.assertNotIn("% of budget", result.stdout)
 
-    def test_200k_and_200000_are_the_same_ceiling(self):
+    def test_invalid_reference_still_refuses_bad_invocation(self):
+        for value in ("no-limit", "0", "-1", "nan", "inf"):
+            with self.subTest(value=value):
+                result = self.run_tool("--ceiling", value)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("positive numeric reference", result.stderr)
+
+    def test_schema_has_no_session_ceiling(self):
+        schema = json.loads((ROOT / "schema/state-schema.json").read_text())
+        self.assertNotIn("session_context_ceiling", schema["thresholds"])
+
+    def test_reference_units_remain_compatible(self):
         self.assertEqual(mod().parse_size("200k"), mod().parse_size("200000"))
         self.assertEqual(mod().parse_size("1m"), 1_000_000)
 
@@ -219,7 +243,7 @@ class TestTheSessionIsBoundNeverGuessed(BudgetCase):
         report, code = self.json_out("--session", str(old), CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
         self.assertEqual((report["verdict"], report["scope"], report["context"], code), ("historical", "historical", 900_000, 0))
         report, code = self.json_out("--session", str(old), PERRY_HOST="unknown")
-        self.assertEqual((report["verdict"], report["scope"], code), ("OVER", "explicit", 1))
+        self.assertEqual((report["verdict"], report["scope"], code), ("measured", "explicit", 0))
         self.write(turn(cache_read=1))
         report, _ = self.json_out("--session", str(self.t), CLAUDE_CODE_SESSION_ID=SID)
         self.assertEqual(report["scope"], "explicit")  # Claude's id verifies nothing, even when it matches
@@ -359,73 +383,32 @@ class TestCompositionNamesTheExpensiveHalf(BudgetCase):
                          ["assistant:thinking"])
 
 
-class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
+class TestLegacyLimitsDoNotReinstateEnforcement(BudgetCase):
+    def test_store_environment_and_stale_schema_cannot_supply_a_limit(self):
+        self.rollout(*codex((900_000, 0, 1, 0)))
+        project = self.dir / "project"
+        (project / ".perry").mkdir(parents=True)
+        (project / ".perry/config.jsonl").write_text(json.dumps({
+            "kind": "setting", "key": "session_context_ceiling", "value": "1"}) + "\n")
+        old_home = self.dir / "old-install"
+        (old_home / "schema").mkdir(parents=True)
+        (old_home / "schema/state-schema.json").write_text(json.dumps({
+            "thresholds": {"session_context_ceiling": {"value": 1}}}))
+        for env_value in ("1", "0", "nonsense", "200k"):
+            with self.subTest(env=env_value):
+                report, code = self.json_out("--root", str(project), CODEX_THREAD_ID=TID,
+                                            PERRY_HOST="codex-cli", PERRY_CONTEXT_CEILING=env_value,
+                                            PERRY_HOME=str(old_home))
+                self.assertEqual((report["context"], report["verdict"], code),
+                                 (900_000, "measured", 0))
+                self.assertIsNone(report["ceiling"])
+                self.assertIsNone(report["ceiling_from"])
 
-    def setUp(self):
-        super().setUp()
-        self.write(turn(cache_read=150_000))
-        self.proj = self.dir / "proj"
-        (self.proj / ".perry").mkdir(parents=True)
-        self.M = mod()
-
-    def store(self, value, key="session_context_ceiling"):
-        (self.proj / ".perry" / "config.jsonl").write_text(json.dumps({
-            "kind": "setting", "key": key,
-            "label": "Session context ceiling", "value": value}) + "\n")
-
-    def stray_markdown(self, body):
-        (self.proj / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n" + body + "\n")
-
-    def resolved(self, flag=None, **env):
-        with mock.patch.dict("os.environ", env, clear=False):
-            return self.M.resolve_ceiling(ROOT, self.proj, flag)
-
-    def test_the_default_is_the_schema_value(self):
-        self.assertEqual(self.resolved(),
-                         (SCHEMA_CEILING, "schema/state-schema.json § thresholds"))
-
-    def test_the_project_may_declare_it_in_the_store(self):
-        self.store("120k")
-        self.assertEqual(self.resolved(), (120_000, ".perry/config.jsonl"))
-
-    def test_a_stray_markdown_is_not_a_register_when_there_is_no_store(self):
-        self.stray_markdown("- Session context ceiling: 90k")
-        self.assertEqual(self.resolved(),
-                         (SCHEMA_CEILING, "schema/state-schema.json § thresholds"))
-
-    def test_a_stray_markdown_does_not_compete_with_the_store(self):
-        self.store("120k")
-        self.stray_markdown("- Session context ceiling: 90k")
-        self.assertEqual(self.resolved(), (120_000, ".perry/config.jsonl"))
-
-    def test_a_store_without_the_key_does_NOT_fall_through(self):
-        self.store("English", key="document_language")
-        self.stray_markdown("- Session context ceiling: 90k")
-        _, src = self.resolved()
-        self.assertIn("schema", src)
-
-    def test_env_beats_the_declared_field(self):
-        self.store("120k")
-        self.assertEqual(self.resolved(PERRY_CONTEXT_CEILING="300k"),
-                         (300_000, "PERRY_CONTEXT_CEILING"))
-
-    def test_the_flag_beats_the_env(self):
-        self.assertEqual(
-            self.resolved(flag="1m", PERRY_CONTEXT_CEILING="300k"),
-            (1_000_000, "--ceiling"))
-
-    def test_an_unparseable_declaration_falls_back_rather_than_crashing(self):
-        self.store("plenty")
-        _, src = self.resolved()
-        self.assertIn("schema", src)
-
-    def test_a_declared_ceiling_actually_moves_the_verdict(self):
-        self.store("100k")                      # the session is at 150k
-        d, code = self.json_out("--root", str(self.proj))
-        self.assertEqual(code, 1)
-        self.assertEqual((d["ceiling"], d["ceiling_from"], d["verdict"]),
-                         (100_000, ".perry/config.jsonl", "OVER"))
+    def test_unknown_measurement_is_nonblocking_even_with_old_limits(self):
+        report, code = self.json_out(CODEX_THREAD_ID="absent", PERRY_HOST="codex-cli",
+                                    PERRY_CONTEXT_CEILING="1")
+        self.assertEqual((report["verdict"], report["context"], code), ("unknown", None, 0))
+        self.assertTrue(report["report_only"])
 
 
 class TestDeclaredBills(BudgetCase):

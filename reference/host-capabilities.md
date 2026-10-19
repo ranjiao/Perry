@@ -64,13 +64,12 @@ The executor enum is `claude-subagent | opencode-subagent | codex | manual`. The
 
 If a spec pins a native executor for another host, refuse rather than silently reroute. `manual` routes to `/perry work delegate`; it is never registered with `perry-dispatch-limit`. When an auto spec omits `Executor`, offer only executors valid for `$HOST`, plus `manual`.
 
-`bin/perry-context-budget` binds its gate to that identity, never to the newest transcript; with no identity, several matches or an unsupported host it reports `unknown` and does not gate.
-**Claude Code is always `unknown`, main session included.** On Desktop the
-main session and its subagents share the id, `CLAUDE_CODE_CHILD_SESSION=1` and
-`AI_AGENT`; no plain-CLI signal is verified. `unknown` is not a clean budget:
-follow `work/reference/budget-boundary.md § Budget boundary`. The only Claude
-verdict is `--session <file>`, labelled `explicit`: the caller's assertion,
-never a checkpoint's gate. Detail: `bin/README.md § perry-context-budget`.
+`bin/perry-context-budget` binds its optional usage report to that identity, never
+to the newest transcript. Missing identity, ambiguous matches and unsupported hosts
+report `unknown`. Claude Code is always unknown here because its session identity
+is not verified; `--session` is only an explicit caller-asserted reading. Neither
+unknown nor a large token count blocks work or requires a handoff. Session changes
+belong to the agent environment and user. Detail: `bin/README.md § perry-context-budget`.
 
 ## Prompt rendering
 

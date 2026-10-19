@@ -1,25 +1,29 @@
-# The budget boundary — the checkpoint between tasks
+# Session usage and optional handoff
 
-Moved out of `subcommands.md § handoff` on 2026-09-21 (TASK-470), unchanged: `close-task`, `dispatch`, `review` and `autopilot` run this checkpoint, and `handoff` writes what it asks for.
+## Session ownership
 
-## Budget boundary
+The agent environment and the user decide when to start a new session. Perry
+sets no session token ceiling and does not stop, refuse dispatch/review, or
+require a handoff because of token usage or unavailable telemetry.
 
-Two checkpoints, each between tasks, never inside one: **before** a task or review dispatch (`dispatch.md`, `review.md`, each `autopilot` iteration) and **after** a task's completion is recorded (`close-task`, `dispatch.md § On completion`). Both run one gate, which binds its own session and resolves the ceiling; never restate either:
+`bin/perry-context-budget` is an optional, read-only usage report. A measured
+figure is not a continuation verdict. Unknown identity or usage stays unknown;
+it does not require a user decision. Old session-ceiling settings and environment
+variables do not control work. An explicit legacy `--ceiling` is a comparison
+reference only. Task counts, duration/failure budgets and safety gates retain
+their separately agreed scope.
 
-```
-"$PERRY_HOME/bin/perry-context-budget"
-```
+## Optional handoff
 
-| Gate | Do |
-|---|---|
-| `OK`, exit 0 | continue |
-| `OVER`, exit 1 | finish the atomic step in hand, dispatch nothing new, write the handoff, tell the user a fresh session resumes from it |
-| `unknown`, exit 0 | print `context: unknown — not measured` and the reason; never call it within budget. `autopilot` is bounded by `--max-dispatches`; interactively, ask: hand off now, or one more task and ask again at the next boundary |
+When the user or agent environment chooses a handoff, finish the atomic step in
+hand first. Let a kernel mutation return, retain its evidence, and never leave a
+mutation unrestored. Record in-flight task/branch/checkout/log paths as pending;
+do not stop other agents merely because this session is handing off.
 
-A `--session` reading (`explicit`, `historical`) is never a checkpoint verdict.
+Fill the handoff template's `§ 0 Resume point` (≤ 8 KiB, evidence by path, no
+pasted logs). A handoff is useful for continuity, not mandatory at a token count.
 
-**Safe boundary.** Let a kernel mutation return; it is atomic. Never stop between a status write and its evidence file, or with a mutation unrestored. In-flight dispatches keep running: list each (task, branch, checkout path, log) as pending in the handoff for the next session to process. A pending transaction or interrupted pipeline is recorded, never resumed here: the next session's recovery gate owns it.
-
-**The handoff** fills the template's `§ 0 Resume point`: ≤ 8 KiB, evidence by path, no pasted logs.
-
-**Resuming**, before any write: (1) the router's recovery and interrupted-run gates; (2) `git rev-parse HEAD` in each named checkout against its recorded head, and the main branch's tip against the recorded base; (3) kernel `query` (see `kernel.md`) for each named task. A moved head or base, a changed status, or receipts older than the head → re-run the cited checks before relying on them. Then the recorded next command. Perry never resets the host session or schedules one: the user opens it.
+Before resuming from a handoff: run recovery/interrupted gates; compare recorded
+checkout heads and the main tip; query the named native tasks; refresh stale
+checks before relying on them. Never resume a pending transaction or interrupted
+pipeline automatically. Perry does not reset the host or open a session itself.

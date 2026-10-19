@@ -178,7 +178,7 @@ Forbidden, and each one has cost this project something:
   the field; the procedure does not count rows.
 - **A tool reaching another project.** Roots come from `--root`, then
   `$PERRY_PROJECT`, then the walk up — `ADR-002`, and `bin/lib § resolve_project_root`
-  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. The kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the second implementation DESIGN-023 introduces. It walks in the same order as `bin/lib § resolve_project_root` with a different predicate — it stops at the first `.perry/`, not the first installed project — and it refuses (`anchor_not_found`) where `bin/lib` falls back to the working directory or takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`. `kernel/tests/test_resolver_agreement.py` pins those four differences on both sides and shows the two agree on a shared set of fixture roots. The copies that already exist are unchanged and go at row H: `bin/perry-state § resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`, `perry-context-budget` and `perry-explain`, `bin/perry-churn § detect_perry`, which walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable, and `perry-lint`, which reads no `$PERRY_PROJECT` at any of its nine sites: one, the default lint, walks, and eight per-mode branches (`--claims`, `--verification`, `--summaries`, `--glossary`, `--reviews`, `--knowledge`, `--provenance`, `--specs`) take `--root` or else the cwd, with no walk.
+  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. The kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the second implementation DESIGN-023 introduces. It walks in the same order as `bin/lib § resolve_project_root` with a different predicate — it stops at the first `.perry/`, not the first installed project — and it refuses (`anchor_not_found`) where `bin/lib` falls back to the working directory or takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`. `kernel/tests/test_resolver_agreement.py` pins those four differences on both sides and shows the two agree on a shared set of fixture roots. The copies that already exist are unchanged and go at row H: `bin/perry-state § resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`, `perry-explain`, `bin/perry-churn § detect_perry`, which walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable, and `perry-lint`, which reads no `$PERRY_PROJECT` at any of its nine sites: one, the default lint, walks, and eight per-mode branches (`--claims`, `--verification`, `--summaries`, `--glossary`, `--reviews`, `--knowledge`, `--provenance`, `--specs`) take `--root` or else the cwd, with no walk.
 - **An agent writing `ARCHITECTURE.md`.** This file is the user's.
 
 ## §4. Data flow
@@ -263,9 +263,6 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   the disagreement was invisible until a round-trip test one project later.
 - **Check**: `grep -rn "def parse_" bin/ | grep -v perry_store | grep -v _md_store`
 - **Known exceptions**:
-  - `bin/perry-context-budget` reads one key (`session_context_ceiling`) of
-    `.perry/config.jsonl` directly, because it must work outside a Perry
-    project (USER-971, 2026-09-18).
   - `release/manage.py` reads `phase/CURRENT` at two git refs with its own
     "no phase" set: the pointer reader in `viewer/parsers.py` serves a working
     tree, and `release/` does not import `viewer/` (USER-981, 2026-09-21).
@@ -392,6 +389,8 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   stay open, and the sentence above holds for those three.
 
 ## §8. Change log
+
+- 2026-10-19 · TASK-496: user retired the session ceiling; context telemetry is report-only and reads no project config. Its direct-read exception is retired.
 
 - 2026-09-24/26 · v1 · TASK-487, four rounds, and TASK-488, each confirmed by the user (NN-6): §2's `kernel/` entry adds `rollup` (its Owns bullet rewrapped to stay within the cap), says the kernel is built, and `bin/` counts 21 executables; §3's third Forbidden line gains a proposed sunset naming the four resolver differences its test pins and the copies row H removes, `perry-lint`'s nine sites among them (round 4); §2 and the §3 diagram count 21 tools and 163 test modules; §5's `bin/` contract says `perry-kernel` follows kernel §5.1. TASK-488 (the user's decisions of 2026-09-25 and 2026-09-26): §6 NN-1 and NN-2's sunsets say only `export`, to decide `unchanged`, and `import` read the export, and §3's third Forbidden line adds `bin/perry-churn § detect_perry` to the existing copies. No other section is edited.
 - 2026-09-24 · v1 · TASK-486: §2 gains `kernel/` (DESIGN-023 row A), and §6 NN-1 and

@@ -8,7 +8,7 @@
 
 ## 0. Resume point
 
-Required at a budget boundary (`work/reference/budget-boundary.md § Budget boundary`); ≤ 8 KiB in all; cite evidence by path, never paste logs.
+Use when the agent environment or user chooses a handoff (`work/reference/budget-boundary.md`); ≤ 8 KiB in all; cite evidence by path, never paste logs.
 
 | Field | Value |
 |---|---|
@@ -24,7 +24,7 @@ Required at a budget boundary (`work/reference/budget-boundary.md § Budget boun
 | Budget | {{`OVER 212,000 / 200,000` or `unknown — not measured: <reason>`}} |
 | Next command | `{{exact command}}` |
 
-At a budget boundary, sections 4 and 6 may be omitted.
+For a short chosen handoff, sections 4 and 6 may be omitted.
 
 ## 1. P0 / Must-Have progress ({{n}}/{{N}} done)
 
@@ -112,7 +112,7 @@ When you (PMO Agent in a new session) resume tomorrow, **read these files first*
 2. `evidence/{{YYYY-MM}}/{{the most active TASK-ID}}.md` (latest evidence)
 3. **This file** (`handoff/{{YYYY-MM-DD}}.md`)
 
-After a budget boundary, first verify § 0 per `work/reference/budget-boundary.md § Budget boundary` (Resuming).
+When resuming a chosen handoff, first verify § 0 per `work/reference/budget-boundary.md` (Optional handoff).
 
 Then have the user say: "已读今日总结, [{{key topic}}] 进展如何" — and continue from there.
 

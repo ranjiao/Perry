@@ -157,9 +157,7 @@ before a dispatch depends on it. It is the only tool here that depends on
 `codex` and the only thing here that touches a model.
 `perry-context-budget` also reads outside the project — host transcripts, above
 — and runs one program, `bin/perry-detect-host` through `bash`; it calls no
-model. It is also the one tool in `bin/`
-with a recorded NN-1 exception: it reads one key of `.perry/config.jsonl`
-itself (root §6 NN-1, USER-971).
+model. It reports usage only; it reads no project state or session-ceiling setting.
 
 ## §3. Boundaries & dependencies
 
@@ -179,8 +177,8 @@ Rules, each with a scar behind it:
 
 - **A tool never parses a state file itself.** `parsers` is the reader; `lib`
   re-exports `resolve_state_root` from it rather than holding a second body.
-  The one recorded exception in `bin/` is `perry-context-budget`'s config read
-  (root §6 NN-1; `release/manage.py` holds the other, outside `bin/`). Not the only direct read: on 2026-09-21 an architecture re-review
+  Session telemetry reads no project config; the remaining recorded exception
+  is `release/manage.py`, outside `bin/` (root §6 NN-1). On 2026-09-21 an architecture re-review
   found `perry-lint` reading `asks.jsonl`, `perry-tasks` reading `tasks.jsonl`
   and `perry-task` reading `okr.jsonl` themselves. None is recorded as an
   exception, and whether each is an NN-1 parse is not yet decided.
@@ -281,7 +279,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
   that already exist are unchanged and go at row H: `bin/perry-state §
   resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd
   lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`,
-  `perry-context-budget` and `perry-explain`, `bin/perry-churn § detect_perry`,
+  `perry-explain`, `bin/perry-churn § detect_perry`,
   which walks up to the first `.perry/`, stops at the git top level, and takes
   no `--root` and no environment variable, and `perry-lint`, which reads
   no `$PERRY_PROJECT` at any of its nine sites: one, the default lint, walks,
@@ -309,6 +307,8 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
   document's §7 asks the same thing about the module contract.
 
 ## §8. Change log
+
+- 2026-10-19 · TASK-496: user retired the session ceiling; context telemetry is report-only and reads no project config. Its direct-read exception is retired.
 
 - 2026-10-09 · v1 · TASK-489 round 6: § 2 "What `perry-kernel-migrate` runs and writes": the importer refuses a pending `perry-task` recovery marker (`parsers.scan_recovery`) before it reads any store, asks or no asks; a file changed across its `perry-task asks` read is "most likely" such a marker; the overlong line is rejoined. §§ 1, 3–7 unchanged.
 - 2026-10-09 · v1 · TASK-489 round 5: § 2 "What `perry-kernel-migrate` runs and writes" no longer says it never writes the project. It names the one case: the `perry-task asks` read completes a pending `perry-task` recovery marker, and the importer names the changed file and stops. §§ 1, 3–7 unchanged.
