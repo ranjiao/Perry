@@ -44,7 +44,7 @@ Each lane's files are the ownership table below; each lane's SKILL.md carries it
 >
 > The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, rendered output; `*/state/*_TEMPLATE.md`, `state/*_TEMPLATE.md` and `templates/`, copied verbatim into the user's repo; `setup`, install banner; `CHANGELOG.md`/`release/`; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
 >
-> `tests/test_shipped_vocabulary.py` is that list, mechanically. Adding a class there without adding it here is how this carve-out silently grew last time.
+> The vocabulary carve-out is a skill review checklist. New shipped surfaces must be classified here when introduced.
 
 **Vocabulary**: `reference/glossary.md` defines Perry's terms — read it before coining one, and add the entry in the same change.
 
@@ -53,8 +53,8 @@ Each lane's files are the ownership table below; each lane's SKILL.md carries it
 > **Signed off: Ran Jiao, 2026-08-16.** Checked: the drafted contract section,
 > `perry/design/DESIGN-003-work-modes.md § 5.9` (blast radius), and
 > `perry/evidence/2026-08/TASK-026-spec.md`; approved as written, without
-> per-line reconciliation against `schema/state-schema.json § files[].owner`
-> — `tests/test_ownership.py` covers that agreement mechanically.
+> per-line reconciliation against the former `schema/state-schema.json § files[].owner`
+> — the lane review must check the ownership agreement.
 
 **The invariant, unchanged since Perry had three registered skills:**
 
@@ -64,77 +64,44 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 
 | Lane | Only writer of | Proposes, never writes |
 |---|---|---|
-| **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md`; drafts in `plans/` (DESIGN-020 UD 5, not this sign-off) | weekly tasks, handed to `work` |
-| **`work`** (`work/`) | `tasks.jsonl` + its 4 register stores (`perry-tasks board` prints them), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
-| **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
+| **`goals`** (`goals/`) | objective, KR, check and phase items; OKR/phase narrative attachments; drafts in `plans/` | weekly tasks, handed to `work` |
+| **`work`** (`work/`) | task, ask and risk items; `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
+| **`decide`** (`decide/`) | design and ADR items; `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
 **Two changes from the previous contract, and why neither needed a second signature; why the sign-off is recorded at this precision**: `reference/hand-off-contract.md`.
 
-**What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `tasks.jsonl`; `work` writing `decisions/`; `decide` writing `journal/`.
+**What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing task items; `work` writing `decisions/`; `decide` writing work evidence. All lanes have stopped writing `journal/`.
 
 ## Mandatory first move: combined snapshot
 
-**Route first, reading no project state.** You judge the intent; cases: `reference/startup.md`.
+Route before reading project state: Explain reads only skill pages; Query reads
+only the requested native projection after safety; Change runs safety then the
+owning lane. An explicit user request takes priority over a suggested next step.
 
-| Route | Run | Then |
-|---|---|---|
-| **Explain**: help, how Perry works | step −2 | only the pages that answer. No update check, config, state, modes, dashboard or write |
-| **Query**: one fact about this project | −2, −1, 1, 2 | only that projection: `--section <name>`, `perry-explain <ID>`, `perry-task list --json` |
-| **Change**: a write, a subcommand but `help`, bare `/perry` | −2 to 3 | bare `/perry` → 3b–6; a lane skips its −3 to −1, keeps its gates |
+1. Derive `$PERRY_HOME` from this file. Detect the host with the skill-side host
+   helper and read `reference/host-capabilities.md`. On Change, run the bounded
+   update check and surface its result. A session has no Perry token ceiling;
+   the agent environment and user decide when to start another session.
+2. Read `.perry/config.jsonl` for root, layout and languages only. Read the
+   project's `.perry/hook.md` before any write. A malformed or ambiguous config
+   is a reported setup error; never guess another state root.
+3. Apply **`reference/recovery.md` in full before querying current state**.
+   A pending transaction, malformed restore point or inaccessible safety path
+   blocks normal state reads and writes. An interrupted adoption, diagnosis or
+   plan requires the user's resume/archive/abandon choice. Never auto-resume.
+4. Read `reference/snapshot.md`: use native kernel queries for all current
+   tasks, asks, risks, objectives, KRs, checks, phases, designs and ADRs. Follow
+   every cursor; preserve unknowns and read failures. A missing native store
+   is a setup/migration condition, never an empty board or a reason to use
+   frozen JSONL registers. For Query, read only the requested projection.
+5. For an overview render the combined snapshot, then apply
+   `reference/next.md` top to bottom and name the facts behind the suggestion.
+   For an explicit action load the owning lane in full and proceed with its
+   gates. Do not ask the user to select work they already named.
 
-Unclear → ask which. Nothing reads state before step 2 **but step 1's config read**. Steps run once per operation; after a write, or when state may have moved, re-read. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
-
-−2. **Set `$PERRY_HOME`** — if unset, derive it from the path of the SKILL.md you just read: the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md, use the grandparent. Every `$PERRY_HOME/bin/<script>` call needs this step.
-
-−1. **Detect host once**: `bash "$PERRY_HOME/bin/perry-detect-host"` → `claude-code` | `opencode` | `codex-cli` | `unknown`. Remember as `$HOST`, then read `$PERRY_HOME/reference/host-capabilities.md`. On `unknown`, default to `claude-code`, say so once, recommend setting `PERRY_HOST`.
-
-0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
-
-1. **Read `.perry/config.jsonl`** for document language, chat language and repo layout. If it does not exist and a state file does, prompt for first-time setup — **Change route only**, since it writes; Explain and Query report the gap and stop. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
-
-2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
-
-   ```
-   "$PERRY_HOME/bin/perry-state" --section recovery
-   ```
-
-   This is the deterministic, read-only startup recovery gate. If
-   `blocking: true`, stop before any further project-state read or mutation and
-   report every exact path and error — **nothing else is read after that
-   stop, not even a listing**. A pending task transaction must be
-   recovered by the task command; a malformed dossier must be repaired or
-   explicitly retired. Do not reinterpret either as routine PMO hygiene.
-
-   Only after `blocking: false`, run the interrupted-pipeline gate:
-
-   ```
-   "$PERRY_HOME/bin/perry-state" --section interrupted
-   ```
-
-   Read-only; one row per pipeline left mid-run. **Every number on the card
-   comes from this payload**, never the dossier's frontmatter. Why:
-   `reference/snapshot.md § Why the interrupted-run gate exists`.
-
-   None found → step 3 unchanged. One → render the card, then ask; do **not** run
-   First-time setup and do not render the dashboard first. More than one → list
-   them with stage and age and ask which.
-
-   **When `stale: true`** (no movement in `stale_after_days`, default 30, from
-   `schema/state-schema.json § thresholds`), say so and move `Abandon it` first
-   with the `(Recommended)` tag. It stays a recommendation: `abandoned` is set by the user,
-   never by Perry deciding a run has gone stale. **Never resume without asking.**
-
-   The card, its three answer branches and the flag-mismatch refusal:
-   `reference/snapshot.md § The interrupted-run card`. A `plan` draft, and
-   `/perry plan`: `goals/reference/planning.md`.
-
-3. **Compute the state — one call**:
-   ```
-   "$PERRY_HOME/bin/perry-state" --compact
-   ```
-   `installed: false` → jump to **First-time setup** below — **but only if step 2 found neither a recovery hazard nor an interrupted run.** Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
-
-The rest is `reference/snapshot.md`: **3b** mode files, **3c** pack glossary, **4** dashboard, **5** `next` per `reference/next.md`, **6** ask "What do you want to do?" and route to `$PERRY_HOME/goals/SKILL.md`, `$PERRY_HOME/work/SKILL.md` or `$PERRY_HOME/decide/SKILL.md`, read in full first.
+Host detection and language reads run once per operation. Refresh safety after
+an external change, and refresh affected native projections after every write or
+failed write. Never present an earlier capture as current.
 
 ## First-time setup
 
@@ -155,19 +122,19 @@ Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so the
 
 ### `/perry relocate <path>` — moving Perry's state root
 
-Moves every claimed path under a new `State root`; `.perry/` never moves. It **refuses on a dirty tree**, computes the moves from `schema/state-schema.json § claims[]`, confirms every `from → to` first, and never deletes. Steps: `reference/router-subcommands.md § /perry relocate`.
+Moves every claimed path under a new `State root`; `.perry/` never moves. It **refuses on a dirty tree**, inventories narrative attachments and native store/export locations, confirms every `from → to` first, and never deletes. Native store relocation requires a tested export/import receipt and explicit user approval; no file move edits a kernel anchor. Steps: `reference/router-subcommands.md § /perry relocate`.
 
 Setup and relocate finish with [the closing step](reference/next.md#closing-step) after writes. <!-- next-close: router setup --> <!-- next-close: router relocate -->
 
 ## Configuration
 
-`.perry/config.jsonl` holds the settings (`perry-config set`); prose belongs in `.perry/hook.md`. Field **names** stay English in every language. Repo layout, state root, tracks and pack controls — including “what else can Perry do?” and enabling or disabling optional capabilities — are `reference/config.md`.
+`.perry/config.jsonl` holds host/project settings; prose belongs in `.perry/hook.md`. Field **names** stay English in every language. Repo layout, state root, tracks and pack controls — including “what else can Perry do?” and enabling or disabling optional capabilities — are `reference/config.md`.
 
 ## Style rules
 
 Reasoning and examples: `reference/style.md § Style rules`.
 - **Lead with the dashboard, not narration.** Numbers, IDs, paths. **Cite the file** for every claim. **Never invent state**: print `—` and ask.
-- **An ID never travels alone.** The first time an ID appears in user-facing output it carries its human name — `REL-002 ("Flake detector")`, never a bare `REL-002`. A table with a Title column satisfies this. `bin/perry-explain <ID>` resolves one. Full rule: `reference/user-load.md`.
+- **An ID never travels alone.** The first time an ID appears in user-facing output it carries its human name — `REL-002 ("Flake detector")`, never a bare `REL-002`. A table with a Title column satisfies this. Native `item get` resolves one. Full rule: `reference/user-load.md`.
 - **Never ask a question the user cannot evaluate.** Reframe in consequences, decide it yourself and say so, or narrow to two: `reference/user-load.md § The three exits`.
 - **Don't duplicate child skills' logic.** This file routes; the children own their domains.
 - **Never mint an example ID that resolves to nothing.** Use the placeholder form (`SRC-n`, `TASK-NNN`, `<DESIGN-ID>`); a concrete one is a dangling reference `LOAD-02` reports.
@@ -181,4 +148,4 @@ Reasoning and examples: `reference/style.md § Style rules`.
 
 ## See also
 
-[README.md](README.md) · [INSTALL.md](INSTALL.md) · [schema/README.md](schema/README.md) (the state-file contract). Extracted from this router: `reference/snapshot.md`, `reference/first-run.md`, `reference/config.md`, `reference/router-subcommands.md`, `reference/style.md`, `reference/hand-off-contract.md`.
+[README.md](README.md) · [INSTALL.md](INSTALL.md) · [kernel/ARCHITECTURE.md](kernel/ARCHITECTURE.md) (the native state contract). Extracted from this router: `reference/snapshot.md`, `reference/first-run.md`, `reference/config.md`, `reference/router-subcommands.md`, `reference/style.md`, `reference/hand-off-contract.md`.

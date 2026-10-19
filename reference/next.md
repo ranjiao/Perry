@@ -1,469 +1,54 @@
-# The next block — where the project is, and what to do next
-
-`perry-state --section next` decides what Perry recommends. The agent puts that
-answer into words and never chooses it. The rules are declared in
-`reference/next-rules.json`. This page says why each rule exists and how the
-block is rendered. The payload's keys and types are `schema/next-contract.md`.
-
-DESIGN-020 § 5.2–5.4 is the design. Its § 9 entry of 2026-09-15 is the rule this
-page enforces: **the command decides, the agent renders.**
-
-## Where it is shown
-
-- **`/perry`**, at `reference/snapshot.md` step 5: `perry-state --section next`.
-- **A lane standup**, at its next-actions step:
-  `perry-state --section next --lane goals` (or `work`, `decide`). A lane shows
-  its own rules and the overlays.
-
-Neither call writes anything, so both are safe on every standup.
-
-`--after <subcommand>` keeps only the rules that may fire after that subcommand.
-It belongs to the shared closing step below. Read-only commands keep their
-existing output and do not run that step.
-
-## Rendering
-
-For the combined `/perry` snapshot, use `reference/snapshot.md § Step 4`'s
-initial-screen budget and single detail view: position and primary initially,
-all returned alternates and unknown causes behind its explicit detail pointer.
-This changes placement only. A null primary never suppresses unknowns. Lane
-standups and the closing step retain their existing rendering and procedure.
-
-Render the block in the chat language, in this shape:
-
-```
-You are here: Goals ✓ · Phase 004 day 1 ✓ · Week 2026-W38 plan ? · Weekly review late
-Next: /perry work triage — 5 queue item(s) are past their SLA, the longest-waiting being TASK-270
-  also: /perry work friday-review — today is Tuesday and the last weekly report is 2026-W35
-  cannot tell: whether this week is planned (week plans have no source until TASK-444 records a finalized week)
-```
-
-1. **You are here** — one line from `position[]`, in its order. Mark each step
-   by its `state`: `done` ✓, `missing` ✗, `late` or `due` in words, `unknown` ?.
-   Leave out `not_applicable` steps. Show `not_reached` steps dimmed or leave
-   them out.
-2. **Next** — `primary.command`, then `primary.reason`. If `primary` is `null`,
-   print `Nothing is due.` and stop there. Never make up a next step.
-3. **also** — one line per `alternates[]` entry, in order. There are at most
-   two.
-4. **cannot tell** — one line per `unknown[]` entry: what could not be decided,
-   and its `reason`.
-
-The reasons are written as plain sentences, and IDs appear inside them. Keep
-them as they are. Translate them only when the chat language is not English.
-
-### What the agent may and may not do
-
-- **Never reorder, add or drop a recommendation.** The user sees exactly the
-  `position`, `primary` and `alternates` the command returned.
-- **One note of your own, at most, marked as yours**, on its own line below the
-  block. It is for context the command cannot read, such as the user having
-  just said to skip this week's review:
-
-  ```
-  (my note: you said to skip this week's review — the recommendation above still shows it)
-  ```
-
-  The note never replaces the primary and never names a different command as
-  the one to run.
-- **Do not count, compare or judge state to build the block.** If a
-  recommendation looks wrong, the fix is a fact or a rule, not a different
-  sentence.
-- **`conformance.rule_errors` non-empty** means the rule file could not be used as
-  declared. Say so in one line after the block. It is a defect to fix, not a
-  reason to guess.
-
-## How the rules are evaluated
-
-- **Overlays first.** They always win and are kept under every `--lane` and
-  `--after`.
-- **Then the rules, in declared order.** A rule is eligible when its `spine`
-  is `any` or is the mode of a declared track (`project.tracks[].mode`). Rules
-  3–5 are `project` rules. A `queue` or `pipeline` project gets its own rules
-  in their place and is never told to plan a phase or a week.
-- **The first rule that fires is `primary`.** The next two that recommend a
-  *different* command are `alternates`.
-- **Three answers, not two.** A predicate over a fact the payload cannot tell
-  is *unknown*. It does not fire, and the fact is listed in `unknown[]`.
-  `all` is false as soon as one part is false. `any` is true as soon as one
-  part is true. The same state always gives the same block.
-- **Predicates compare typed values only**: a fact path, an operator
-  (`eq ne lt le gt ge in contains exists nonempty`; `contains` is `in`'s mirror,
-  for a fact that is a list) and a literal or `{"threshold": name}`. No rule
-  reads prose (ARCHITECTURE.md § NN-4).
-- **Thresholds** come from `schema/state-schema.json § thresholds` when a name
-  is declared there, which is read and never written. Otherwise they come from
-  the rule file, with a note. `conformance.thresholds[]` says which source each
-  one came from.
-
-## The facts
-
-Each fact is a value `perry-state` already computes, or the clock
-(ARCHITECTURE.md § NN-1). Computing one needs no new read of a state file.
-
-| Fact | From |
-|---|---|
-| `installed`, `recovery.blocking`, `recovery.first_path`, `interrupted.*` | the payload's `installed`, `recovery`, `interrupted` |
-| `drafts.drafted` | `drafts.drafted`: drafted plans, plus approved ones whose content changed; unknown while a plan is unreadable (`drafts.errors` names it; it never triggers `R-recovery`) |
-| `okr.present`, `okr.version` | `okr` |
-| `phase.status`, `phase.number`, `phase.day` | `phase` |
-| `phase.kr_progress.*` | `linkage.objectives[].krs[]`: `current`, `target` and `stretch` of the current phase's key results |
-| `phase.krs_unstaffed`, `phase.first_unstaffed_kr`, `phase.first_unstaffed_kr_title` | `linkage.objectives[].krs[]`: active commit key results with no `tasks`, less those measured and met (DESIGN-020 UD 14) |
-| `phase.kr_progress.undeclared`, `phase.first_undeclared_kr`, `phase.first_undeclared_kr_title` | `linkage.objectives[].krs[]`: commit key results whose `state` is `undeclared` |
-| `phase.retro_recorded` | `history.retros[]`: `evidence/<YYYY-MM>/retro.md` files whose `> Phase:` header field names this phase (`viewer/parsers.py § retro_phases`) |
-| `week.iso`, `today.date`, `today.weekday` | the clock |
-| `week.midweek_checked` | `cadence.items[]`: a row titled `midweek-check` (the title `schema/state-schema.json` reserves) whose `last_run` is in `week.iso`; unknown only when `cadence.store_unreadable` |
-| `history.*` | `history`: `latest_weekly`, `latest_handoff`, `latest_handoff_days`, `latest_journal_days` |
-| `user_input_queue.*` | `user_input_queue.count` and `.oldest` |
-| `design.pending_handoff_count`, `design.first_pending_id` | `design.pending_handoff` |
-| `board.lines`, `board.cap`, `board.over_cap_by` | `board` |
-| `board.review_owed`, `board.closable`, `board.dispatchable`, `board.blocked_stale`, each with `board.first_<name>` and `board.first_<name>_title` | `board.execution[]`: each open task record, ordered by priority then id, with `startable` and `blocked_stale` from the rule `perry-task list` uses (`bin/lib § resolve_startability`), its `verdicts[]` and its spec's `dispatch_mode`, both read by `viewer/parsers.py` (`verdict_blocks`, `spec_header_fields`) |
-| `project.spines`, `project.packs` | `project.config`: `tracks[].mode`, and `packs[].name` — what the project declares (`software-ops` when it names none), never what this installation holds |
-| `operations.inputs`, `operations.first_input` | `operations.inputs` / `inputs_oldest`: files under `inputs/`, oldest first; the name `work digest` takes |
-| `cadence.overdue_count`, `cadence.first_overdue` | `cadence.overdue[]`, oldest first; its id, or title where it has none. Unknown when the store is unreadable |
-| `risks.top_rank` | `risks.top.severity_rank` — the marker the statement **declares**; `""` when it declares none, or no risk is open |
-| `architecture.days_since_review` | today minus `ARCHITECTURE.md`'s `Last reviewed` — the integer the stale-review warning uses; unknown with no document or date |
-| `queue.sla_breaches`, `queue.oldest_breach_id` | `project.config.tracks[]`: `sla_check`, `sla_breaches` |
-| `pipeline.wip_breaches` | `project.config.tracks[]`: `wip`, `wip_breaches` |
-
-**A commit key result** is one whose `stretch` is not `true`. It is
-**measured** when it has both a `current` and a `target`. It is **met** when
-`current >= target`, but a target of `0` is met only at `0`, because such a key
-result is counting something down. `met_ratio` is unknown when the phase has no
-commit key result, or when any of them is unmeasured. A key result whose
-`status` is `withdrawn` (DESIGN-022 § 5.7) is in none of these counts;
-`phase.kr_progress.withdrawn` counts it, and its reason is on its
-`linkage.objectives[].krs[]` entry.
-
-**Always unknown in this release**, because nothing computes them yet:
-
-- `week.planned` — no source until `TASK-444` records a finalized week.
-- `commitments.due` — `perry-state` does not compute which commitments are due.
-- `phase.days_since_snapshot` — `perry-state` computes no date for the last
-  phase snapshot.
-
-## The rules
-
-### R-recovery
-
-A pending task transaction or a malformed dossier means the stores cannot be
-trusted until it is repaired. Nothing else is worth doing first. It sends the
-user to `/perry`, whose step 2 names every path and the repair.
-
-### R-interrupted
-
-An adoption or diagnosis run was left part-way, and the user's answers are in
-its dossier. `/perry` step 2 shows the card that resumes or abandons it. Without
-this overlay the run is invisible (`reference/snapshot.md § Why the
-interrupted-run gate exists`).
-
-### R-draft-waiting
-
-A plan draft is written and waiting for review: `drafted`, or approved and
-changed since. That approval comes before any new work is planned. `/perry
-plan` here means only: resume that draft through
-`goals/reference/planning.md` — re-read it, show the path and summary, ask.
-There is no planning router for a new horizon yet; with no draft, the direct
-entrances (`/perry goals init`) apply. An approved, unchanged draft fires
-nothing: its finalize writer does not exist, and nothing finalizes on startup.
-
-### R-setup
-
-The directory is not an installed Perry project, so no other rule can say
-anything. `/perry` runs first-time setup.
-
-### R-no-okr
-
-With no goals written down there is nothing to plan a phase against, and no key
-result for work to serve. The sequence starts here.
-
-### R-no-phase
-
-The goals exist but no phase is active, so no work is aimed at a phase key
-result. This is a `project` rule. Queue and pipeline tracks run on commitments,
-not phases.
-
-### R-phase-closable
-
-At least 80% of the phase's measured commit key results are met, none is
-unmeasured, and no retro names this phase yet. The phase can close, and its
-retro comes first: `end-phase-retro` writes `evidence/<YYYY-MM>/retro.md`,
-which `score-phase` reads (DESIGN-020 § 9, 2026-09-21). If any key result has
-no current value, the command cannot tell, and says so.
-
-### R-phase-scorable
-
-The same phase, once a `retro.md` whose `> Phase:` header names it exists.
-`score-phase` marks the phase scored and clears `phase/CURRENT`, so it is the
-last step. A retro naming another phase does not count. One file per month
-means two phases scored in one month share a path: the later retro replaces
-the earlier.
-
-### R-kr-unstaffed
-
-A phase is active and a commit key result has no linked task, so no work is
-aimed at it. `plan-week` takes the unstaffed key results as its first input.
-A key result that is measured and met needs no task and is not counted
-(DESIGN-020 UD 14). The reason names the first one with its title.
-
-### R-checks-undeclared
-
-A phase is active and a commit key result declares no check, so its progress
-can never be measured and the phase can never be shown closable.
-`goals check` declares one (DESIGN-022 § 5.6).
-
-### R-week-unplanned
-
-A phase is active and this ISO week has no plan. It cannot fire until
-`TASK-444` gives `week.planned` a source. Until then it adds `week.planned` to
-`unknown[]` on every project with an active phase.
-
-### R-review-owed
-
-A row at `review` carries rung V4 and no verdict block names it, so its fresh
-review was never sent or has not come back. `review` dispatches it
-(`work/reference/review.md`). Finishing work comes before starting more
-(DESIGN-020 § 5.10), so this sits above the triage and dispatch rules.
-
-### R-closable-row
-
-A V4 row at `review` whose latest verdict block naming it reads `result: PASS`
-at `rung: V4`. `close-task` closes it through its own gate. "Latest" is the
-last in `board.execution[].verdicts[]`, ordered by the review round the file's
-path names (`roundN`, `round-N`, `-rN`, a `review/roundN…` file; `final` after
-every number; an unnumbered file is round 1), then the month, then the block's
-line. On this repository it agrees with the order the files were added in, for
-every pair added in different commits. Its limits: round numbers are compared
-across documents as one series, so a round-2 file of one review and a round-6
-file of another that both name the row sort by number, not by date; two files
-of one round sort by month and path; and a round written only in prose
-(`third-pass.md`) reads as round 1. A FAIL as the latest block makes the row neither closable nor
-owed.
-
-### R-sla-breach
-
-A `queue` track's rows have waited longer than its declared SLA. In a queue
-project this takes the place of rules 3–5. Triage is where the oldest breach is
-picked up.
-
-### R-queue-commitment-due
-
-A queue project's commitment is due. It takes the place of rules 3–5 alongside
-R-sla-breach. `perry-state` does not compute due commitments, so this rule is
-declared and reports `commitments.due` as unknown.
-
-### R-wip-over-limit
-
-A `pipeline` track has a stage at or over its work-in-progress limit. In a
-pipeline project this takes the place of rules 3–5. The limit is the pipeline's
-central control (`modes/pipeline.md`).
-
-### R-pipeline-commitment-due
-
-The pipeline counterpart of R-queue-commitment-due. It is declared, and it
-reports `commitments.due` as unknown for the same reason.
-
-### R-asks-waiting
-
-The oldest open question to the user has waited at least 5 days. That is the age
-at which `/perry work nudge` surfaces it. Work blocked on a person is usually the
-cheapest to unblock.
-
-### R-blocked-stale
-
-A row `perry-task list` reports with `blocked_stale: true` — the field is
-defined in `schema/task-list-contract.md`, and its stored status is not
-rewritten by any read. Triage moves it on.
-
-### R-dispatchable
-
-A `not_started`, startable P0 or P1 row whose spec
-(`evidence/<YYYY-MM>/<ID>-spec.md`, the latest month's) declares exactly
-`Dispatch mode: auto` in its header: the paragraphs under the title that are
-`>` blockquotes or open with a `Key: value` line, up to the first that is
-neither. Two different values there read `ambiguous` and never count. A spec
-whose header follows a prose paragraph is not read (one closed row here). It would fire on most boards, so it sits
-below every finishing rule, and `manual` or a missing spec never counts. The
-recommendation runs nothing: `dispatch` keeps its own safety screen.
-
-### R-review-due
-
-It is Friday, no weekly report exists, or the newest report is older than last
-week. The weekly report is where a week's work is summed up, and a lapsed one is
-the first sign the cadence has stopped.
-
-### R-midweek
-
-It is Wednesday and no mid-week check is recorded for this ISO week.
-`midweek-check` records its run with `perry-task cadence-done` on the cadence
-row titled `midweek-check`, so `week.midweek_checked` reads that row's
-`last_run`; a run from an earlier week does not count (TASK-482).
-
-### R-inputs-waiting
-
-A file waits in `inputs/`. `work digest <path>` reads `inputs/<path>`, so the
-command names the oldest file by that name.
-
-### R-cadence-overdue
-
-A declared recurring item is past its `Next due`. A cell that cannot be read
-is in `cadence.undated`, not `overdue`: a finding, never an assumed due date.
-
-### R-risk-raised
-
-The top open risk **declares** a high marker (`H`, `高`, `🔴`). Only `high`
-fires: `medium` and `low` say this is not the one to act on now, and `""` is
-no declaration. Ranking a statement that merely *sounds* urgent would be the
-tool deciding what prose means (ARCHITECTURE.md § NN-4).
-
-### R-phase-heartbeat
-
-A phase that runs for `phase_heartbeat_days` (default 14) with no snapshot has
-no frozen record to compare its end against. `goals/SKILL.md` used to prompt
-`/perry goals snapshot` at that age, and this rule keeps the prompt. Nothing in
-the payload dates the last snapshot, so the rule never fires. It reports
-`phase.days_since_snapshot` as unknown on every project with an active phase.
-DESIGN-020 § 5.3 has no place for it, so it sits after the other cadence
-rules, where § 5.10 keeps it (after R-risk-raised). ARCHITECTURE.md §7 asks whether it should survive.
-
-### R-handoff-stale
-
-Project state changed today, and the last handoff is at least 7 days old or
-does not exist. "Changed today" means a journal line dated today, and every
-mutating command writes one. This is a proxy for a session ending
-(DESIGN-020 § 8), and its quality is measured in phase B.
-
-### R-design-unhanded
-
-A locked design has no implementation tasks, so a decision is made and no work
-follows from it. Hand-off prints the tasks for `work` to add.
-
-### R-board-over-cap
-
-The board is longer than its cap. Past the cap it stops being read, and triage
-pushes detail into evidence. No board file is measured any more, so
-`board.lines` is `0` and this rule is quiet on every store-backed project.
-
-### R-architecture-stale
-
-Past `architecture_review_days` (180) a document nobody has re-read stops
-describing the code; the standup warns there, this offers the audit. It is the
-`software-ops` pack's discipline, and that pack is the **default**: only a
-project whose `Packs` cell names others, or is blank, is exempt. No document,
-or an unreadable `Last reviewed`, leaves the fact unknown. Last in the order:
-Perry's slowest clock must not outrank this week.
+# The next step is a skill procedure
+
+Authority: ADR-024 and DESIGN-023 decision 5. The agent applies the table below
+top to bottom, using the native capture in `reference/snapshot.md`. The first
+matching row supplies the primary suggestion. Show the facts and IDs behind
+it. This procedure runs no evaluator, changes no state and dispatches nothing.
+An explicit user request takes priority. Unknown facts cannot satisfy a row.
+
+| Order | Evidence | Suggestion |
+|---|---|---|
+| 1 | recovery hazard, malformed config/store or failed native query | repair the named path/error before other work |
+| 2 | nonterminal adoption/diagnosis/plan restore point | offer resume/archive/abandon; wait for the user's choice |
+| 3 | a requested action is already authorized | continue that action through its owning lane |
+| 4 | a task in review requires independent review or human acceptance | review the criteria/evidence or present the concrete sign-off artifact |
+| 5 | a named design is locked with an unexecuted work handoff | decide hands its agreed scope to work |
+| 6 | nonterminal asks block otherwise ready work | surface the question with its blocked task and the recorded age, if known |
+| 7 | a phase KR is unmeasured, has a failed/obsolete check or has no declared check | goals declares/repairs/runs the check; an obsolete measurement cannot close the phase |
+| 8 | all committed phase KRs are measured and met, with a native event/attachment proving its retro | propose goals phase scoring, after the lane's approval gate |
+| 9 | all committed phase KRs are measured and met, with no recorded retro | work proposes the end-phase retrospective before goals scoring |
+| 10 | no current objective or phase in an applied goals template | goals proposes goals/phase planning, with the user's scope |
+| 11 | a startable task has written criteria and its priority outranks other startable tasks | propose it by title; never silently start it |
+| 12 | a declared open high risk | surface it and propose work risk review |
+| 13 | none of the above has sufficient facts | say no supported next step was found and list the relevant unknowns |
+
+Equal-priority tasks use stable ID order for presentation; the user can choose.
+The task's `blocked_by`/`startable` is authoritative. A review item's existence
+is not a passing verdict, and a passing verdict is not human acceptance. Never
+fabricate a human actor, reviewer freshness or a numerical measurement.
+
+For a phase-close suggestion inspect the complete KR set and the native metric
+and rollup results. Missing children, withdrawn/ambiguous membership, stale
+measurements or missing retrospective evidence prevent claiming closability.
+Do not infer that a retro exists merely because a file has that name. If the
+process template has no metadata for a decision, report the missing fact.
+
+Weekly review age, SLA, WIP, due commitments and architecture-review age are
+unknown unless a native item/event explicitly records the required facts.
+The removed rules table cannot fill these gaps. A lane may offer its named
+procedure on request without claiming that an unknown threshold was crossed.
 
 ## Closing step
 
-This is the one proactive closing procedure (DESIGN-020 UD 3/8). It is an
-agent instruction, not a new recommendation engine or automatic command runner.
+After an approved write, re-query the affected items and relevant relations.
+State what changed, the verification boundary and one supported next action.
+Honor a user's silence preference. A suggestion is never approval to execute.
+For read-only help and narrow queries, answer the request without an extra
+planning question. When a procedure cannot yet be represented by the applied
+template, report the gap instead of recreating a legacy register.
 
-1. **Complete first.** Run once after the outer user-invoked state-changing
-   procedure has completed its writes and reported its result. Skip read-only,
-   dry-run, refused and cancelled paths. Nested helpers return to their caller;
-   they do not ask a second next-step question. Skip **dispatched agent sessions**
-   and **planning in progress**, including a first-init interview or chat draft
-   still awaiting approval: their existing flow owns the next question. Session
-   context supplies these facts; do not parse prose or create a hidden flag.
-2. Read `"$PERRY_HOME/bin/perry-config" show --root . --json`. The existing
-   `settings.proactive_next_steps` is the exact enum `on | off`; absent means
-   `on`. `off` skips this closing block and question, not passive standups or
-   safety gates. An unexpected value or failed read is a configuration error:
-   report it and ask no next-step question; never infer the user's preference.
-3. Run `"$PERRY_HOME/bin/perry-state" --root . --section next --after <subcommand>`
-   using the actual outer subcommand token from the inventory below. Do not
-   alias `status` to `friday-review` to obtain a different recommendation. The
-   existing CLI forbids `--compact` with `--section`; this legal invocation
-   intentionally omits the combination printed in DESIGN-020 §5.4. No CLI or
-   payload contract is changed. If it fails, report the failure, do not guess.
-4. Read the returned `next`. Nonempty `conformance.rule_errors` means report the defect and
-   ask nothing. Otherwise render at most three recommendation lines in chat
-   language: `✓ <what actually finished>. Next: <primary.command> — <primary.reason>`;
-   then each `alternates[]` entry in returned order, with its command and reason.
-   Do not add, substitute, reorder or drop recommendations. Unknown facts are
-   not permission to invent advice. `primary: null` means `✓ <finished>. Nothing
-   is due.` and **no question**; the successful result still stands.
-5. If there is a primary, use the host choice UI: `Run <primary.command> now
-   (Recommended)`, each returned alternate, and `Not now`. If the host has too
-   few choice slots, present the same complete numbered set in chat and wait
-   for the user's explicit selection; no silent truncation or automatic choice.
-   A selection routes the exact returned command through the normal router,
-   preserving its own gates. `Not now`, no response, or dismissal ends here.
-   Do not execute a recommendation merely because it was returned.
-
-### Procedure inventory
-
-Bound: the currently shipped user-facing router/lane procedures and their
-pack extensions, inspected for actual writes (including reports and config).
-Each row is a completion-capable procedure, not a claim that every invocation
-writes. The pointer in that procedure applies only after its write path.
-`setup`/`bootstrap` name successful first-time procedures, not new CLI verbs.
-Nested knowledge promotion, ADR bootstrap/migration and tool writer calls close
-through their outer procedure; they do not mint new skill commands. Multiword
-operations keep their literal first subcommand token for `--after`; options and
-IDs are not recommendation-rule names. Rules may yield no result for a listed
-command: changing the rule table is outside this task.
-
-| Lane | Procedure | Source | After token |
-|---|---|---|---|
-| `router` | `setup` | `SKILL.md` | `setup` |
-| `router` | `relocate` | `SKILL.md` | `relocate` |
-| `router` | `adopt` | `reference/adoption.md` | `adopt` |
-| `router` | `diagnose` | `reference/diagnose.md` | `diagnose` |
-| `goals` | `init` | `goals/reference/setup.md` | `init` |
-| `goals` | `revise` | `goals/reference/setup.md` | `revise` |
-| `goals` | `commit` | `goals/reference/phases.md` | `commit` |
-| `goals` | `plan-phase` | `goals/reference/phases.md` | `plan-phase` |
-| `goals` | `score-phase` | `goals/reference/phases.md` | `score-phase` |
-| `goals` | `snapshot` | `goals/reference/phases.md` | `snapshot` |
-| `goals` | `check` | `goals/reference/phases.md` | `check` |
-| `goals` | `plan-week` | `goals/reference/weekly.md` | `plan-week` |
-| `goals` | `link` | `goals/reference/linkage.md` | `link` |
-| `goals` | `pivot` | `goals/reference/pivots.md` | `pivot` |
-| `decide` | `init` | `decide/SKILL.md` | `init` |
-| `decide` | `new` | `decide/SKILL.md` | `new` |
-| `decide` | `resolve` | `decide/SKILL.md` | `resolve` |
-| `decide` | `lock` | `decide/SKILL.md` | `lock` |
-| `decide` | `revise` | `decide/SKILL.md` | `revise` |
-| `decide` | `supersede` | `decide/SKILL.md` | `supersede` |
-| `decide` | `drop` | `decide/SKILL.md` | `drop` |
-| `decide` | `adr` | `decide/reference/decisions.md` | `adr` |
-| `work` | `bootstrap` | `work/reference/bootstrap.md` | `bootstrap` |
-| `work` | `plan-week` | `work/reference/subcommands.md` | `plan-week` |
-| `work` | `triage` | `work/reference/subcommands.md` | `triage` |
-| `work` | `status` | `work/reference/subcommands.md` | `status` |
-| `work` | `friday-review` | `work/reference/subcommands.md` | `friday-review` |
-| `work` | `monday-plan` | `work/reference/subcommands.md` | `monday-plan` |
-| `work` | `midweek-check` | `work/reference/subcommands.md` | `midweek-check` |
-| `work` | `mid-phase-review` | `work/reference/subcommands.md` | `mid-phase-review` |
-| `work` | `end-phase-retro` | `work/reference/subcommands.md` | `end-phase-retro` |
-| `work` | `risk` | `work/reference/subcommands.md` | `risk` |
-| `work` | `add-task` | `work/reference/subcommands.md` | `add-task` |
-| `work` | `close-task` | `work/reference/task-close.md` | `close-task` |
-| `work` | `drop-task` | `work/reference/task-close.md` | `drop-task` |
-| `work` | `coordinate` | `work/reference/subcommands.md` | `coordinate` |
-| `work` | `handoff` | `work/reference/subcommands.md` | `handoff` |
-| `work` | `rollover` | `work/reference/subcommands.md` | `rollover` |
-| `work` | `delegate` | `work/reference/delegate.md` | `delegate` |
-| `work` | `dispatch` | `work/reference/dispatch.md` | `dispatch` |
-| `work` | `autopilot` | `work/reference/autopilot.md` | `autopilot` |
-| `work` | `digest` | `work/reference/digests.md` | `digest` |
-| `work` | `review` | `work/reference/review.md` | `review` |
-| `work` | `health-check` | `work/reference/health-check.md` | `health-check` |
-| `work` | `architecture init` | `packs/software-ops/architecture.md` | `architecture` |
-| `work` | `architecture review` | `packs/software-ops/architecture.md` | `architecture` |
-| `work` | `architecture-audit` | `packs/software-ops/architecture.md` | `architecture-audit` |
-| `work` | `incident` | `packs/software-ops/incidents.md` | `incident` |
-| `work` | `incident close` | `packs/software-ops/incidents.md` | `incident` |
-| `work` | `incident archive` | `packs/software-ops/incidents.md` | `incident` |
-| `work` | `runbook-check` | `packs/software-ops/runbooks.md` | `runbook-check` |
-
-Read-only exclusions: router/lane standups and help; goals `krs`, `dashboard`;
-decide `status`, `handoff` (reprints only); work `nudge`, `architecture diff`,
-`incident list`. Conditional writes include triage, risk, diagnose/adopt dossier
-work, audit/report writers and config preferences; pure inspection paths skip.
-Alias routes inherit the canonical procedure, but keep the user's actual
-subcommand token. Setting/unsetting silence via the existing config tool is a
-preference change, not an invitation to immediately ask a next-step question.
-When adding a procedure, explicitly classify it here and add its completion
-pointer; the inventory guard checks declared routing, not prose meaning.
+The lane indexes are the finite routing checklist: each indexed command either
+appears in the table's owning-lane procedure or is explicitly invoked by the
+user. Help, status, dashboards and read-only inspection are never autonomous
+writes. New commands require updating their lane index and this checklist in
+the same change; no deterministic recommendation code belongs in the kernel.
