@@ -83,9 +83,10 @@ never import kernel internals to read a live store. All test/rehearsal calls
 name temporary `--store` and explicit `--root` with `PERRY_KERNEL_TESTING=1`.
 The one-shot legacy work importer retires at H; historical receipts remain.
 
-aiMark also calls the native CLI as the external consumer required by
-DESIGN-023 decision 11; it adapts the native response in its own repository.
-The kernel imports no consumer code.
+External viewers, CLIs and automation clients call the same native CLI and
+adapt its responses in their own code. No particular consumer is required to
+install or use the kernel; the kernel imports no consumer code. Historical
+consumer validation in DESIGN-023 decision 11 does not add a runtime dependency.
 
 Allowed directions: skill → kernel → store, where each caller named above
 stands in the skill's place. There are no others.

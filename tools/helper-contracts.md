@@ -19,7 +19,7 @@ These are the integrated helper shapes. Actual cutover/acceptance is recorded se
 | `viewer/parsers.py` role read/extraction | `tools/roles.py` | Narrow role-card reader and additive structured-policy/role escalation union |
 | `bin/lib/__init__.py:register_stamp` | `tools/host_common.py:register_stamp` | UTC `YYYY-MM-DDTHH:MM:SSZ` for architecture receipts |
 
-## Read APIs for aiMark and skill procedures
+## Read APIs for external consumers and skill procedures
 
 Every command below prints one JSON object. Check `contract` before data.
 Every displayed key is always present. Arrays default to `[]`, strings to `""`.
@@ -130,8 +130,8 @@ selection, dispatch cap refusal and an unsafe marker ID. It checks actual
 line/byte counts as well as response versions. It never calls a live native
 store, network, preflight smoke or updater. Retained context-budget and release
 updater tests belong to the replacement harness. These helper tests are source
-verification only; aiMark adapter migration and user acceptance remain outside
-their claim.
+verification only; external consumer migration, installed application behavior
+and user acceptance remain outside their claim.
 
 Declared role cards must contain exactly one nonempty `May touch` and
 `Must escalate` section. Missing, duplicate or misspelled safety sections produce

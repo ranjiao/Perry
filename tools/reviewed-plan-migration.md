@@ -7,11 +7,12 @@ schema. It does not interpret legacy Markdown/JSONL or manufacture measurements.
 
 ## Preparation provenance
 
-Legacy preparation remains at commit
-`1c5ccd851aec14d6d2e524b8237f508b1efde4f0`, in the read-only checkout
-`/Users/bytedance/.codex/worktrees/goals-decide-kernel/Perry`:
+Legacy preparation is retained in Git at commit
+`1c5ccd851aec14d6d2e524b8237f508b1efde4f0`:
 `tools/goals_decide_migrate.py`, `Plan(source).build(native_items).document()`.
-That commit retains its old isolated readers; the checkout path is provenance, not a guarantee that a local worktree remains available. Its corrected `in_review` mapping
+Inspect that immutable revision in a separately allocated read-only checkout
+when its legacy format applies. There is no required maintainer workspace path.
+That commit retains its old isolated readers. Its corrected `in_review` mapping
 and invalid-status refusal have an independent bounded PASS and 18 passing
 source-preparation tests in the upstream handoff. Those are provenance, **not
 results from the current suite**. Do not reinstall or copy its readers into

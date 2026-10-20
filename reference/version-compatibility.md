@@ -24,11 +24,12 @@ current-state counts.
 
 ## Consumers
 
-aiMark must use native probes and its reviewed goals/decide adapters. Knowledge,
+External consumers use the native CLI for discovery and structured state,
+including goals and decisions. No named viewer is a prerequisite. Knowledge,
 role and churn reads use skill-side helpers under `tools/`, whose versioned output
-shapes are documented there. The viewer retirement and actual consumer verification were accepted separately
-in the dated local cutover record. Historical proposal labels remain unchanged;
-source deletion or a helper read does not accept another consumer migration.
+shapes are documented there. Validate the actual consumer build and installation,
+not just its source adapter. Historical acceptance and source deletion do not
+accept another consumer migration.
 
 ## Verification boundary
 

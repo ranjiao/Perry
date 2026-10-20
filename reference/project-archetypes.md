@@ -184,13 +184,11 @@ DECISIONS.md                               ← tier 2, append-only. Settled call
 
 That is it. Three files, no tooling, no cadence.
 
-**Perry itself does not have a `DECISIONS.md` and this floor still names one.**
-That is not a stale reference. DESIGN-013 § 5.1's rule is *a fact with a schema
-lives in exactly one store; a document holds what has no schema* — Perry has
-`decisions/` and a command that reads it, so its index was a second copy and
-TASK-235 deleted it. A project at this floor has no store and no tooling by
-construction, so a document is the only home its decisions can have, and it is
-the right one under the same rule. `templates/scaffolds/software/`,
+**The floor applies to standalone document tracking.** A project whose
+decisions already live in a native store must not add a second decision
+registry. DESIGN-013 § 5.1's rule is *a fact with a schema lives in exactly
+one store; a document holds what has no schema*. A standalone project has
+no structured store, so its document is the home of its decisions. `templates/scaffolds/software/`,
 `templates/scaffolds/ops/` and the standalone diagnosis prescriptions name the
 file for this reason. `STATE.md` carries: current
 goal, in-flight work, blocked-on, decided-this-week, next. If a project cannot

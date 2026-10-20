@@ -1,3 +1,24 @@
+# Perry design history
+
+These are Perry's own dated design and decision records. Original project names,
+consumer examples, measurements, sign-offs and acceptance scopes are retained as
+historical facts. A locked design's historical implementation plan is not a
+first-run procedure for another project.
+
+For current reusable product design, start with:
+
+- [Root architecture](../../ARCHITECTURE.md)
+- [Kernel architecture and contract](../../kernel/ARCHITECTURE.md)
+- [Project-neutral design principles](../../reference/design-principles.md)
+- [Current installation and first use](../../INSTALL.md)
+
+External clients and past migration targets named in a design are examples from
+its development history, not required dependencies, project names, paths or
+acceptance fixtures for a user. The actual project's owner, policy and verified
+sources govern its setup and any migration.
+
+---
+
 # `design/` — the decision documents
 
 > Owner: the `decide` lane (`$PERRY_HOME/decide/SKILL.md`). Written on

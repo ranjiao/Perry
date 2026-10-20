@@ -1,6 +1,6 @@
 # Combined snapshot from native queries
 
-This is the root and lane snapshot procedure for DESIGN-023 phase G. Read
+This is the shared root and lane snapshot procedure. Read
 `reference/recovery.md` first. `reference/kernel.md` explains the envelope;
 `bin/perry describe --json` is the live argument contract. `bin/perry` is the native entry point; no legacy state reader is an alternate
 authority.

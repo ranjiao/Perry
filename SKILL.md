@@ -60,6 +60,10 @@ Each lane's files are the ownership table below; each lane's SKILL.md carries it
 > per-line reconciliation against the former `schema/state-schema.json § files[].owner`
 > — the lane review must check the ownership agreement.
 
+The historical signature records Perry's ownership design; it does not name
+the approver for a user's project. Use that project's actual owner and policy.
+See [project-neutral design](reference/design-principles.md).
+
 **The invariant, unchanged since Perry had three registered skills:**
 
 > **Each lane reads the others' files freely. No lane writes outside its own.**

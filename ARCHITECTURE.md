@@ -1,10 +1,9 @@
 # Architecture — Perry
 
-> Native architecture integrated through DESIGN-023 F/G/H. Local activation and
-> actual named human V5 acceptance are recorded separately under
-> `perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
-> This description does not replace those receipts or authorize another migration.
-> Pre-cutover confirmed text remains in Git at b9be4d39f52ce1266534215b999c9db408b03bc5.
+> Current product architecture. [Project-neutral design principles](reference/design-principles.md)
+> apply to the skill, kernel, examples and consumer interfaces. Historical
+> design and acceptance records explain past changes; they are not project
+> defaults, dependencies or authorization for another project.
 
 ## §1. Mission & scope
 
@@ -94,9 +93,10 @@ native result is an envelope. Unknown arguments/keys refuse; help does not execu
 A refusal never authorizes direct edits to the store, an export or a legacy file.
 
 Host helper contracts are versioned separately in `tools/helper-contracts.md`.
-They replace the retired `schema/*-contract.md` payloads. Actual aiMark native
-consumer reads were verified during cutover. Future migrations still require
-consumer verification; the prior result does not accept an untested change.
+They replace the retired `schema/*-contract.md` payloads. Any external viewer,
+CLI or automation client uses these declared interfaces; the kernel has no
+required consumer product. Each integration verifies its actual installed
+consumer against the native contract, including discovery, reads and refusals.
 
 ## §6. Non-negotiables
 
@@ -115,13 +115,16 @@ consumer verification; the prior result does not accept an untested change.
    lands. Candidate text and fresh static receipts do not supply that decision.
 7. Do not self-merge. A coding-branch green is not independent combined-tree green.
 
-## §7. Cutover record and verification boundaries
+## §7. Verification boundaries
 
-F/G/H source integration, both project activations, aiMark native reads and the
-actual user V5 are complete in the dated cutover record. Its full/slow, replay,
-backup, independent-review and acceptance receipts define the verified scope.
+Perry must be usable without access to its maintainers' projects, local paths,
+private data or an external viewer. Examples use synthetic identities and
+explicit roots; project conventions come from the selected template and actual
+project instructions. Historical acceptance fixtures are evidence of that run,
+not prerequisites for another installation.
+
 The finite retirement ledger retains its original proposal labels for provenance;
-those labels do not supersede the separately recorded actual user decisions.
+those labels do not supersede separately recorded actual user decisions.
 
 Future integrations still require independent combined-tree verification and any
 applicable user approval. Source descriptions and static architecture freshness

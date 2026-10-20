@@ -10,7 +10,7 @@
 - Install: `{{actual dependency setup command, if needed}}`
 - Test: `{{actual test or engine validation command}}` — run this before claiming any work is done
 - Lint / typecheck: `{{actual lint/typecheck command, if available}}`
-- Run locally: `{{npm run dev}}` (port {{3000}})
+- Run locally: `{{actual launch command}}` (port {{actual port, only if applicable}})
 
 ## How work gets done here
 
