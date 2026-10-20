@@ -1,4 +1,4 @@
-"""Bounded release consumer for bin/perry-update-check (stdlib only).
+"""Bounded release consumer for tools/update-check.sh (stdlib only).
 
 Product metadata, not project state. Never falls back from a failed release
 check to main, and never resets a checkout. The shell owns host lookup/flags.

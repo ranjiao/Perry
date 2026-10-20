@@ -1,9 +1,7 @@
 name: tests
 
-# This job already tests the MERGE RESULT: `actions/checkout` resolves
-# `refs/pull/N/merge` on a `pull_request` event, not the branch head. What it
-# cannot see is a base that moves after the run, or a second PR open at the
-# same time — that is `merge-check.yml`, which explains both in full.
+# PR events test their merge result. The separate offline integration workflow
+# retains an exact base/candidate receipt; changed bases need a fresh run.
 
 on:
   push:
@@ -24,8 +22,6 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 release/manage.py check --base "$BASE_SHA" --ref HEAD
-      # No dependencies to install — Perry's scripts and tests are stdlib only,
-      # with no exception since TASK-178 deleted the web viewer (its Flask,
-      # markdown and jinja2 were the only non-stdlib packages Perry ever named).
+      # New native kernel and retained helper acceptance suite; stdlib only.
       - name: Run the suite
-        run: bash tests/run
+        run: env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME -u PERRY_STORE bash tests/run --tier full

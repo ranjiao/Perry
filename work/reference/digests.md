@@ -137,9 +137,7 @@ They differ in **body sections** to match what's worth capturing about each type
 `SRC-<n>` across all of `knowledge/`, never reuse one, and never renumber. A
 finding written a year ago that cites `[SRC-n]` has to still resolve to the same
 source — that is the whole point of a stable id, and it is why the number is not
-derived from position, topic or filename, all of which move. `perry-lint
---provenance` checks that every cited id resolves and that every digest carries
-an origin and a date.
+derived from position, topic or filename, all of which move. Before a write, the skill checks every cited source ID against the complete digest set and opens its source; each digest needs an actual origin and date. An unresolved or duplicate ID stops publication. Use the project's single writer and recheck uniqueness immediately before committing; no native task ID counter is reused for document citations.
 
 ## TL;DR (≤ 3 sentences)
 <one paragraph>
@@ -227,25 +225,16 @@ PMO maintains this file automatically. Updated on every `/pmo digest`, archive o
 
 ## Standup integration
 
-The standup ritual (in `SKILL.md § Mandatory first move`) gains:
+After startup gates, list the exact input directory and read the knowledge index
+or retained `tools/knowledge.py` output. Show measured undigested files, oldest
+name/date and knowledge counts only when the source actually supplies them.
+Unknown/unreadable sources remain unknown. Do not parse an old dashboard payload
+or claim the retired deterministic next-rule evaluator has run.
 
-- A scan of `inputs/` for undigested files. Count + name of oldest. If ≥ 1, surface it in the dashboard line below. The next-step position is the next block's, and since TASK-484 it carries a rule for this state — see under that line.
-- A scan of `knowledge/INDEX.md` for active + eternal + stale + archived counts.
-
-Dashboard line:
-
-```
-📥 Inputs    : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest
-📚 Knowledge : <active> active · <eternal> eternal · <stale> stale · <archived> archived
-```
-
-When `inputs/` count > 0: the dashboard line above says so, **and the next-step position carries a recommendation too**. `R-inputs-waiting` (`reference/next-rules.json`, TASK-484, `DESIGN-020 § 5.10`) fires on `operations.inputs > 0` and offers `/perry work digest <oldest>`, naming the file by the name it has under `inputs/` — which is exactly what `digest <path>` takes. The lane does not decide that and must not drop it: it renders what `perry-state --section next` returns, in the order returned (`ARCHITECTURE.md` §2). The facts are `operations.inputs` and `operations.first_input`, derived from the `operations.inputs` / `operations.inputs_oldest` this same scan produces.
-
-This paragraph used to say the opposite — that the suggestion stayed on the dashboard line because the rule table named no rule for the state. That was true while `TASK-442`'s bound held and stopped being true when TASK-484 shipped the rule; an architecture review caught the two disagreeing.
-
-When stale ≥ 3: the knowledge line above says so, and `end-phase-retro` or `mid-phase-review` triages the archive candidates when one runs. Unlike the inputs count above, this one does **not** reach the next-step position. Here the payload carries no count to key a rule on — `operations.knowledge_index` is the index file's header line, and the only staleness `perry-state` computes is per role card, under `roles.cards[].knowledge[]` — and `DESIGN-020 § 5.3`'s rule table is what `TASK-442` was bounded to, and it names no rule for this state (`ARCHITECTURE.md` §7).
-
-**Digests are NOT loaded into standup context** (per Q4). Only existence + counts. PMO Reads specific digests when the user's question or task makes them relevant.
+The skill may recommend digesting the oldest relevant input or reviewing stale
+knowledge under `reference/next.md`; cite the observed source and reason. Load
+individual digests only when the user's question or selected task needs them.
+A suggestion is not authorization to archive or rewrite a source.
 
 ## Archive lifecycle
 

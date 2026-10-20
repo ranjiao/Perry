@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "kind": "kernel-revision-user-decision",
+  "received_date": "2026-10-20",
+  "revision_commit": "32bcf99c0832676c7c5ae125621cf88107c70dec",
+  "revision_parent": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+  "proposal_sha256": "d5fc453574b19c55b0e0e1181b17b593ca7d2e05ae6407b23e06aaa4d4639b84",
+  "question_item_id": "[\"request_user_input_async\",\"call_c128f9c6a69b4f0c856da491d90876ae\",0]",
+  "question": "是否批准这个已验证的内核修订：给现有 template apply 增加可选 ceilings 参数，只允许提高编号下限，以保留缺号后的原 DESIGN/ADR 编号？概念、命令组和守卫种类均不增加；内核完整检查与独立复核已通过，live store 尚未改变。",
+  "actual_user_answer": "批准修订并继续切换（推荐）",
+  "scope": "Optional monotonic template apply.ceilings; surface1.1; same8concepts12groups4guards. Does not accept H drops, V5, publication or unrelated changes.",
+  "recorded_by": "implementing agent; this file records the actual user reply, not an independently authenticated human signature"
+}

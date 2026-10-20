@@ -2,7 +2,7 @@
 
 Loaded through `goals/SKILL.md` for first OKR, revision, phase and commitments.
 The deliverable is a useful draft for review. A first-OKR draft is persisted
-and resumed through `planning.md`; no finalize writer exists yet. Keep `reference/input-quality.md` as the
+and resumed through `planning.md`; native approval and activation follow the owning procedure. Keep `reference/input-quality.md` as the
 unchanged quality authority. `phases.md` maps phase sections to this same bank;
 the week procedure remains at its own entrance.
 
@@ -50,7 +50,7 @@ KRs. Show arrival rate/source (or unknown), SLA/date, beneficiary and what resol
 means. Reuse declared SLA as existing policy, never as consent to a new promise.
 Unsupported `To whom` or `Due` stays unknown and prevents a write. Once the user
 explicitly approves the exact supported create/amend operation, follow
-`goals/reference/phases.md § commit <promise>` through `bin/perry-goals commit`.
+`goals/reference/phases.md § commit <promise>` through native objective items.
 An explicit complete `commit` instruction can already supply that approval;
 an interview answer or draft edit cannot. Extra operational context is not a new
 writer field. Never invent an arrival-rate field or manually edit the register.
@@ -289,11 +289,10 @@ from “change a section” or “I'll edit it.” A section edit changes only t
 section and affected dependencies; it is not approval. “I'll edit it” ends the
 turn. With a supported draft file, show its real path and re-read it on return;
 without that implementation, offer chat edits and disclose that no resumable
-file was saved. Do not create `plans/` by hand. Only offer a write operation
-when its owning writer exists; otherwise name the missing finalize path and
-stop with a reviewable draft, even if the user says “approved.” Approval never
-manufactures a writer. The explicit commitment writer remains available for
-supported, explicitly authorized terms, subject to its refusals.
+file was saved. Goals may author its narrative under `plans/` and attach it to a native draft
+item. Structured state is written through the kernel only. Follow planning.md
+for reviewed-byte approval and the owning setup/phase procedure for activation;
+never treat interview completion as permission to activate.
 
 Run `$PERRY_HOME/reference/input-quality-rubrics.md § 2` for a phase, otherwise § 1,
 once against this actual draft
@@ -307,9 +306,7 @@ journal receipt or silently rewrite their answers. If clean, say so briefly.
 
 This bank stops at that draft and quality feedback. For the first-OKR route
 the draft lives in `plans/` and is saved, reviewed, approved and resumed only
-through `planning.md`; the other routes keep a chat draft. Nothing here writes
-canonical goal stores, finalizes, or automatically starts a phase; do not
-substitute manual store writes for missing tooling. The explicit commitment operation described under
-**Route and reuse** retains its existing writer; it does not supply overall
-planning finalization. No end-to-end interview quality gate is claimed here;
+through `planning.md`; other routes use their owned draft attachment. Nothing here writes
+native goal state or automatically starts a phase. Route approved operations
+to the owning native procedure; never append legacy JSONL or journal records. No end-to-end interview quality gate is claimed here;
 that requires the independent transcript review, beyond mechanical pointer checks.

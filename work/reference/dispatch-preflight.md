@@ -41,17 +41,21 @@ is not.
 
    **This is not "read the list and eyeball it".** Work the five steps below in order, and write the answer down where the user can see it. A gate whose reasoning is not written is not reviewable.
 
-   ### 4.1 — Get the list, and check it is armed
+   ### 4.1 — Read the structured policy and additive role rules
 
-   Read `.perry/hook.md § High-stakes operations` **in full — the bullets and the prose around them**, not just the backticked spans. Then read `## Must escalate` in every `.perry/roles/*.md`.
+   Read `.perry/safety.json` through the root procedure
+   (`reference/safety-policy.md`). Also read the whole human hook and every
+   selected role's `Must escalate` section. Roles only add boundaries; they
+   cannot remove a project rule. A missing, invalid, empty or unreviewed policy
+   stops automated dispatch; autopilot refuses outright. Do not infer a machine
+   list from backticked hook prose or treat a missing list as permission.
 
-   **The list is the union of the two, and a role only ever ADDS** (`DESIGN-006 § 5.2`, goal 6). A role that could subtract would let hiring one quietly narrow what the project refuses to do unsupervised, and nothing would show it — a narrowed gate passes everything it is asked, cheerfully. With no roles declared the union is the hook's list unchanged.
-
-   `"$PERRY_HOME/bin/perry-state" --section project` still prints both halves and their union under `project.escalation` (`project`, `roles`, `union`, `origins`, `armed`) — it *extracts a declared list*, which is a bounded value space and stays in Python. It does not read the spec and it renders no verdict. Use it to show the user the list; the reading of the spec is yours.
-
-   **If both halves are empty or absent** (`escalation.armed: false`), nothing is being screened. Do not treat that as a pass. Say so in one line — *"no high-stakes list in `.perry/hook.md`, so nothing is being screened; `/pmo` bootstrap writes the default list"* — and require an explicit go-ahead in chat before dispatching. `AskUserQuestion` is not sufficient here; this is a safety gate, per `SKILL.md § User-prompt convention`. (`/pmo autopilot` refuses outright in the same situation — `autopilot.md` pre-flight step 0.)
-
-   **Bullets that arm nothing.** `perry-lint` reports a hook bullet carrying no extractable backticked span. When you read the section yourself that distinction stops mattering for *your* judgement — you can read an unbackticked sentence — but it still matters for what you tell the user, because `escalation.armed` and the delegation prompt are computed from the spans. Read the prose; report the gap.
+   Prepare the scoped packet and run `tools/document_checks.py dispatch` per
+   `reference/operating-rules.md`. Its output pins the policy path/hash and gives
+   literal matches. You still judge actual operations against the user's
+   existing authority, written criteria and ownership. Read-only screening
+   cannot grant approval. If a specific action is already authorized, record
+   that reference and continue without asking again.
 
    ### 4.2 — Get what the round does
 
@@ -61,7 +65,7 @@ is not.
    - `Deliverable` is prose describing the outcome.
    - `Out of scope` is what the spec has stated in writing that it does not do.
 
-   **If neither `Files in scope` nor `Deliverable` is present and non-empty, you have nothing to judge from.** Do not read that as clean. Say so — *"this spec offers neither `## Files in scope` nor `## Deliverable`, so there is nothing here to screen; `add-task.md § add-task` step 3 has the `## ` shape"* — and require an explicit go-ahead in chat, exactly as for an unarmed hook. 45 of Perry's own 149 specs are in that state, so this is common and is not by itself a reason to refuse the row; it is a reason not to claim you screened it. `perry-lint --root .` reports the condition across every spec at once, before any single dispatch reaches this step.
+   **If neither `Files in scope` nor `Deliverable` is present and non-empty, you have nothing to judge from.** Do not read that as clean. Say so — *"this spec offers neither `## Files in scope` nor `## Deliverable`, so there is nothing here to screen; `add-task.md § add-task` step 3 has the `## ` shape"* — and require an explicit go-ahead in chat, exactly as for an unarmed hook. 45 of Perry's own 149 specs are in that state, so this is common and is not by itself a reason to refuse the row; it is a reason not to claim you screened it. The skill reports the missing criterion against the selected spec; no retired linter supplies a pass.
 
    ### 4.3 — Decide ownership of every path, BEFORE you tidy any text
 
@@ -150,4 +154,4 @@ is not.
     - For soft non-negotiables → single `AskUserQuestion` (header = `Architecture`, multiSelect) listing each soft NN as an option with description = the rule text. Selection = acknowledgement.
     - `Touches architecture: (none)` → no friction at this stage, but integration still evaluates the diff triggers (`dispatch.md § Architecture review`).
 5b. **Deployed-task pre-check**: if spec has `Deployed: yes`, verify the spec contains a non-empty `## Observability` section (Success signal / Failure diagnosis / Runbook path). If missing → refuse and ask user to fix the spec first. The runbook file itself is not required to exist yet at dispatch time (often the dispatched task creates it) — only the observability spec field is mandatory.
-6. **Concurrency check**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, use the host-native choice UI: `Wait — show in-flight (Recommended) | Switch to another host-valid executor | Fall back to /perry work delegate`. Defaults are 2 per automated executor and 3 total; overrides are `PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT`, and `PERRY_MAX_DISPATCH_TOTAL`. On Codex the cap is advisory across separate sessions.
+6. **Concurrency check**: `bash "$PERRY_HOME/tools/dispatch_limit.sh" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, use the host-native choice UI: `Wait — show in-flight (Recommended) | Switch to another host-valid executor | Fall back to /perry work delegate`. Defaults are 2 per automated executor and 3 total; overrides are `PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT`, and `PERRY_MAX_DISPATCH_TOTAL`. On Codex the cap is advisory across separate sessions.

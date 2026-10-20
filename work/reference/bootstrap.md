@@ -7,15 +7,9 @@ documents, never the goals/decide files.
 
 ## Procedure
 
-0. If the root config is absent, run the root first-run questions and write their
-   approved answers through the existing configuration tool before kernel setup:
-
-   ```bash
-   "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
-   "$PERRY_HOME/bin/perry-config" set --root . "Chat language" "follow user"
-   "$PERRY_HOME/bin/perry-config" set --root . "Repo layout" "<single or split>"
-   "$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
-   ```
+0. Follow the root first-run collision, preference and high-stakes procedure.
+   Record new preferences as ordinary prose through the root owner; existing
+   configuration JSONL remains frozen metadata. Do not invent a config writer.
 
 1. Inspect the project hook and obtain its high-stakes boundary agreement.
 
@@ -24,7 +18,7 @@ documents, never the goals/decide files.
    - **not** `decisions/` or `design/`; only decide creates those.
 
 3. Run kernel `init` with the agreed state_root and actual actor, then apply the parsed
-shipped process template. Read `template show` and query its three types to verify
+shipped process template. Read `template show` and query the types this lane owns to verify
 the result. A missing store on an existing project is a migration condition, not
 permission to initialize over history. Never restore work state by hand-editing
 exports or copying a database that is bound to a rehearsal anchor.

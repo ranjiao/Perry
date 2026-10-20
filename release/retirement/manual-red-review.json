@@ -1,0 +1,1773 @@
+{
+  "version": 1,
+  "base": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+  "source_inventory_sha256": "1bdbf17a874964b6803cf9564516ca9601d7c4f54123f0a2e1bc20e9180129a3",
+  "selected_rule": "Rows whose disposition demonstration began PENDING at review input; this artifact does not mutate the root manifest.",
+  "method": "Implementing-agent manual author review of concrete literal synthetic fixtures, against the cited current explicit procedures. No executable checks, native calls, network, live project reads/writes, reviewer independence, or human acceptance are claimed.",
+  "reviewer": "TASK-494 source implementation subagent /root/references; not independent from the implementation",
+  "scope_limit": "MANUAL_DEMONSTRATED means this concrete negative fixture was read and the recorded defect identified by the current procedure. It is not legacy algorithm parity, a passing implementation, exhaustive corpus coverage, V4, activation, or V5. Historical H demonstrations; altered current procedures require current evidence. R0090 architecture-cap mismatch withdrawn; original bytes retained in historical-manual-red-review-H.json.",
+  "procedure_sources": [
+    {
+      "path": "modes/project.md",
+      "sha256": "e90f4649dee148187122830147a07c6f0e720a592923b6fd950b359466ac953f"
+    },
+    {
+      "path": "modes/queue.md",
+      "sha256": "2b97c9a43369adfe0bb91979a1f381b8f4df87503762744118964a820fc0a2f6"
+    },
+    {
+      "path": "packs/software-ops/architecture.md",
+      "sha256": "33aa1e7ae32879bd7a8272198c6bea8353bca92f61e850ed96d1b86dbc9d1b78"
+    },
+    {
+      "path": "reference/adoption.md",
+      "sha256": "6a52b68328bfdacdc5f89930e8979b6ccf912a2259defe8a7b635efb28ab098c"
+    },
+    {
+      "path": "reference/diagnose-explanations.md",
+      "sha256": "f63dc9db623a2dbfa7eee1148c795b1221c2164865cf2fcae63a02b3ea92a163"
+    },
+    {
+      "path": "reference/diagnose.md",
+      "sha256": "3f3529b35cbfaf4a76f5ef19d4a1fa698bc79f525edaf3f2c2523c2b2c08bd76"
+    },
+    {
+      "path": "reference/glossary.md",
+      "sha256": "1e04f3b8bd8dd41a2f12d620dda446a857bade3637e14810f0acb3e90d9f1ab3"
+    },
+    {
+      "path": "reference/input-quality.md",
+      "sha256": "182309b98d7e15e9d072b41995a2d49f8884c9b9f7e07c4bbb1873476a520d80"
+    },
+    {
+      "path": "reference/okr-linkage.md",
+      "sha256": "6f6849930aedb03e766861b818bf4044fbf889698f6e26b8f12c47c3f7c5a636"
+    },
+    {
+      "path": "reference/operating-rules.md",
+      "sha256": "c14d5dc236ec809d6bff96a78d6296ec7a701a0351407e5cd26f8af45945d008"
+    },
+    {
+      "path": "reference/user-load.md",
+      "sha256": "b76d0f1e6f33d4b75463dab3bad0e21067bac521e1953bc6f93b74e75d13aff8"
+    },
+    {
+      "path": "work/reference/git-boundaries.md",
+      "sha256": "6fd50a32e6e54ca67e52f83c841a8c30bad1c31fb5fe0a9073812b255103f201"
+    },
+    {
+      "path": "work/reference/review.md",
+      "sha256": "97d01826efd952816a9fa8c7d539c309ad584a185421847612f9d6113989c8f1"
+    }
+  ],
+  "summary": {
+    "selected_rows": 80,
+    "manual_demonstrated_rows": 22,
+    "pending_rows": 58,
+    "distinct_concrete_fixtures": 25,
+    "demonstrated_fixture_cases": 21,
+    "partial_representative_cases": 4
+  },
+  "cases": [
+    {
+      "case_id": "architecture-cap",
+      "rows": [
+        "R0060"
+      ],
+      "fixture": {
+        "ARCHITECTURE.md": "# Architecture fixture\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\nReference detail.\n",
+        "construction_note": "Literal fixture above contains one heading line plus 500 identical detail lines: 501 lines. This construction is fixture generation, not an executed checker."
+      },
+      "procedure": [
+        "packs/software-ops/architecture.md"
+      ],
+      "manual_steps": [
+        "Read the explicit 500-line architecture cap.",
+        "Inspect the actual stored fixture and its construction: 1 + 500 = 501.",
+        "Compare 501 against 500 without drawing any conclusion about semantic quality."
+      ],
+      "observed_finding": "The fixture exceeds the retained architecture cap by one line. The draft cannot be published as-is under that procedure.",
+      "proposed_repair": "Propose moving detail into linked sections or trimming with the owner; retain recorded information and require an actual reason for an authorized override.",
+      "limits": "Only the retained architecture 500-line cap is demonstrated. No old intake-special remedy, other tier cap, scanner line-count convention, or semantic compliance is established.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "missing-architecture-section",
+      "rows": [
+        "R0061"
+      ],
+      "fixture": {
+        "ARCHITECTURE.md": "# Architecture fixture\n> Owner: user\n> Version: v1\n> Last reviewed: 2026-10-19\n> Status: active\n\n## §1. Mission & scope\nLocal batch processing.\n## §2. Components\nWorker.\n## §3. Boundaries & dependencies\nNo network.\n## §4. Data flow\nInput to local result.\n## §5. Contracts\nJSON input.\n## §7. Open questions\nNone.\n## §8. Change log\nInitial.\n"
+      },
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Read all section labels in the literal document.",
+        "Compare them with required sections §1 through §8."
+      ],
+      "observed_finding": "§6 Non-negotiables is absent; active status does not repair the missing governing section.",
+      "proposed_repair": "Report the exact missing section to its owner and stop consuming the architecture as complete.",
+      "limits": "The fixture demonstrates one required section; it does not prove every legacy heading alias or template is covered.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "missing-header",
+      "rows": [
+        "R0062"
+      ],
+      "fixture": {
+        "ARCHITECTURE.md": "# Architecture fixture\n> Owner: user\n> Last reviewed: 2026-10-19\n> Status: active\n"
+      },
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Compare the literal header fields with the documented Owner/Version/Last reviewed/Status header."
+      ],
+      "observed_finding": "The required Version header is missing.",
+      "proposed_repair": "Request the actual document version from its owner before presenting this as a complete target.",
+      "limits": "One canonical English header is checked manually; former schema-wide header requirements are not implied.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "bad-header-date",
+      "rows": [
+        "R0064"
+      ],
+      "fixture": {
+        "ARCHITECTURE.md": "# Architecture fixture\n> Owner: user\n> Version: v1\n> Last reviewed: yesterday\n> Status: active\n"
+      },
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Read the required YYYY-MM-DD example.",
+        "Read the literal value yesterday, which has no fixed calendar date."
+      ],
+      "observed_finding": "Last reviewed is not the required ISO day and cannot pin a review date independently of the reader date.",
+      "proposed_repair": "Obtain and record the actual review day; never substitute the current day without a review.",
+      "limits": "This evaluates the concrete date field, not every pattern formerly supplied by the retired schema.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "dangling-task-citation",
+      "rows": [
+        "R0079",
+        "R0198"
+      ],
+      "fixture": {
+        "query-fixture.json": {
+          "fixture_only": true,
+          "total": 1,
+          "truncated": false,
+          "items": [
+            {
+              "id": "<task-A>",
+              "title": "Verified local export"
+            }
+          ]
+        },
+        "phase-note.md": "KR <kr-A> is supported by completed task <task-missing>.\n",
+        "file-inventory": [
+          "phase-note.md"
+        ],
+        "identity-declarations": [
+          "<task-A>",
+          "<kr-A>"
+        ]
+      },
+      "procedure": [
+        "reference/okr-linkage.md",
+        "reference/operating-rules.md",
+        "reference/user-load.md"
+      ],
+      "manual_steps": [
+        "Read the complete supplied identity set and nontruncated task snapshot.",
+        "Compare the cited <task-missing> with <task-A>; no matching identity/document exists in the bounded fixture."
+      ],
+      "observed_finding": "The task supporting the KR note does not resolve. The note cannot establish linked completion or evidence.",
+      "proposed_repair": "Ask for the exact existing task/source, correct a confirmed typo, or remove the unsupported reference through its owner; do not create an invented task or edge.",
+      "limits": "Supplied snapshots are synthetic fixture data, not native calls. The former linked-task denominator algorithm and native dangling-edge rejection are not exercised.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "summary-blank",
+      "rows": [
+        "R0092"
+      ],
+      "fixture": {
+        "task-proposal.json": {
+          "title": "Fix export recovery",
+          "summary": "",
+          "deliverable": "A failing recovery test and a fix",
+          "verification": "V3"
+        }
+      },
+      "procedure": [
+        "reference/input-quality.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Read the task proposal as a reader without conversation context.",
+        "Apply rubric 4.6: summary must explain why the task exists and what is true when done."
+      ],
+      "observed_finding": "The summary is blank and conveys neither the problem nor the completion condition.",
+      "proposed_repair": "Ask for a real problem/result summary before creation, rather than filling a placeholder or treating a kernel mutation as proof.",
+      "limits": "A proposal-only semantic demonstration; no native required-field guard was called and no task was created.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "summary-repeats-title",
+      "rows": [
+        "R0093"
+      ],
+      "fixture": {
+        "task-proposal.json": {
+          "title": "Fix export recovery",
+          "summary": "Fix export recovery",
+          "verification": "V3"
+        }
+      },
+      "procedure": [
+        "reference/input-quality.md"
+      ],
+      "manual_steps": [
+        "Read title and summary literally; they are identical.",
+        "Apply rubric 4.6, whose bad example includes repeating the title."
+      ],
+      "observed_finding": "The summary repeats shorthand without stating the defect, affected behavior or completion condition.",
+      "proposed_repair": "Propose a specific problem/result sentence and obtain the author wording; preserve the rubric override rule and other hard gates.",
+      "limits": "The current quality pass is advisory with recorded override. This is a detected issue, not restoration of the former regex hard refusal.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "glossary-broken-implementation-link",
+      "rows": [
+        "R0099"
+      ],
+      "fixture": {
+        "glossary.md": "### verifier\nImplemented: tools/missing_verifier.py\n",
+        "complete-file-inventory": [
+          "glossary.md",
+          "tools/actual_verifier.py"
+        ],
+        "tools/actual_verifier.py": "# Separate existing implementation; no claim that this is the intended target.\n"
+      },
+      "procedure": [
+        "reference/operating-rules.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "manual_steps": [
+        "Read the glossary target.",
+        "Compare it with the complete supplied file set: tools/missing_verifier.py is absent."
+      ],
+      "observed_finding": "The implementation pointer cannot resolve; the glossary presents an unverifiable implementation claim.",
+      "proposed_repair": "Ask the owner to identify the actual implementation or mark the concept as prose where justified; do not redirect to a similar name by guessing.",
+      "limits": "Only a concrete missing link is checked; the old requirement that every glossary entry declare an implementation is not restored.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "mode-reconsideration",
+      "rows": [
+        "R0179"
+      ],
+      "fixture": {
+        "project-preference.md": "Declared work mode: queue.\n",
+        "task-set.md": "The sole task is to ship one bounded local parser; no incoming service requests or recurring obligations are declared.\n",
+        "user-requirement.md": "Use a finite milestone with a completion criterion. No service promise is intended.\n"
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "modes/project.md",
+        "modes/queue.md"
+      ],
+      "manual_steps": [
+        "Read the declared mode and actual bounded task/user requirements.",
+        "Compare project delivery with queue service expectations without running a classifier."
+      ],
+      "observed_finding": "Queue guidance has no declared service obligation to govern, while the actual requirement is a finite project delivery; the mode label needs owner review.",
+      "proposed_repair": "Show the mismatch and propose project guidance; the owner decides rather than the agent silently changing the preference.",
+      "limits": "Semantic reconsideration only; the old statistical classifier, clear-margin threshold and emitted MODE-01 payload are not reproduced.",
+      "coverage_status": "PARTIAL_REPRESENTATIVE"
+    },
+    {
+      "case_id": "rules-absent",
+      "rows": [
+        "R0181"
+      ],
+      "fixture": {
+        "complete-file-inventory": [
+          "main.py",
+          "README.md"
+        ],
+        "main.py": "print(\"local report\")\n",
+        "README.md": "# Local report\nA small local application.\n",
+        "host-instruction-inventory": []
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md"
+      ],
+      "manual_steps": [
+        "Read the finite file and host-instruction inventory.",
+        "Neither AGENTS/CLAUDE nor another declared always-loaded project rule source exists."
+      ],
+      "observed_finding": "No supplied artifact tells an agent the project-specific rules or checks; this is a visible context gap, not evidence that generic conventions suffice.",
+      "proposed_repair": "Ask which minimal project-specific rules matter and propose one discoverable instruction entry point within the maintenance tolerance.",
+      "limits": "Absence is bounded to the explicit fixture inventory; no actual filesystem scan or recommendation to create symlinks was executed.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "rules-empty",
+      "rows": [
+        "R0182"
+      ],
+      "fixture": {
+        "complete-file-inventory": [
+          "AGENTS.md",
+          "main.py"
+        ],
+        "AGENTS.md": "",
+        "main.py": "print(\"local report\")\n",
+        "host-instruction-inventory": [
+          "AGENTS.md"
+        ]
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md"
+      ],
+      "manual_steps": [
+        "Read the selected instruction artifact, which contains zero bytes.",
+        "Check whether it can communicate any project rule."
+      ],
+      "observed_finding": "The declared rules source is empty and provides no usable instruction.",
+      "proposed_repair": "Ask for the handful of rules that change behavior, or propose retiring the empty placeholder with actual authority.",
+      "limits": "This checks literal empty content only; no old line-budget rule or host discovery behavior is inferred.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "duplicate-rules-disagree",
+      "rows": [
+        "R0184"
+      ],
+      "fixture": {
+        "file-metadata": {
+          "AGENTS.md": "regular file",
+          "CLAUDE.md": "regular file"
+        },
+        "AGENTS.md": "Run python3 -m unittest before reporting completion.\n",
+        "CLAUDE.md": "Do not run tests; report completion after editing.\n"
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Read both independently maintained rule sources and their file metadata.",
+        "Compare their test instructions."
+      ],
+      "observed_finding": "Two regular instruction files disagree on a completion gate; different hosts can receive incompatible rules.",
+      "proposed_repair": "Resolve the governing instruction with the owner and consolidate references without overwriting either file or waiving tests.",
+      "limits": "The procedure observes a real contradiction in this fixture. It does not mandate that every pair of distinct compatible instruction files be merged.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "instruction-broken-path",
+      "rows": [
+        "R0185"
+      ],
+      "fixture": {
+        "AGENTS.md": "Read docs/build-guide.md before changing the parser.\n",
+        "complete-file-inventory": [
+          "AGENTS.md",
+          "docs/overview.md"
+        ],
+        "docs/overview.md": "# Overview\nThis is not a build guide.\n"
+      },
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Read the exact path in the instruction.",
+        "Compare against the complete fixture file list and inspect the only available document."
+      ],
+      "observed_finding": "The mandatory build-guide pointer is absent; docs/overview.md cannot be substituted merely because it is nearby.",
+      "proposed_repair": "Ask for the real guide or have the instruction owner correct/retire the stale sentence with a cited reason.",
+      "limits": "No actual path was opened outside the fixture and no broad broken-link scanner parity is claimed.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "documents-no-index",
+      "rows": [
+        "R0186"
+      ],
+      "fixture": {
+        "file-inventory": [
+          "docs/1.md",
+          "docs/2.md",
+          "docs/3.md",
+          "docs/4.md",
+          "docs/5.md",
+          "docs/6.md",
+          "docs/7.md",
+          "docs/8.md",
+          "docs/9.md",
+          "docs/10.md",
+          "docs/11.md",
+          "docs/12.md"
+        ],
+        "document-bodies": {
+          "docs/1.md": "# Note 1\nSpecific procedure 1.\n",
+          "docs/2.md": "# Note 2\nSpecific procedure 2.\n",
+          "docs/3.md": "# Note 3\nSpecific procedure 3.\n",
+          "docs/4.md": "# Note 4\nSpecific procedure 4.\n",
+          "docs/5.md": "# Note 5\nSpecific procedure 5.\n",
+          "docs/6.md": "# Note 6\nSpecific procedure 6.\n",
+          "docs/7.md": "# Note 7\nSpecific procedure 7.\n",
+          "docs/8.md": "# Note 8\nSpecific procedure 8.\n",
+          "docs/9.md": "# Note 9\nSpecific procedure 9.\n",
+          "docs/10.md": "# Note 10\nSpecific procedure 10.\n",
+          "docs/11.md": "# Note 11\nSpecific procedure 11.\n",
+          "docs/12.md": "# Note 12\nSpecific procedure 12.\n"
+        },
+        "host-instructions": "Read whichever note seems relevant.\n"
+      },
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "manual_steps": [
+        "Read the twelve distinct note entries and the instruction selecting none of them.",
+        "Check whether any index/title map points the next reader to the needed procedure."
+      ],
+      "observed_finding": "Twelve procedure files have no discoverable index or mapping from question to document, so a reader has to inspect all candidates.",
+      "proposed_repair": "Propose a concise index that states which question each existing document answers, then link it from the instruction entry point.",
+      "limits": "This is the explicit twelve-document fixture; no universal twelve-document threshold or output contract is restored.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "unreachable-current-docs",
+      "rows": [
+        "R0187"
+      ],
+      "fixture": {
+        "file-inventory": [
+          "README.md",
+          "docs/1.md",
+          "docs/2.md",
+          "docs/3.md",
+          "docs/4.md",
+          "docs/5.md",
+          "docs/6.md",
+          "docs/7.md",
+          "docs/8.md",
+          "docs/9.md",
+          "docs/10.md",
+          "docs/11.md",
+          "docs/12.md"
+        ],
+        "README.md": "Current procedures: docs/1.md, docs/2.md, docs/3.md, docs/4.md, docs/5.md, docs/6.md, docs/7.md.\n",
+        "document-bodies": {
+          "docs/1.md": "# Current procedure 1\nThis is active and contains no outgoing links.\n",
+          "docs/2.md": "# Current procedure 2\nThis is active and contains no outgoing links.\n",
+          "docs/3.md": "# Current procedure 3\nThis is active and contains no outgoing links.\n",
+          "docs/4.md": "# Current procedure 4\nThis is active and contains no outgoing links.\n",
+          "docs/5.md": "# Current procedure 5\nThis is active and contains no outgoing links.\n",
+          "docs/6.md": "# Current procedure 6\nThis is active and contains no outgoing links.\n",
+          "docs/7.md": "# Current procedure 7\nThis is active and contains no outgoing links.\n",
+          "docs/8.md": "# Current procedure 8\nThis is active and contains no outgoing links.\n",
+          "docs/9.md": "# Current procedure 9\nThis is active and contains no outgoing links.\n",
+          "docs/10.md": "# Current procedure 10\nThis is active and contains no outgoing links.\n",
+          "docs/11.md": "# Current procedure 11\nThis is active and contains no outgoing links.\n",
+          "docs/12.md": "# Current procedure 12\nThis is active and contains no outgoing links.\n"
+        },
+        "archive-declarations": []
+      },
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "manual_steps": [
+        "Follow all seven README references in the finite thirteen-document graph.",
+        "Check documents 8 through 12: each says active, has no inbound link, and has no declared archive role.",
+        "Compute the bounded fraction: five of thirteen are unreachable, about 38 percent."
+      ],
+      "observed_finding": "Five explicitly current procedures are undiscoverable from the documented entry point; calling them archives would contradict their actual content.",
+      "proposed_repair": "Ask owners whether each should be linked or retired; preserve content until that decision is made.",
+      "limits": "The graph is supplied synthetic fixture data. No actual repository reachability algorithm or automatic deletion is exercised.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "duplicate-doc-titles",
+      "rows": [
+        "R0188"
+      ],
+      "fixture": {
+        "docs/a.md": "# Release procedure\nRequire an independent merged-state receipt.\n",
+        "docs/b.md": "# Release procedure\nPublish from any branch after one focused test.\n",
+        "index.md": "Release procedure: docs/a.md and docs/b.md.\n"
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/operating-rules.md"
+      ],
+      "manual_steps": [
+        "Read both titles and the indexed entries.",
+        "Compare their materially different publication conditions."
+      ],
+      "observed_finding": "The same title resolves to conflicting release rules; the reader cannot identify the governing source from the index.",
+      "proposed_repair": "Resolve authority before consolidating either procedure; preserve the independent integration requirement until its actual policy owner changes it.",
+      "limits": "This demonstrates duplicate-title ambiguity with a concrete contradiction, not automatic merging of all duplicate headings.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "parallel-without-isolation",
+      "rows": [
+        "R0190"
+      ],
+      "fixture": {
+        "session-records": [
+          {
+            "session": "alpha",
+            "write-target": "src/parser.py"
+          },
+          {
+            "session": "beta",
+            "write-target": "src/parser.py"
+          }
+        ],
+        "AGENTS.md": "Both sessions work concurrently in the same checkout. No file ownership is assigned.\n"
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "work/reference/git-boundaries.md"
+      ],
+      "manual_steps": [
+        "Read both concurrent assignments and their identical target.",
+        "Read the explicit absence of isolation and ownership in the fixture rules."
+      ],
+      "observed_finding": "Both sessions can overwrite the same file without isolation or an ownership agreement; the assignments violate the retained dispatched-worktree rule.",
+      "proposed_repair": "Pause overlapping edits, agree ownership and use isolated worktrees for dispatched implementation. Preserve each existing change before reconciliation.",
+      "limits": "Session records are fixture declarations, not liveness detection or worktree commands. No worktree was created or modified.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "combined-review-unassigned",
+      "rows": [
+        "R0191"
+      ],
+      "fixture": {
+        "worktree-inventory": [
+          "worktree-alpha",
+          "worktree-beta"
+        ],
+        "integration-plan.md": "Each author tests its own base and then merges its own branch. No receiver checks their combination.\n"
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "work/reference/review.md",
+        "work/reference/git-boundaries.md"
+      ],
+      "manual_steps": [
+        "Read the actual integration plan and the two independent checkout entries.",
+        "Compare author-base green and self-merge with the retained independent combined-candidate procedure."
+      ],
+      "observed_finding": "The plan has no independent owner for the combined result and explicitly relies on author-base tests plus self-merge.",
+      "proposed_repair": "Assign an independent integrator/reviewer, pin base and candidates, and require the actual merged-tree receipt before acceptance. Do not merge.",
+      "limits": "This detects a missing integration plan. No merge-check or publication was executed and no receipt was fabricated.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "goal-spine-absent",
+      "rows": [
+        "R0193"
+      ],
+      "fixture": {
+        "query-fixture.json": {
+          "fixture_only": true,
+          "objective_items": [],
+          "phase_items": [],
+          "truncated": false
+        },
+        "complete-document-inventory": [
+          "AGENTS.md",
+          "README.md"
+        ],
+        "AGENTS.md": "Use the local test command.\n",
+        "README.md": "# Parser\nImplementation details only.\n"
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md",
+        "reference/adoption.md"
+      ],
+      "manual_steps": [
+        "Read the complete supplied goal-item and document sets.",
+        "Check whether any statement records the intended outcome rather than implementation details."
+      ],
+      "observed_finding": "No supplied item or document states the project goal; code behavior cannot establish user intent.",
+      "proposed_repair": "Ask the user to declare the desired outcome before proposing the minimum goal spine through the owning lane.",
+      "limits": "No native query was run. This bounded absence says nothing about goals outside the supplied fixture scope.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "no-falsifiable-check",
+      "rows": [
+        "R0195"
+      ],
+      "fixture": {
+        "task-spec.md": "Deliverable: fix the parser.\nAcceptance: looks good when done.\nVerification: trust the author.\n",
+        "complete-check-inventory": []
+      },
+      "procedure": [
+        "reference/input-quality.md",
+        "work/reference/review.md"
+      ],
+      "manual_steps": [
+        "Read the complete supplied criteria/check set.",
+        "Try to identify an input, expected behavior or independently assessable condition that can fail; none is specified."
+      ],
+      "observed_finding": "Looks good and trust the author provide no falsifiable criterion or runnable/independent verification method.",
+      "proposed_repair": "Ask for a concrete input/output criterion and a reproducible test or actual independent review method before claiming verification.",
+      "limits": "The input-quality response preserves advisory overrides; it does not allow an override to fabricate evidence or independent acceptance.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "decision-record-absent",
+      "rows": [
+        "R0196"
+      ],
+      "fixture": {
+        "source-notes.md": "We settled on the local store yesterday; the reason and who authorized it were not recorded.\n",
+        "complete-decision-inventory": [],
+        "complete-document-inventory": [
+          "source-notes.md"
+        ]
+      },
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/adoption.md"
+      ],
+      "manual_steps": [
+        "Read the claimed settled choice and the complete empty decision inventory.",
+        "Check whether the actual rationale/authority can be traced."
+      ],
+      "observed_finding": "A durable choice is asserted but there is no decision record or source for rationale/authority. The agent cannot reconstruct those facts from the assertion.",
+      "proposed_repair": "Ask for the actual decision/source and have decide transcribe only what is supported; do not fabricate an ADR or require the retired DECISIONS.md shape.",
+      "limits": "The retained invariant is traceability of a real decision, not the former fixed decision-log filename.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "unresolvable-user-code",
+      "rows": [
+        "R0197"
+      ],
+      "fixture": {
+        "status.md": "<code-X> blocks <code-Y>.\n",
+        "complete-identity-inventory": [],
+        "complete-lookup-sources": [
+          "status.md"
+        ]
+      },
+      "procedure": [
+        "reference/user-load.md",
+        "reference/glossary.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "manual_steps": [
+        "Read the first mention of both codes.",
+        "Inspect the complete supplied identity/lookup inventory; neither has a name or definition."
+      ],
+      "observed_finding": "The user cannot resolve either code or understand the blocker; no human title or lookup source is available.",
+      "proposed_repair": "Resolve actual identities and render their human titles, or remove unsupported codes; do not invent definitions.",
+      "limits": "The old total-ID heuristic is not reproduced. This fixture demonstrates the retained first-mention and resolvable-identity principle.",
+      "coverage_status": "PARTIAL_REPRESENTATIVE"
+    },
+    {
+      "case_id": "defined-without-title",
+      "rows": [
+        "R0199"
+      ],
+      "fixture": {
+        "historical-note.md": "# <legacy-item-A>\nStatus: pending.\n",
+        "status.md": "<legacy-item-A> needs a decision.\n"
+      },
+      "procedure": [
+        "reference/user-load.md",
+        "reference/glossary.md"
+      ],
+      "manual_steps": [
+        "Resolve the referenced historical item to its literal definition.",
+        "Read the definition: it contains a code and status but no readable name or description."
+      ],
+      "observed_finding": "Lookup reaches a definition but still does not explain what the item is; its human title is absent.",
+      "proposed_repair": "Ask the document owner for the real title/meaning and display it at first mention; preserve historical identity.",
+      "limits": "The historical document is synthetic. No invalid native item was assumed reachable despite required-field guards.",
+      "coverage_status": "MANUAL_DEMONSTRATED"
+    },
+    {
+      "case_id": "unnecessary-user-queue",
+      "rows": [
+        "R0200"
+      ],
+      "fixture": {
+        "user-authority.md": "You may decide reversible documentation filenames.\n",
+        "pending-asks": [
+          {
+            "question": "Choose note-1.md or memo-1.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-2.md or memo-2.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-3.md or memo-3.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-4.md or memo-4.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-5.md or memo-5.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-6.md or memo-6.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-7.md or memo-7.md?",
+            "consequence": "reversible filename only"
+          },
+          {
+            "question": "Choose note-8.md or memo-8.md?",
+            "consequence": "reversible filename only"
+          }
+        ]
+      },
+      "procedure": [
+        "reference/user-load.md",
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md"
+      ],
+      "manual_steps": [
+        "Read all eight asks and the explicit supplied authority.",
+        "Each ask concerns a reversible filename already delegated to the agent; none identifies a consequential unresolved user choice."
+      ],
+      "observed_finding": "Eight unnecessary choices consume user attention despite existing delegated authority; a small rewrite can resolve them without re-asking the user.",
+      "proposed_repair": "Apply the documented authority to choose consistently and report the choice; do not silently record an agent choice as a human answer in a live ask item.",
+      "limits": "No ask was answered. The old numerical LOAD threshold and event-age ordering are not exercised.",
+      "coverage_status": "PARTIAL_REPRESENTATIVE"
+    },
+    {
+      "case_id": "duplicate-process-exceeds-tolerance",
+      "rows": [
+        "R0201"
+      ],
+      "fixture": {
+        "user-requirement.md": "Maintain one short project guide; no recurring process reports are needed.\n",
+        "document-bodies": {
+          "process/1.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/2.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/3.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/4.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/5.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/6.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/7.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/8.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/9.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/10.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/11.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/12.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/13.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/14.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/15.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/16.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/17.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/18.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/19.md": "# Routine\nEvery day copy the same status into every process report.\n",
+          "process/20.md": "# Routine\nEvery day copy the same status into every process report.\n"
+        },
+        "code-inventory": [
+          "main.py"
+        ],
+        "main.py": "print(\"one local result\")\n"
+      },
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "manual_steps": [
+        "Read the explicit maintenance tolerance and all identical process bodies.",
+        "Compare the twenty duplicate write obligations against the requested one guide."
+      ],
+      "observed_finding": "The documents impose repeated current-status copying that contradicts the user maintenance tolerance and creates multiple stale copies of one fact.",
+      "proposed_repair": "Propose retaining a single authoritative guide/reference and retiring duplicate obligations with actual approval; do not delete evidence because the code is small.",
+      "limits": "The finding rests on literal duplication and user tolerance, not a claim that a document/source ratio alone proves irrelevance or matches the retired FIT score.",
+      "coverage_status": "PARTIAL_REPRESENTATIVE"
+    }
+  ],
+  "rows": [
+    {
+      "row_id": "R0049",
+      "key": "missing-field@540",
+      "source_row_sha256": "838bf32b93cdc8c20ca7f9ca83f8168b2f6377841d2bbc5b03d1acd779115adf",
+      "old_expression": "Finding('error', rel, 'missing-field', f'{where}{name} is required')",
+      "original_proposed_red_case": "Concrete per-code fixture required before this procedure replaces old check; inspect emitted expression below.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "Source inspection at immutable base shows this check recursively requires fields in legacy linkage YAML frontmatter. A missing component Purpose example would be a different check. The old YAML declaration set is retired and its exact required-field criterion is not a current skill procedure."
+    },
+    {
+      "row_id": "R0058",
+      "key": "bad-plan@841",
+      "source_row_sha256": "852db32c0fbc2f755d0eb18cc73978adfbc1633da5d22f6d27fc58c9735cf203",
+      "old_expression": "Finding('error', rel, 'bad-plan', e)",
+      "original_proposed_red_case": "Fixture document with the named required section/header/table/type missing or malformed; reviewer must identify exact defect and appropriate repair.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The former P.parse_plan error set is broader than the retained bounded status/frontmatter safety. No exact finite old plan grammar is carried into current procedures; an interrupted-plan demo would not establish bad-plan parity."
+    },
+    {
+      "row_id": "R0059",
+      "key": "size-cap@864",
+      "source_row_sha256": "338efd2b41492e94c925163762f7cd9efad4c79f1e090a419fdc94a9b45bed9e",
+      "old_expression": "Finding(sev, rel, 'size-cap', f\"{len(lines)} lines, over the tier-{spec.get('tier')} cap of {cap} — and {n_intake} of them are undischarged `## Intake` rows. **Do not split this into a sibling file.** Intake lives in the board so arrival is visible, and an intake that overflows the cap is the signal that the queue is not being drained (`modes/queue.md`). Run triage and route or discharge the rows; the cap comes back on its own.\")",
+      "original_proposed_red_case": "Fixture document with the named required section/header/table/type missing or malformed; reviewer must identify exact defect and appropriate repair.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The check depends on an over-cap legacy board containing undischarged Intake rows and its do-not-split remedy. No current board/intake corpus exists; current queue procedure does not reproduce that exact criterion."
+    },
+    {
+      "row_id": "R0060",
+      "key": "size-cap@874",
+      "source_row_sha256": "0604f74a5f5f9651d4c3e41e707c18ffb465cc8cc1df475935cd554dd09c1af2",
+      "old_expression": "Finding(sev, rel, 'size-cap', f\"{len(lines)} lines, over the tier-{spec.get('tier')} cap of {cap}. Split the overflow into a sibling file rather than writing past it.\")",
+      "original_proposed_red_case": "Fixture document with the named required section/header/table/type missing or malformed; reviewer must identify exact defect and appropriate repair.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "architecture-cap",
+      "observed_finding": "The fixture exceeds the retained architecture cap by one line. The draft cannot be published as-is under that procedure.",
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "packs/software-ops/architecture.md"
+      ],
+      "limits": "Only the retained architecture 500-line cap is demonstrated. No old intake-special remedy, other tier cap, scanner line-count convention, or semantic compliance is established."
+    },
+    {
+      "row_id": "R0061",
+      "key": "missing-section@925",
+      "source_row_sha256": "4fe39c84949daaede3bdf5c63935f6b8022d296fadcc81a166ccd503eef3d8c3",
+      "old_expression": "Finding(severity, rel, 'missing-section', f\"required section not found: {req['label']}{suffix}\")",
+      "original_proposed_red_case": "Fixture document with the named required section/header/table/type missing or malformed; reviewer must identify exact defect and appropriate repair.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "missing-architecture-section",
+      "observed_finding": "§6 Non-negotiables is absent; active status does not repair the missing governing section.",
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "The fixture demonstrates one required section; it does not prove every legacy heading alias or template is covered."
+    },
+    {
+      "row_id": "R0062",
+      "key": "missing-header-field@938",
+      "source_row_sha256": "568d6dea3c48dc0ee562a7597b4b2f345c23ab45e7abc75e4987449e24f14e8b",
+      "old_expression": "Finding('error', rel, 'missing-header-field', f'header field `{name}:` not found')",
+      "original_proposed_red_case": "Fixture document with the named required section/header/table/type missing or malformed; reviewer must identify exact defect and appropriate repair.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "missing-header",
+      "observed_finding": "The required Version header is missing.",
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "One canonical English header is checked manually; former schema-wide header requirements are not implied."
+    },
+    {
+      "row_id": "R0064",
+      "key": "bad-format@953",
+      "source_row_sha256": "3c6dda196cf3b0cdaee5b12296e7add9d08dd588c19a030173afcfd229de181f",
+      "old_expression": "Finding('warn', rel, 'bad-format', f\"`{name}: {value}` does not match /{field['pattern']}/\")",
+      "original_proposed_red_case": "Fixture document with the named required section/header/table/type missing or malformed; reviewer must identify exact defect and appropriate repair.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "bad-header-date",
+      "observed_finding": "Last reviewed is not the required ISO day and cannot pin a review date independently of the reader date.",
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "This evaluates the concrete date field, not every pattern formerly supplied by the retired schema."
+    },
+    {
+      "row_id": "R0075",
+      "key": "current-phase-resolves@1319",
+      "source_row_sha256": "7ea5a8224caa84a7a458e00879390ebfa60b11eed1d9ffedf4d02884523b1a1d",
+      "old_expression": "Finding('error', 'phase/CURRENT', 'current-phase-resolves', f'points at {slug!r} but phase/{slug}.md does not exist')",
+      "original_proposed_red_case": "Fixture locked design without plan; dangling relation/current phase; hook with missing or malformed escalation/high-stakes rules. Native relation checks plus skill review refuse advancement.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "phase/CURRENT is retired. Current phase selection is native; no legacy pointer-resolution skill demonstration can honestly cover the exact file criterion."
+    },
+    {
+      "row_id": "R0076",
+      "key": "linkage-kr-exists@1405",
+      "source_row_sha256": "33c3c3fd531e43d35ccbad57785562869ada89e4e4a67f48b8bc30ceac7c8bf4",
+      "old_expression": "Finding('warn', rel, 'linkage-kr-exists', f'{pr.project_id}: serves {pr.serves_kr}, which is not a KR phase {own} declares')",
+      "original_proposed_red_case": "Fixture locked design without plan; dangling relation/current phase; hook with missing or malformed escalation/high-stakes rules. Native relation checks plus skill review refuse advancement.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "Legacy project records serving phase-specific KRs are not a native project type. Current exact-ID attribution is retained, but the former project/phase declaration criterion is not represented."
+    },
+    {
+      "row_id": "R0077",
+      "key": "linkage-kr-exists@1420",
+      "source_row_sha256": "fe51c89c219e0d7484cb65eeb97db562eaf0e1bae166c3af60fc35534f995082",
+      "old_expression": "Finding('warn', rel, 'linkage-kr-exists', f'{kr.id} is declared for phase {own}, and its id names a different phase. A phase KR id carries its phase (DESIGN-007 decision #4), so one of the two is wrong')",
+      "original_proposed_red_case": "Fixture locked design without plan; dangling relation/current phase; hook with missing or malformed escalation/high-stakes rules. Native relation checks plus skill review refuse advancement.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The exact old rule encodes a phase in a legacy KR ID. Native minted identities do not encode that phase; no current procedure claims that old encoding rule."
+    },
+    {
+      "row_id": "R0078",
+      "key": "linkage-kr-exists@1438",
+      "source_row_sha256": "b78eb77495bf49a4583634e8d1e0c73ea2b16ff8c77cd1640d4a004c5df1bb29",
+      "old_expression": "Finding('warn', rel, 'linkage-kr-exists', f'{kr.id} names objective {declared_under} and is declared under {obj.id}. The id carries the objective, so one of the two is wrong and nothing here guesses which')",
+      "original_proposed_red_case": "Fixture locked design without plan; dangling relation/current phase; hook with missing or malformed escalation/high-stakes rules. Native relation checks plus skill review refuse advancement.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The exact old rule encodes an objective in a legacy KR ID. Native identity/relation checks replace storage shape, not that obsolete ID grammar."
+    },
+    {
+      "row_id": "R0079",
+      "key": "linkage-task-exists@1487",
+      "source_row_sha256": "633670e876390e81b729afc70c04e2631d2d8ac39813f86a860ebe154d97c43a",
+      "old_expression": "Finding('warn', rel, 'linkage-task-exists', f\"{kr.id} lists task {tid}, which is not a record in `tasks.jsonl` — the edge points at nothing. It is still counted: `bin/lib § kr_progress_provenance` puts {tid} in this KR's `linked_task_completion.total` and files it under `unknown`, so the KR carries a denominator no row can ever close. Either the id is a typo or the row is gone. `perry-goals link` appends an edge and never retracts one, so this one comes out the way `link_edge`'s own refusal says a mis-aimed edge comes out: on the user's confirmation.\")",
+      "original_proposed_red_case": "Fixture locked design without plan; dangling relation/current phase; hook with missing or malformed escalation/high-stakes rules. Native relation checks plus skill review refuse advancement.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "dangling-task-citation",
+      "observed_finding": "The task supporting the KR note does not resolve. The note cannot establish linked completion or evidence.",
+      "procedure": [
+        "reference/okr-linkage.md",
+        "reference/operating-rules.md",
+        "reference/user-load.md"
+      ],
+      "limits": "Supplied snapshots are synthetic fixture data, not native calls. The former linked-task denominator algorithm and native dangling-edge rejection are not exercised."
+    },
+    {
+      "row_id": "R0080",
+      "key": "linkage-unlinked-exists@1529",
+      "source_row_sha256": "bdfd4bc9261ae56a1c79797bd05929d6c323fe6afc994ba1bc24be716480f123",
+      "old_expression": "Finding('warn', rel, 'linkage-unlinked-exists', f'`unlinked` declares {tid!r}, which is not a record in `tasks.jsonl`. A declaration says a KNOWN row serves no KR; an id no row carries declares nothing, and `perry-state --section attribution` still reports it under `declared_unlinked`. Either the id is a typo, the row was purged, or several ids were passed to `perry-goals link --unlinked` as one argument — the shape that put 48 of them on one line here on 2026-08-28.')",
+      "original_proposed_red_case": "OBSOLETE INPUT SHAPE: preserve native invariant, no claim of red skill demonstration.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "Legacy unlinked records and their comma/single-argument parser shape are retired. Current visible unlinked work does not reproduce that register-level criterion."
+    },
+    {
+      "row_id": "R0081",
+      "key": "linkage-kr-exists@1552",
+      "source_row_sha256": "2955309e17a223315b5dacb824c13d77a0c8073237aaee95d872dcfc2945c2f2",
+      "old_expression": "Finding('warn', pf.relative_to(root).as_posix(), 'linkage-kr-exists', f'{kid} is declared in the phase document for phase {own}, and its id names a different phase. A phase KR id carries its phase (DESIGN-007 decision #4), so one of the two is wrong')",
+      "original_proposed_red_case": "Fixture locked design without plan; dangling relation/current phase; hook with missing or malformed escalation/high-stakes rules. Native relation checks plus skill review refuse advancement.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This is another old phase-encoded KR-ID grammar check; an ordinary dangling-link case would not demonstrate its exact criterion."
+    },
+    {
+      "row_id": "R0090",
+      "key": "document-oversized@1978",
+      "source_row_sha256": "0117bbecfbefa81c9d27519ae4c202a5c34f5678b504247d8ade22282934d555",
+      "old_expression": "Finding(sev, rel, 'document-oversized', f'{n} lines, over the {cap}-line {what} cap. Length only -- this says nothing about the content, and the remedy is to MOVE what belongs elsewhere, never to delete what was recorded. `work/SKILL.md` § Style rules: each fact lives in one place; boards reference, evidence stores.')",
+      "original_proposed_red_case": "Oversized always-loaded/document fixture reports measured cap overrun without judging content.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "WITHDRAWN_EVIDENCE_MISMATCH",
+      "case_id": null,
+      "observed_finding": "Architecture-cap fixture does not exercise the old journal/evidence document-oversized predicate.",
+      "procedure": [
+        "packs/software-ops/architecture.md",
+        "packs/software-ops/architecture.md"
+      ],
+      "limits": "No retained equivalent demonstrated; exact old threshold is now proposed_drop, user acceptance pending."
+    },
+    {
+      "row_id": "R0091",
+      "key": "next-action-oversized@2068",
+      "source_row_sha256": "bcc14cff3e7b56e26595183b5b7de9af1f095e1ae6dc85f5879dd6ec688edd18",
+      "old_expression": "Finding('warn', 'tasks.jsonl', 'next-action-oversized', f'{tid}: `Next action` is {len(na)} Unicode characters, over the {NEXT_ACTION_CELL_CHARACTERS}-character cell guide. A board cell is a pointer — move the account into `evidence/<YYYY-MM>/{tid}-*.md` and leave the sentence a reader of the board needs. `work/SKILL.md` § Style rules: each fact lives in one place; boards reference, evidence stores.')",
+      "original_proposed_red_case": "Blank summary, summary equal to title, next_action over documented guide fixtures trigger specific correction.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The old fixed Unicode cell-character guide is not declared in current operating rules. Concise next-action review is possible but cannot demonstrate this exact numeric overrun without inventing a cap."
+    },
+    {
+      "row_id": "R0092",
+      "key": "summary-missing@2091",
+      "source_row_sha256": "eaa36d2d3f1c68a4cc0ebe868904e512b13ef54fceff93bcf3af0968a439efb0",
+      "old_expression": "Finding('warn', 'tasks.jsonl', rule, f'{tid}: {why} — `perry-task summary {tid} --summary \"…\"` writes it')",
+      "original_proposed_red_case": "Blank summary, summary equal to title, next_action over documented guide fixtures trigger specific correction.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "summary-blank",
+      "observed_finding": "The summary is blank and conveys neither the problem nor the completion condition.",
+      "procedure": [
+        "reference/input-quality.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "A proposal-only semantic demonstration; no native required-field guard was called and no task was created."
+    },
+    {
+      "row_id": "R0093",
+      "key": "summary-repeats-title@2091",
+      "source_row_sha256": "a26b30db80d641b05a6c84fec1a573eda3218efae2070b8a6fa79421131cd52f",
+      "old_expression": "Finding('warn', 'tasks.jsonl', rule, f'{tid}: {why} — `perry-task summary {tid} --summary \"…\"` writes it')",
+      "original_proposed_red_case": "Blank summary, summary equal to title, next_action over documented guide fixtures trigger specific correction.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "summary-repeats-title",
+      "observed_finding": "The summary repeats shorthand without stating the defect, affected behavior or completion condition.",
+      "procedure": [
+        "reference/input-quality.md"
+      ],
+      "limits": "The current quality pass is advisory with recorded override. This is a detected issue, not restoration of the former regex hard refusal."
+    },
+    {
+      "row_id": "R0098",
+      "key": "glossary-no-implementation@2542",
+      "source_row_sha256": "56b778da996d7592b08aa7d227855f3f939b460b446161a2a433c185ca805fe9",
+      "old_expression": "Finding('warn', rel, 'glossary-no-implementation', f\"`{e['term']}` names neither a path nor `prose-only` — say which\", e['line'])",
+      "original_proposed_red_case": "Fixture glossary entry points to missing file, claims implementation without path, or unused term; review identifies named defect.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The current glossary does not require every term to carry an Implemented/prose-only field. A missing field would therefore be no concrete current-procedure failure."
+    },
+    {
+      "row_id": "R0099",
+      "key": "glossary-path-missing@2551",
+      "source_row_sha256": "dd6f74c1279ed7f2ceab9afd1e165b9971d47963d93b672c5cc02a4a0cf22d1b",
+      "old_expression": "Finding('warn', rel, 'glossary-path-missing', f\"`{e['term']}` says it is implemented in {path}, which does not exist — an entry pointing at nothing reads as verified\", e['line'])",
+      "original_proposed_red_case": "Fixture glossary entry points to missing file, claims implementation without path, or unused term; review identifies named defect.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "glossary-broken-implementation-link",
+      "observed_finding": "The implementation pointer cannot resolve; the glossary presents an unverifiable implementation claim.",
+      "procedure": [
+        "reference/operating-rules.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "limits": "Only a concrete missing link is checked; the old requirement that every glossary entry declare an implementation is not restored."
+    },
+    {
+      "row_id": "R0100",
+      "key": "glossary-term-unused@2557",
+      "source_row_sha256": "dd25e323a269395a36a2a8a51fa4d46100443787fe9a2912bc90853f4dde9cbc",
+      "old_expression": "Finding('warn', rel, 'glossary-term-unused', f\"`{e['term']}` is defined here and used nowhere else — a concept nobody reached for is complexity that never paid off\", e['line'])",
+      "original_proposed_red_case": "Fixture glossary entry points to missing file, claims implementation without path, or unused term; review identifies named defect.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "No current explicit rule requires every glossary term to appear elsewhere. Complexity review may question an unused term but cannot report this exact unused-term check as executed."
+    },
+    {
+      "row_id": "R0176",
+      "key": "missing-template@5645",
+      "source_row_sha256": "54bf1af9a5b952be3a301694b8e9fc41c7ab42594b0ca5d8f9e1996eff49ce32",
+      "old_expression": "Finding('error', tpl, 'missing-template', 'schema names this template but the file is absent')",
+      "original_proposed_red_case": "Concrete per-code fixture required before this procedure replaces old check; inspect emitted expression below.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The old schema-to-template declaration set is retired; no current procedure claims to validate every old declared template. Native process-template validation belongs to its actual suite, not this manual artifact."
+    },
+    {
+      "row_id": "R0177",
+      "key": "missing-file@5685",
+      "source_row_sha256": "8232e849f6f73544b40048614cc9795490e024c628fc5d545f9bc024b5371c1a",
+      "old_expression": "Finding('error', spec['path'], 'missing-file', 'required state file not found')",
+      "original_proposed_red_case": "Concrete per-code fixture required before this procedure replaces old check; inspect emitted expression below.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The old schema required-state-file inventory is retired. Current ownership/collision checks cannot demonstrate presence of an unspecified removed required file."
+    },
+    {
+      "row_id": "R0179",
+      "key": "MODE-01@2340",
+      "source_row_sha256": "da16aac68d312a3a3e3df92ea852c3c7f45aba3f68f8601eb70a266f6aa16112",
+      "old_expression": "finding('MODE-01', 'warn', f\"track `{t['track']}` is written down as `{t['declared_mode']}` work and looks like `{t['mode']}` work\", f\"One of the two is wrong and only you can say which. Either change `mode` on `{t['track']}`'s record in `.perry/config.jsonl` to `{t['mode']}`, or keep the label and fix what is on the board to match it. Do not leave them disagreeing: the label is what picks the review questions, so a wrong one asks about the wrong thing every single time.\", t['evidence'].get(t['mode'], [])[:6])",
+      "original_proposed_red_case": "Declared pipeline track; unique queue signals (arrival/SLA/standing commitments) cross the existing high-confidence margin. Skill reports mismatch and requests declaration-or-work correction.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The current mode-fit review can question the supplied queue label, but does not compute the former classifier or its clear-margin threshold. The related mode-reconsideration fixture is a PARTIAL_REPRESENTATIVE only; exact MODE-01 criterion remains pending.",
+      "representative_case_id": "mode-reconsideration",
+      "representative_finding": "Queue guidance has no declared service obligation to govern, while the actual requirement is a finite project delivery; the mode label needs owner review.",
+      "representative_limits": "Semantic reconsideration only; the old statistical classifier, clear-margin threshold and emitted MODE-01 payload are not reproduced."
+    },
+    {
+      "row_id": "R0181",
+      "key": "CTX-04@2377",
+      "source_row_sha256": "93a8ddef9d39e544cb5691f9c436ff498ad924f20c6c58032c3e6abd7eefb53f",
+      "old_expression": "finding('CTX-04', 'warn', \"No file tells the agent this project's rules\", 'Create AGENTS.md (symlink CLAUDE.md to it). Put in only what an agent cannot work out by reading the project: the build and test commands, conventions that differ from the language default, and any setup quirk. Aim for under 60 lines.')",
+      "original_proposed_red_case": "Fixture has no recognized always-loaded rules file. Report missing project rules.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "rules-absent",
+      "observed_finding": "No supplied artifact tells an agent the project-specific rules or checks; this is a visible context gap, not evidence that generic conventions suffice.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md"
+      ],
+      "limits": "Absence is bounded to the explicit fixture inventory; no actual filesystem scan or recommendation to create symlinks was executed."
+    },
+    {
+      "row_id": "R0182",
+      "key": "CTX-05@2387",
+      "source_row_sha256": "9709321898e3d94f3df588ed71d13513572088485a5b2416cf694c2a03778f0e",
+      "old_expression": "finding('CTX-05', 'warn', 'The rules file is empty', 'Either fill it with the handful of rules that would change what an agent does here, or delete it so the gap is visible.', empty)",
+      "original_proposed_red_case": "Fixture contains only empty AGENTS.md. Report empty rules.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "rules-empty",
+      "observed_finding": "The declared rules source is empty and provides no usable instruction.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md"
+      ],
+      "limits": "This checks literal empty content only; no old line-budget rule or host discovery behavior is inferred."
+    },
+    {
+      "row_id": "R0183",
+      "key": "CTX-01@2395",
+      "source_row_sha256": "8407e98da482d114f56d32e0cbbe5e139fca0db3c9bcf1a524aac2c65146be7c",
+      "old_expression": "finding('CTX-01', 'error', f\"{ctx['always_loaded_lines']} lines load into every session (guideline: {ctx['budget_lines']})\", 'Go through it line by line and sort into three piles. Rules that change what the agent does: keep. Step-by-step procedures for recurring tasks: move to a skill, which loads only when relevant. Everything else is reference: move to its own file and link it from an index. Typical result is 30-50 lines kept.', [f\"{f['path']} — {f['lines']} lines\" for f in ctx['always_loaded']])",
+      "original_proposed_red_case": "AGENTS.md contains 201 nonempty lines; threshold is 200 total always-loaded lines. Report measured overrun.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "Current diagnosis measures instruction size but explicitly avoids a universal old always-loaded-lines heuristic. No exact current budget is established for the old score; the retained architecture cap has separate demonstrations."
+    },
+    {
+      "row_id": "R0184",
+      "key": "CTX-02@2409",
+      "source_row_sha256": "c810dcb88f85d28cc5aa8133d98367e27e0776bb5fd0a3da877bb646fa4aa4d0",
+      "old_expression": "finding('CTX-02', 'warn', 'CLAUDE.md and AGENTS.md both exist and neither is a symlink', 'Merge them into whichever is more complete, then replace the other with a symlink: `ln -s AGENTS.md CLAUDE.md`.')",
+      "original_proposed_red_case": "AGENTS.md and CLAUDE.md are independent regular files, not symlinks. Report duplicate rules source.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "duplicate-rules-disagree",
+      "observed_finding": "Two regular instruction files disagree on a completion gate; different hosts can receive incompatible rules.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "The procedure observes a real contradiction in this fixture. It does not mandate that every pair of distinct compatible instruction files be merged."
+    },
+    {
+      "row_id": "R0185",
+      "key": "CTX-03@2416",
+      "source_row_sha256": "b269868343439c68cc34a4157473040272a6334f00f2ea932853e0b5502d8bc3",
+      "old_expression": "finding('CTX-03', 'error', f'{path} points at files that no longer exist', \"Update each path to where the file actually is, or drop the sentence. In general, describe fewer file locations in prose — that is what the agent's own search is for, and prose goes stale while the filesystem cannot.\", bad)",
+      "original_proposed_red_case": "Current routed document links to missing referenced.md. Report missing target with source line.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "instruction-broken-path",
+      "observed_finding": "The mandatory build-guide pointer is absent; docs/overview.md cannot be substituted merely because it is nearby.",
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "No actual path was opened outside the fixture and no broad broken-link scanner parity is claimed."
+    },
+    {
+      "row_id": "R0186",
+      "key": "DOC-02@2428",
+      "source_row_sha256": "75e74ff5cdda14291c70042d8bcefeb8999fa14eccafe6da293ae1d6e106fe18",
+      "old_expression": "finding('DOC-02', 'error', f\"{docs['total']} documents and no list of what they are\", 'Create one index file listing every document with a one-line description of what it answers, then add a line to your rules file telling the agent to read the index first.')",
+      "original_proposed_red_case": "12 documents and no index document. Report absence of navigation index.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "documents-no-index",
+      "observed_finding": "Twelve procedure files have no discoverable index or mapping from question to document, so a reader has to inspect all candidates.",
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "limits": "This is the explicit twelve-document fixture; no universal twelve-document threshold or output contract is restored."
+    },
+    {
+      "row_id": "R0187",
+      "key": "DOC-01@2442",
+      "source_row_sha256": "add347098b083c5d3c1c70fa93260561736b7adb69eafce26f120d5c192d0018",
+      "old_expression": "finding('DOC-01', 'warn', f\"{len(docs['orphans'])} of {docs['total']} documents ({int(docs['orphan_ratio'] * 100)}%) aren't linked from anywhere\", 'Go through them in batches. Each one gets linked from the index, moved to an archive folder, or deleted. Deciding is the work; the outcome matters less than the pile shrinking.', docs['orphans'][:15])",
+      "original_proposed_red_case": "12 documents, at least 4 unlinked orphans (>=0.30). Report listed orphan set.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "unreachable-current-docs",
+      "observed_finding": "Five explicitly current procedures are undiscoverable from the documented entry point; calling them archives would contradict their actual content.",
+      "procedure": [
+        "reference/diagnose.md",
+        "reference/diagnose-explanations.md"
+      ],
+      "limits": "The graph is supplied synthetic fixture data. No actual repository reachability algorithm or automatic deletion is exercised."
+    },
+    {
+      "row_id": "R0188",
+      "key": "DOC-03@2452",
+      "source_row_sha256": "c4e8b34f080add874ad2a6e8b64e9c1e711ea349a29d252c0bf9861fc43da417",
+      "old_expression": "finding('DOC-03', 'warn', f\"{len(docs['duplicate_titles'])} document title(s) appear in more than one file\", 'Pick the copy that should survive, then replace the other with a link to it. If both have content worth keeping, merge first.', [f\"{k or '(untitled)'} → {', '.join(v)}\" for k, v in list(docs['duplicate_titles'].items())[:8]])",
+      "original_proposed_red_case": "Two Markdown files have the same normalized first heading. Report both paths.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "duplicate-doc-titles",
+      "observed_finding": "The same title resolves to conflicting release rules; the reader cannot identify the governing source from the index.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/operating-rules.md"
+      ],
+      "limits": "This demonstrates duplicate-title ambiguity with a concrete contradiction, not automatic merging of all duplicate headings."
+    },
+    {
+      "row_id": "R0189",
+      "key": "DOC-05@2461",
+      "source_row_sha256": "8738785274373d81795f6f92a5bbd899c133fe4b98e195ae1ec013ba7e8b2f39",
+      "old_expression": "finding('DOC-05', 'info', f\"{len(docs['oversized'])} doc(s) over {THRESHOLDS['single_doc_lines']} lines\", 'No action needed unless one of these is loaded every session — check whether your rules file pulls it in. If it does, split it.', [f\"{d['path']} — {d['lines']} lines\" for d in docs['oversized'][:6]])",
+      "original_proposed_red_case": "One document has 501 lines. Report size only; do not claim semantic defect.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The former THRESHOLDS.single_doc_lines value and oversized-doc classifier are not a current universal rule. The architecture cap case does not establish this exact old single-doc threshold."
+    },
+    {
+      "row_id": "R0190",
+      "key": "CON-01@2473",
+      "source_row_sha256": "b46125a894e74f36bb0381d34513597e986a2dc46e90210866f77f6240d14404",
+      "old_expression": "finding('CON-01', 'warn', 'Work runs in parallel and nothing says how sessions avoid each other', f\"Found {con['worktree_count']} checkout(s) and {con['branch_count']} branch(es). Add a short section to your rules file naming which approach you use: one session at a time; several sessions each owning a listed set of files; or a separate checkout per session. Pick the simplest one that has survived the collisions you have actually had.\")",
+      "original_proposed_red_case": "Two Git worktrees, no isolation declaration in current rules. Report missing ownership/isolation policy.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "parallel-without-isolation",
+      "observed_finding": "Both sessions can overwrite the same file without isolation or an ownership agreement; the assignments violate the retained dispatched-worktree rule.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "work/reference/git-boundaries.md"
+      ],
+      "limits": "Session records are fixture declarations, not liveness detection or worktree commands. No worktree was created or modified."
+    },
+    {
+      "row_id": "R0191",
+      "key": "CON-03@2486",
+      "source_row_sha256": "dc0ac201a9799eb608fe443368cfbdd8cd47026ad9c751550b8efe665b000ac5",
+      "old_expression": "finding('CON-03', 'info', f\"{con['worktree_count']} separate checkouts, but nobody reviews the combined result\", 'Write down who or what reviews the combined result before it lands, and in what order branches merge.', con['worktrees'][:6])",
+      "original_proposed_red_case": "Two worktrees with isolation policy but no merge/integration review instruction. Report missing combined-result review.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "combined-review-unassigned",
+      "observed_finding": "The plan has no independent owner for the combined result and explicitly relies on author-base tests plus self-merge.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "work/reference/review.md",
+        "work/reference/git-boundaries.md"
+      ],
+      "limits": "This detects a missing integration plan. No merge-check or publication was executed and no receipt was fabricated."
+    },
+    {
+      "row_id": "R0192",
+      "key": "CON-02@2495",
+      "source_row_sha256": "16556851b98327520baeffd87b3db67572449ac268bbfa1d385617e977f6056a",
+      "old_expression": "finding('CON-02', 'info', 'Some files are rewritten by many sessions', 'Informational. If one of these holds current status, split it: a short live file for what is true now, plus a dated file that only ever gets appended to. Appending never conflicts.', [f\"{h['path']} — {h['commits_90d']} commits/90d\" for h in hot[:6]])",
+      "original_proposed_red_case": "Fixture Git history rewrites a file >=15 times within 90 days. Report measured hot file as advisory.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "Actual Git churn measurement is a retained helper behavior. A supplied synthetic hot-file number would only restate an input, not demonstrate observed commits/90d; executable checks were excluded from this manual assignment."
+    },
+    {
+      "row_id": "R0193",
+      "key": "TRK-01@2506",
+      "source_row_sha256": "b4c88edd76f4de85c5f564dee3cd0dccccfd9f1716fdd79afa34c144ca031dde",
+      "old_expression": "finding('TRK-01', 'error', 'Nothing records what this project is trying to achieve', 'Create STATE.md and keep it to one screen: the current goal, what is in flight, what is blocked, what you have ruled out, and the single next thing. Update it at the end of each session.')",
+      "original_proposed_red_case": "No current goal/spine source exists. Report missing project goal; on adopted projects use native objective/phase query.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "goal-spine-absent",
+      "observed_finding": "No supplied item or document states the project goal; code behavior cannot establish user intent.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/diagnose.md",
+        "reference/adoption.md"
+      ],
+      "limits": "No native query was run. This bounded absence says nothing about goals outside the supplied fixture scope."
+    },
+    {
+      "row_id": "R0194",
+      "key": "TRK-02@2519",
+      "source_row_sha256": "18589c5eae4f390dba53f7dc7f6ecb471923c7ea24b3270fd8719fcf460bde16",
+      "old_expression": "finding('TRK-02', 'warn', \"The goal file hasn't been touched in a month\", 'Bring it up to date in one pass, or retire it and rely on whatever you are actually using instead. A file in between misleads.', [f\"{s['path']} — {s['age_days']}d\" for s in stale])",
+      "original_proposed_red_case": "Every declared spine file has mtime >30 days. Report timestamp heuristic as advisory, not proof state is stale.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The former month-old mtime threshold is not a current universal goal-staleness rule. A dated hypothetical file alone does not prove its intent is stale, and no current goal/source was inspected."
+    },
+    {
+      "row_id": "R0195",
+      "key": "TRK-03@2528",
+      "source_row_sha256": "72c08bbb913026e2122bbe398c74d11530b4de2aac0992893f67a71ef4e4cd95",
+      "old_expression": "finding('TRK-03', 'error', 'No check the agent can run', 'Give the agent one command that returns pass or fail, and tell it to run that before claiming anything is done. Code: the test suite or the build. No code: a script checking the output has its required parts, a second agent reviewing against written criteria in a fresh session, or a recorded human sign-off. One is enough.')",
+      "original_proposed_red_case": "No build/test/check command, independent review procedure or named human signoff exists. Report absent verification route.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "no-falsifiable-check",
+      "observed_finding": "Looks good and trust the author provide no falsifiable criterion or runnable/independent verification method.",
+      "procedure": [
+        "reference/input-quality.md",
+        "work/reference/review.md"
+      ],
+      "limits": "The input-quality response preserves advisory overrides; it does not allow an override to fabricate evidence or independent acceptance."
+    },
+    {
+      "row_id": "R0196",
+      "key": "TRK-04@2538",
+      "source_row_sha256": "93de25ff8ea35b1bc672a14d8937019e3b7e8dc58e94b5a8d13776070692acca",
+      "old_expression": "finding('TRK-04', 'warn', 'No decision log', 'Create DECISIONS.md and add to the bottom of it whenever you settle something durable: the date, what was decided, why, and what it replaces. Only real decisions — not every choice.')",
+      "original_proposed_red_case": "No decision log/ADR source exists. On native projects first query ADR/design items; report missing decision history.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "decision-record-absent",
+      "observed_finding": "A durable choice is asserted but there is no decision record or source for rationale/authority. The agent cannot reconstruct those facts from the assertion.",
+      "procedure": [
+        "reference/diagnose-explanations.md",
+        "reference/adoption.md"
+      ],
+      "limits": "The retained invariant is traceability of a real decision, not the former fixed decision-log filename."
+    },
+    {
+      "row_id": "R0197",
+      "key": "LOAD-01@2551",
+      "source_row_sha256": "1ce8f2d643fb8d3d077fdfda6fa93b5a1b297ead9a7cc04c4b82c003d5efa984",
+      "old_expression": "finding('LOAD-01', 'warn', f\"{load['total_ids']} short codes in use with no way to look them up\", \"Add one file listing every code and what it means in a line, and keep it current. Or copy in a resolver — Perry ships `bin/perry-explain`, which reads the codes straight out of your documents so there is nothing extra to maintain. Either way, the rule that matters is that a code never appears without its name the first time it's mentioned.\")",
+      "original_proposed_red_case": "At least 12 defined IDs scattered among files, no resolver and no concentrated definition index. Report lookup burden.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The current lookup procedure detects unnamed/unresolvable codes in the supplied fixture, but this does not evaluate the old total-ID threshold and resolver-detection criterion. The unresolvable-user-code fixture is a PARTIAL_REPRESENTATIVE only.",
+      "representative_case_id": "unresolvable-user-code",
+      "representative_finding": "The user cannot resolve either code or understand the blocker; no human title or lookup source is available.",
+      "representative_limits": "The old total-ID heuristic is not reproduced. This fixture demonstrates the retained first-mention and resolvable-identity principle."
+    },
+    {
+      "row_id": "R0198",
+      "key": "LOAD-02@2563",
+      "source_row_sha256": "9164446860d42cd72ef74cb55d9de3a2cfba71559256dc91af008580194d69a1",
+      "old_expression": "finding('LOAD-02', 'warn', f\"{len(load['dangling'])} code(s) are referenced but never defined\", 'For each: point it at the real item, write the item down, or drop the reference. Prose that names work which does not exist anywhere is the hardest kind to resolve later.', load['dangling'][:10])",
+      "original_proposed_red_case": "Document cites an ID absent from native items and historical document definitions. Report exact unresolved reference.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "dangling-task-citation",
+      "observed_finding": "The task supporting the KR note does not resolve. The note cannot establish linked completion or evidence.",
+      "procedure": [
+        "reference/okr-linkage.md",
+        "reference/operating-rules.md",
+        "reference/user-load.md"
+      ],
+      "limits": "Supplied snapshots are synthetic fixture data, not native calls. The former linked-task denominator algorithm and native dangling-edge rejection are not exercised."
+    },
+    {
+      "row_id": "R0199",
+      "key": "LOAD-04@2573",
+      "source_row_sha256": "73cec20b09eb308b2eec166120ce333429f9cf579831bf6d63f8040071aca3f1",
+      "old_expression": "finding('LOAD-04', 'info', f\"{len(load['untitled'])} code(s) are defined without a readable name\", 'Give each one a short title where it is defined, so looking it up actually answers the question.', load['untitled'][:10])",
+      "original_proposed_red_case": "An existing defined ID has no readable title. Report the named definition.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "MANUAL_DEMONSTRATED",
+      "case_id": "defined-without-title",
+      "observed_finding": "Lookup reaches a definition but still does not explain what the item is; its human title is absent.",
+      "procedure": [
+        "reference/user-load.md",
+        "reference/glossary.md"
+      ],
+      "limits": "The historical document is synthetic. No invalid native item was assumed reachable despite required-field guards."
+    },
+    {
+      "row_id": "R0200",
+      "key": "LOAD-03@2582",
+      "source_row_sha256": "4d8cf673a61e13642ec5b5016986a91d89e0cf9c833d375818442b5fe51cba50",
+      "old_expression": "finding('LOAD-03', 'warn', f\"{load['open_decisions']} open questions are waiting on you\", 'Work through them oldest first, and for each one ask whether it actually needs you. Anything reversible and low-stakes is better decided by whoever is working on it and written down, rather than queued for a person who cannot evaluate it faster than it can be undone.', load['open_decision_samples'][:6])",
+      "original_proposed_red_case": "At least 5 unresolved user decisions. Query native asks/design decisions and report exact open list.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "Current user-effort review identifies delegated reversible choices in the fixture, but does not apply the old open-decision score/threshold or enumerate historical ask parsers. The unnecessary-user-queue fixture is a PARTIAL_REPRESENTATIVE only.",
+      "representative_case_id": "unnecessary-user-queue",
+      "representative_finding": "Eight unnecessary choices consume user attention despite existing delegated authority; a small rewrite can resolve them without re-asking the user.",
+      "representative_limits": "No ask was answered. The old numerical LOAD threshold and event-age ordering are not exercised."
+    },
+    {
+      "row_id": "R0201",
+      "key": "FIT-01@2596",
+      "source_row_sha256": "f32190d10c9df7dc4b5735d0ba3d85e5fc90a583ef85ff75bdaaac5933ab39ed",
+      "old_expression": "finding('FIT-01', 'info', 'More process than work', f\"{docs['total']} documents ({doc_lines} lines) against {inv['code_total']} source files. Worth asking of each one: when did this last change a decision? Anything unused for a few months is a candidate for the archive.\")",
+      "original_proposed_red_case": "Software fixture has <10 source files and >25 documents. Flag process/work imbalance as advisory.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The supplied duplicate process conflicts with explicit maintenance tolerance, but no current procedure applies the former document-line/source-count FIT score. The related fixture is a PARTIAL_REPRESENTATIVE only; exact old ratio criterion remains pending.",
+      "representative_case_id": "duplicate-process-exceeds-tolerance",
+      "representative_finding": "The documents impose repeated current-status copying that contradicts the user maintenance tolerance and creates multiple stale copies of one fact.",
+      "representative_limits": "The finding rests on literal duplication and user tolerance, not a claim that a document/source ratio alone proves irrelevance or matches the retired FIT score."
+    },
+    {
+      "row_id": "R0202",
+      "key": "FIT-02@2605",
+      "source_row_sha256": "1943c49fea15f2a4ca92613911f2253757ea5285e9eb0b6bcedfa9ce9faeb0ec",
+      "old_expression": "finding('FIT-02', 'info', 'Fewer files than this project needs', 'Add AGENTS.md (rules), STATE.md (what is true now), and DECISIONS.md (settled calls, append-only). Stop there until something actually goes wrong that a fourth file would have prevented.')",
+      "original_proposed_red_case": "Fixture has <=3 documents and no goal spine. Suggest minimal rules/goal/decision sources.",
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "The exact old minimum names AGENTS.md, STATE.md and DECISIONS.md. Current native state and decide documents do not require that three-file legacy spine; no parity is claimed."
+    },
+    {
+      "row_id": "R0203",
+      "key": "project default",
+      "source_row_sha256": "82da671ac626206613e942c50f8eb32a9d3114b126c605b29e77d3fea50ac608",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0204",
+      "key": "--templates",
+      "source_row_sha256": "8fba3c34795559c7650034f2ba67bf1ab5bb9ba2a27166f3497f82da65c5c622",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0210",
+      "key": "--glossary",
+      "source_row_sha256": "afdb0c32bc8f00a82f9d239ba52b72da02f47118ea7c52d66b20220aa6587f09",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0212",
+      "key": "--summaries",
+      "source_row_sha256": "b586354d73e7837ec60574d1c3306de69f45f51039ded8ede0bbfe046295c169",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0214",
+      "key": "--json (default)",
+      "source_row_sha256": "76a10e140ae027dd9295dfb62b43045c80e7274934816f204efcf27b9d1dbf8d",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0215",
+      "key": "--text",
+      "source_row_sha256": "c93bbef1ff47de5a3d766ea97d271cd840297f070fa5634f8b71d04eafa4f9c9",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0216",
+      "key": "--max-files N",
+      "source_row_sha256": "5e07c555f70ee9835ce788a2348202864c0d5991ba7a5ee15198e9f967cc6a96",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0217",
+      "key": "--describe",
+      "source_row_sha256": "d8ea676a7820e63bc9f815280375531bf0b1737194473b1e55388260487b9ce9",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0218",
+      "key": "--help",
+      "source_row_sha256": "fccaecdf9e40d85dd69b347436fce5ce0f1948f88234730d323cec97184652b1",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop."
+    },
+    {
+      "row_id": "R0220",
+      "key": "bin/perry-lint:check_file",
+      "source_row_sha256": "1f060309bcfa83ca9770e533b3899857d0589d44dd81ecf95de1daf55036a88d",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0221",
+      "key": "bin/perry-lint:check_cross_file",
+      "source_row_sha256": "478286ace6724563328cddd4f73dff5187e2dca64d89968a52d5cc84116ee3a4",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0223",
+      "key": "bin/perry-lint:check_document_sizes",
+      "source_row_sha256": "ebb39f9afd3995addcd1f6ab846e97cdfc09b703d3619504a043e923084430a0",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0224",
+      "key": "bin/perry-lint:check_summaries",
+      "source_row_sha256": "9d27da64660e993252db9564e61d26da68d7c69d84aceb8c44584587851f7d69",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0225",
+      "key": "bin/perry-lint:check_role_cards",
+      "source_row_sha256": "94058a59fd85614424d69c22caba0e5704e6fcaf2d325f9c3ae23066bed31f51",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0226",
+      "key": "bin/perry-lint:check_glossary",
+      "source_row_sha256": "e7db797b62d80ecc7c159e14064e1b502f56a12a5fb2886844aa5183141b33be",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0238",
+      "key": "bin/perry-lint:kr_revision_findings",
+      "source_row_sha256": "c72161eef5b5153560a243a3cbba250afede7947e73520b54c4908036cd972f3",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0239",
+      "key": "bin/perry-lint:_linkage_record_findings",
+      "source_row_sha256": "2e42abd3e456b0f7861124fda98f8ac0f0414098aca0cbdf7c57822c07386db2",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0240",
+      "key": "bin/perry-lint:_linkage_graph_findings",
+      "source_row_sha256": "9661b82278cdfe9d40204572cb005064910e582f42797dcb32e47b78aabce42b",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0241",
+      "key": "bin/perry-lint:check_linkage_store",
+      "source_row_sha256": "bead36fe36f0fa76e3990cd7b4258b5834de28342983ddd900ff11d10d702031",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0244",
+      "key": "bin/perry-diagnose:open_user_asks",
+      "source_row_sha256": "f6a8f0e3b40f8297e0a44d488a800bb0487a4c27c8be0b9eec0f5d9e16b7de3f",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0245",
+      "key": "bin/perry-diagnose:open_design_decisions",
+      "source_row_sha256": "352e276676222e72ae40aa79feb000607f95f3aa0d2d92205f9e35c8afa4d4f9",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0246",
+      "key": "bin/perry-diagnose:scan_decision_mentions",
+      "source_row_sha256": "1e8db9424a87516432e4bc2e4f922bde343223fa7e19ecad32a0c1c0fdff1d66",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0247",
+      "key": "bin/perry-diagnose:split_dangling",
+      "source_row_sha256": "4c20ead3087f59ce04175ce0a74e2b618b4d0ee81fd1f79745cd69de93010105",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0248",
+      "key": "bin/perry-diagnose:scan_user_load",
+      "source_row_sha256": "743cc8235aa1ef312415ce677f3b208fbeafc28c3ce99a3cceaa26b61dbe0690",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0249",
+      "key": "bin/perry-diagnose:scan_context_load",
+      "source_row_sha256": "1e430a3e78ede5490fde6b33911ccea6836dceca63d764ec8ebfb8f78c36dbe0",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0250",
+      "key": "bin/perry-diagnose:broken_refs",
+      "source_row_sha256": "3fa6877e6db0f80a6a4c4f85ef8df99fb4a00be7ad90a6e4b2597b330c2be44f",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0251",
+      "key": "bin/perry-diagnose:scan_docs",
+      "source_row_sha256": "cb58072906365ee411c803960b7a552abbcbbc4538704078a7e395e80e1def73",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0252",
+      "key": "bin/perry-diagnose:scan_concurrency",
+      "source_row_sha256": "bbf5a29f3d09f197c3a89e7333c761b03a6f38335e57d67a40adc6268a772ebe",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0253",
+      "key": "bin/perry-diagnose:scan_tracking",
+      "source_row_sha256": "01aed39b3b97a1c5c49a590e6be27861b67f0d899fe2d4f81da8a68ab67bfae2",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0254",
+      "key": "bin/perry-diagnose:scan_archetype",
+      "source_row_sha256": "ab0891b89cf8c9935044c3dd63bee3c5f73913cb0ad71117ffcb9a064f858b9d",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0255",
+      "key": "bin/perry-diagnose:scan_namespace",
+      "source_row_sha256": "afcb6b809807754a6b0447d53c808141ac24ad5a2b3d532107bf357a73fb85fc",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0256",
+      "key": "bin/perry-diagnose:scan_work_modes",
+      "source_row_sha256": "fcfb62c2482b11afa8d18fd549034510bc53c09bbd34859f78acb933840239e1",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0257",
+      "key": "bin/perry-diagnose:derive_findings",
+      "source_row_sha256": "82f21e900e010f4ad40e25cbba2fcad8d036779de3db0d948daa5440408a28a4",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    },
+    {
+      "row_id": "R0258",
+      "key": "bin/perry-diagnose:diagnose",
+      "source_row_sha256": "0ca3fc195786c3085a4d7ce28164b0f8f700a2ea9a8aa24c676b5f6bcaefab3d",
+      "old_expression": null,
+      "original_proposed_red_case": null,
+      "acceptance": "PROPOSAL; no V4 or human acceptance",
+      "status": "PENDING",
+      "reason": "This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint."
+    }
+  ]
+}

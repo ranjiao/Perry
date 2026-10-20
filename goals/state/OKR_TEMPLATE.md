@@ -1,95 +1,40 @@
-# OKR — {{project_name}}
+# Overall goals — {{project_name}}
 
-> **Owner**: `okr` skill (only writer). PMO and other skills read for snapshots.
-> **Period**: {{period_label}} (e.g., "lifetime", "Q2 2026", "6 months")
-> **Status**: {{Active | Closed}}
-> **Tier 1 hard cap**: ≤ 200 lines. Overflow → move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md`; main file keeps current version + version log only.
-
-This document is the long-term reference for the system. The `okr` skill uses it to derive phase OKRs (`phase/<NNN>-<slug>.md`) and weekly task proposals (handed off to `pmo`). Versions are append-only — never overwrite an old version block.
+Goals owns this narrative. Objective/KR identities, version, lifecycle, targets,
+measurements and attribution live in native items; link them here without a
+second current-state table. Attach the approved bytes and record real consent.
 
 ## Mission
 
-{{One sentence: why this project exists.}}
+{{Who benefits, over what horizon, and what change matters.}}
 
 ## Operating Principles
 
-> Invariants the system must hold across all Objectives, all versions, all months.
-> Edit only via `/perry goals revise` (which bumps the version).
-
-- {{principle 1}}
-- {{principle 2}}
-- {{principle 3}}
-- {{principle 4}}
-- {{principle 5}}
-
-## Commitments
-
-> Promises to a named party by a date — the spine for `pipeline`- and
-> `queue`-mode tracks (`modes/pipeline.md`, `modes/queue.md`). Omit this
-> section entirely on a project whose tracks are all `project` mode; a KR is
-> the special case where the party is the project itself.
->
-> The clock is **two columns**. `Due` is typed — an ISO date (`2026-09-30`) or
-> an SLA token (`3d`, `2w`) — so triage can compare it against today and sort
-> by it. `By when note` is prose, records how the deadline was worded to the
-> party it was promised to ("within the track SLA"), and is **never
-> validated**. Board rows point here by putting this table's `Id` in their
-> `Commitment` cell — the link runs from the board side, so this table never
-> accumulates ids that rot as rows close.
-
-| Id | Track | Promise | To whom | Due | Status | By when note | Discharged by |
-|---|---|---|---|---|---|---|---|
-| {{track}}/1 | {{track}} | {{what was promised}} | {{who is waiting}} | {{YYYY-MM-DD or 3d}} | active | {{how it was worded, or empty}} | {{how, in prose}} |
+{{The project's enduring constraints and why they matter.}}
 
 ## Anti-Goals
 
-> Things this project will NOT do. First-class commitments — checked at every retro.
+{{Explicitly excluded outcomes and the reason for each exclusion.}}
 
-- {{anti-goal 1}}
-- {{anti-goal 2}}
-- {{anti-goal 3}}
-- {{anti-goal 4}}
+## Commitments
 
----
+{{Promisees, intended outcomes and tradeoffs; link the native commitment items.
+Do not create a second due/status register. Omit this section if inapplicable.}}
 
-## v1: {{date}}
+## Success and measurement rationale
 
-> The key results under these objectives live in `okr.jsonl`, not here: each
-> is added with `perry-goals kr add <KR-ID> --okr-version "<this version>"
-> --objective <O-id> --text "…" --reason "…" --actor goals` and read with
-> `perry-goals krs --level overall`. A fact with a schema lives in exactly one store (`ADR-019`,
-> TASK-236). The objective headings stay: they are what the KRs hang from.
+{{Explain the intended evidence, units, population and unknown baselines.
+Create conditions/targets/checks through goals, never by parsing this prose.}}
 
-### Objective 1 — {{title}}
+## Constraints and costs
 
-{{1–2 sentences explaining the goal.}}
+{{Approved constraints, measured cost source, and what remains unwired/unknown.}}
 
-### Objective 2 — {{title}}
+## Native items and evidence
 
-{{1–2 sentences explaining the goal.}}
+{{Links to the exact version-scoped objective/KR/check items and attachments.}}
 
-### Objective 3 — {{title}}     <!-- delete this block if only 2 Os -->
+## Revision and retrospective rationale
 
-{{1–2 sentences.}}
-
-### Retro — v1     <!-- filled when version closes; until then, leave empty -->
-
-- **Period score**: —
-- **Achieved**:
-- **Partial**:
-- **Missed**:
-- **Lessons**:
-- **Triggered new version**: —
-
----
-
-<!--
-## v2: YYYY-MM-DD
-
-(Same structure as v1. Append a new block when revising. Old block stays for audit.)
-
--->
-
-## Versioning log
-
-- v1: {{date}} — initial draft.
+{{What changed, why, actual user decision, evidence and later lessons.
+Retain historical approved narrative; never overwrite another version's items.}}

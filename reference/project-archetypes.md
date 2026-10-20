@@ -182,7 +182,7 @@ lives in exactly one store; a document holds what has no schema* — Perry has
 TASK-235 deleted it. A project at this floor has no store and no tooling by
 construction, so a document is the only home its decisions can have, and it is
 the right one under the same rule. `templates/software/`, `templates/ops/` and
-`bin/perry-diagnose`'s `FIT-02` / `TRK-04` prescriptions name the file for this
+The skill diagnosis procedure's minimum-spine and decision-record prescriptions name the file for this
 reason. `STATE.md` carries: current
 goal, in-flight work, blocked-on, decided-this-week, next. If a project cannot
 keep three files current, adding a fourth will not help — that is a signal

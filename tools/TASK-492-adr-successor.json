@@ -1,0 +1,64 @@
+{
+  "status": "activation candidate; no ADR ID allocated and no live write",
+  "authority": [
+    "TASK-492-spec.md acceptance 5",
+    "DESIGN-023 User Decisions 4 and 8; §6 F",
+    "ADR-025 OKR-items successor scheduled for phase F",
+    "ADR-025 Chosen table row: ADR-017 and ADR-022 superseded by an ADR for OKR items at phase F or H"
+  ],
+  "fields": {
+    "title": "Goals and decision metadata move to native kernel items",
+    "decision_type": "Architecture",
+    "deciders_text": "Ran Jiao (prior locked DESIGN-023 authority; activation records actual executor/approval)",
+    "approval_ref": "Resolve actual reviewed activation authority at activation; this candidate is not consent"
+  },
+  "links": [
+    {
+      "kind": "authorized_by",
+      "target_legacy_id": "DESIGN-023"
+    },
+    {
+      "kind": "authorized_by",
+      "target_legacy_id": "ADR-025"
+    },
+    {
+      "kind": "aligned_to",
+      "target_legacy_id": "O3-KR4",
+      "okr_version": "v4"
+    },
+    {
+      "kind": "supersedes",
+      "target_legacy_id": "ADR-017"
+    },
+    {
+      "kind": "supersedes",
+      "target_legacy_id": "ADR-022"
+    },
+    {
+      "kind": "amends",
+      "target_legacy_id": "ADR-015"
+    },
+    {
+      "kind": "amends",
+      "target_legacy_id": "ADR-019"
+    }
+  ],
+  "body": "## Context\nADR-025 scheduled the OKR-items successor at DESIGN-023 phase F. Locked User Decisions 4 and 8 place goal records and metric derivation in the generic kernel, while §5.4 retains the skill's measurement and approval responsibilities. Work-store activation in ADR-026 is prior authority for the already-native work lane, not evidence of goals approval.\n\n## Options\nKeep legacy structured goals/decide writers, or move their structured facts to the native process template with owned narrative attachments. The former retains two state systems; the latter follows the locked plan and preserves version-scoped identity and honest unknowns.\n\n## Chosen\nThis successor supersedes ADR-017 and ADR-022 at reviewed activation, as ADR-025 scheduled; it amends the storage medium/authoring boundaries of ADR-015 and ADR-019 while retaining one-home-per-fact. Root/H owns the remaining ADR-011/012/014 dispositions and narrative reconciliation. At reviewed activation, apply the F process template and append reconciled objective/KR/check/phase/design/ADR items. Preserve all existing work items, IDs and events. Preserve exact legacy labels, source scopes, source hashes, attachments and metadata including superseded/archived ADRs. Do not infer measured currents from prose. Kernel-derived metric shape does not prove criteria, command execution or user approval.\n\n## Consequences\nThe skill runs input/meaning/measurement checks and records actual consent. Narratives remain lane-owned attachments; legacy structured headers/stores and journals are frozen history. Old writer tests receive explicit H dispositions. Sparse filename ceilings need an approved generic primitive; placeholders and direct SQLite/event edits are forbidden. No phase replanning, remote publication, V4 self-review or H/V5 sign-off is implied.\n\n## Evidence\nRoot inserts the exact integrated commit, reviewed migration/replay/source-parity receipts, architecture start/delivery/freshness paths, actual prefix ceilings, fresh backups and activation consent reference before acceptance.\n",
+  "activation_updates": [
+    {
+      "legacy_id": "ADR-017",
+      "transition": "supersede",
+      "condition": "Only after successor is actually accepted and typed link/authority is verified"
+    },
+    {
+      "legacy_id": "ADR-022",
+      "transition": "supersede",
+      "condition": "Only after successor is actually accepted and typed link/authority is verified"
+    }
+  ],
+  "deferred_to_root_h": [
+    "ADR-011 archive",
+    "ADR-012/ADR-014 fold into the store ADR",
+    "ADR-015/ADR-019 owned narrative amendment and legacy freeze reconciliation"
+  ]
+}

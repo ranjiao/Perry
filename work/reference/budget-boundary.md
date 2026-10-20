@@ -6,7 +6,7 @@ The agent environment and the user decide when to start a new session. Perry
 sets no session token ceiling and does not stop, refuse dispatch/review, or
 require a handoff because of token usage or unavailable telemetry.
 
-`bin/perry-context-budget` is an optional, read-only usage report. A measured
+`tools/context_budget.py` is an optional, read-only usage report. A measured
 figure is not a continuation verdict. Unknown identity or usage stays unknown;
 it does not require a user decision. Old session-ceiling settings and environment
 variables do not control work. An explicit legacy `--ceiling` is a comparison

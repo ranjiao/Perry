@@ -1,10 +1,9 @@
 # DESIGN-{{id}}: {{Title}}
 
-> Status: draft
-> Date: {{YYYY-MM-DD}} · Locked: —
-> Author: {{role or name}}   · Implementation owner: {{role or "TBD"}}
-> Linked OKR: {{O-id / KR-id, or —}}
-> Supersedes: —   · Superseded by: —
+
+Native item: {{kernel_item_id}}. Current lifecycle, date, authority and
+supersession metadata are read from that item. This attachment records the
+reasoning and historical reviewed decision; it is not a second metadata store.
 
 ## 1. Problem
 
@@ -26,7 +25,7 @@ What this design will deliberately NOT do. Often more important than Goals.
 
 ## 4. User Decisions
 
-ALL rows must be resolved before this doc can move to `Status: locked`.
+All blocking choices need actual user decisions before the native design item can move to `design_locked`.
 
 The **Options** column uses pipe-separated short labels (≤ 5 words each, 2–4 options) so `/perry decide resolve` can map each cell directly to `AskUserQuestion` button options without rephrasing. If you need longer explanations, add them as bullets below the table — keep the cell terse.
 

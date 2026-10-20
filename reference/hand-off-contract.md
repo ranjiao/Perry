@@ -1,3 +1,5 @@
+> Historical ownership-signature record. Current native ownership is in `SKILL.md`; legacy command/schema names below are context, never executable instructions.
+
 # The hand-off contract — what changed, and why it needed no second signature
 
 Tier 1. Loaded on demand from `SKILL.md § The hand-off contract (the most
@@ -98,3 +100,15 @@ gained no mention of any later one — was the movable text, exactly as
 anticipated here. A pointer to this page stands in its place, and the router
 came back to 20,371 bytes against the same 20,480 cap. The table alone no
 longer carries its own history, and it does not need to: this file does.
+
+## DESIGN-023 F — native state, retained narrative ownership
+
+Structured goals/decide writes now use the native kernel only. Goals owns native
+objective/KR/check/phase method fields and its OKR/phase/plans narratives; decide
+owns design/ADR fields and its design/decisions narratives. Work creates tasks;
+goals accepts attribution. All lanes read each other freely. The shared database
+is not permission to impersonate another lane or author its narratives.
+Legacy stores, headers and journal are frozen history. Items attach narratives,
+events record writes, and kernel shape checks never award semantic approval,
+independent V4 or human V5. The root router's remaining historical file table is
+reconciled by DESIGN-023 G/H; it is not authority to resume legacy lane writes.

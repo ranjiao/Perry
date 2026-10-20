@@ -21,7 +21,7 @@ authorization, recovery and publication policy is [README.md](README.md).
 | [`publish.py`](publish.py) | Uses the prepared commit and generated notes to create an absent GitHub tag and Release. |
 | [`update.py`](update.py) | Validates published release metadata and tags, classifies the local checkout and applies eligible forward updates. |
 | [`VERSION`](../VERSION), [`CHANGELOG.md`](../CHANGELOG.md) | Deterministic projections of the canonical records. |
-| [`bin/perry-update-check`](../bin/perry-update-check) | Shell entry point for host/source lookup and update-check options. |
+| [`tools/update-check.sh`](../tools/update-check.sh) | Shell entry point for host/source lookup and update-check options. |
 | [Publish workflow](../.github/workflows/release.yml) | Manual exact-commit verification, test execution and publication orchestration. |
 
 ## §3. Boundaries & dependencies
@@ -30,7 +30,7 @@ These tools use Python's standard library and Git. `publish.py` imports
 `manage.py` for record/projection checks and preparation. The publisher and
 updater use the GitHub API; ordinary local metadata checks have no publication
 side effect. This is product metadata, separate from the project stores read
-through `viewer/parsers.py` in the root component map.
+as frozen document metadata, separately from the native kernel.
 
 Authored notes, upgrade guidance and breaking-change descriptions pass through
 as text. Mechanical shape and version checks do not interpret their meaning or

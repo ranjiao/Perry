@@ -27,8 +27,8 @@ interrupted-run gates before this lane reads project state.
    a board or a journal. `store_missing` is a migration/setup condition, not an
    empty project. Do not fall back to the frozen legacy writer.
 4. Show a compact status from query totals/counts and recent events. Current phase
-   and OKR still come from the goals lane until its cutover. Never mix legacy task
-   totals with kernel task totals. The root dashboard migration is a later phase.
+   and OKR come from the native goals types, using `reference/snapshot.md`. Never
+   mix legacy totals with kernel totals or treat an unapplied type as empty.
 5. A user-named task has priority. Otherwise propose a startable task in priority
    order. Read the selected spec, evidence and locked design before changing it.
    A P0/P1 task without written acceptance criteria needs a spec before coding.
@@ -42,7 +42,7 @@ Existing plan-before-produce and consequential-ambiguity rules remain in
 
 ## The kernel is the work state contract
 
-`$PERRY_HOME/bin/perry-kernel` is the only work-state writer. It knows items,
+`$PERRY_HOME/bin/perry` is the only work-state writer. It knows items,
 fields, transitions, relations, events and attachments; the process template supplies
 Perry's names. Every call names `--root <absolute project>`; test/rehearsal calls also
 name `--store <isolated database>`. JSON input and result envelopes are specified
@@ -82,7 +82,7 @@ history is a gap; never reconstruct a pre-edit baseline from an edited tree.
 
 Work in an isolated checkout for coding, preserve unrelated changes, commit your
 own delivery and never merge your own implementation. `reference/git-boundaries.md`
-and the project hook govern push/PR/merge authority. Use targeted tests during
+and the structured project policy/role union plus user instructions govern push/PR/merge authority. Use targeted tests during
 iteration; repository completion requires its full gate and `git diff --check`.
 
 Additional references loaded on demand: `reference/bootstrap.md`,

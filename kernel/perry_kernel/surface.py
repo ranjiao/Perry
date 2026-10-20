@@ -12,7 +12,7 @@ from . import template as tpl
 from .errors import ERRORS, EXIT_CODES, SET_A, SET_S, SET_W, WARNINGS
 from .values import FIELD_KINDS
 
-SURFACE = "1.0"
+SURFACE = "1.1"
 
 #: The eight concepts (Goal 6). A ninth is a revision of DESIGN-023.
 CONCEPTS = ("template", "item", "field", "transition", "guard", "relation",
@@ -68,7 +68,7 @@ COMMANDS = [
             summary="create the store and record the state root"),
     command("template apply", "write",
             {"actor": ACTOR, "template": k("object", True, open=True),
-             "note": NOTE},
+             "ceilings": k("object", values=k("integer")), "note": NOTE},
             ("name", "version", "previous_version"),
             SET_W + ("template_invalid", "template_version",
                      "template_incompatible"),

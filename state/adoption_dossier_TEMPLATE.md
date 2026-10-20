@@ -45,10 +45,10 @@ candidates:
 # Adoption dossier — {{project name}}
 
 > **Owner**: the top-level `perry` skill, via `/perry adopt`. It is the **only**
-> file adoption writes. `OKR.md`, `BOARD.md`, `design/` and the rest are written
+> file adoption writes. Native items and their narrative evidence are written
 > by their owning skills at stage 4, through the normal subcommands.
 > **Tier**: 2 (agent-state, no line cap).
-> **Spec**: `adoption: 1`. Contract in `$PERRY_HOME/schema/state-schema.json`;
+> **Spec**: `adoption: 1`. Safety scalars are checked by `$PERRY_HOME/tools/document_checks.py`;
 > procedure in `$PERRY_HOME/reference/adoption.md`.
 
 ## What each part is for
@@ -84,4 +84,4 @@ candidates:
   interview, never to be written as-is. See `reference/adoption.md § The
   asymmetry`.
 
-Validate after every write: `"$PERRY_HOME/bin/perry-lint" --root .`
+Validate after every write: `python3 "$PERRY_HOME/tools/document_checks.py" startup --root <absolute-project> --state-root <relative-documents>`

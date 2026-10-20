@@ -1,498 +1,123 @@
 # Architecture — Perry
 
-> Written by: agent · Confirmed by: user (§1, §3 Forbidden, §5 versions, §6, §7)
-> Version: v1
-> Last reviewed: 2026-09-15
-> Hard cap: ≤ 500 lines. It has two readers — the user in one sitting, and every
-> agent that is dispatched against it — and the second one pays for it per turn.
-> Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`.
-
-**This file existing is what makes it binding.** There is no draft state: a
-document that describes the system is the description, and a change that
-contradicts a section stops and asks the user (DESIGN-017 decisions 2 and 4).
-
-<!--
-Perry ships this discipline (`packs/software-ops/architecture.md`) and had never
-applied it to itself: `perry-state --section architecture` reported
-`exists: false` until 2026-09-09.
-
-WHERE THIS FILE LIVES, and it is a correction. It was first written to
-`perry/ARCHITECTURE.md`, because `schema/state-schema.json § files[id=architecture]`
-then anchored it at the STATE root. The user moved it here on 2026-09-09: `perry/` is
-Perry's runtime state — board, journal, evidence, stores — and an architecture
-document describes CODE. It belongs where someone reading the code will find it,
-which is the repository root, beside the directories it maps.
-
-The tooling followed on 2026-09-21: TASK-451 anchors this file at the code
-root in the schema, TASK-452 makes `perry-state --section architecture` read
-it here (`exists: true`), and TASK-477 makes `perry-diagnose` count it as
-Perry's. §7's first open question is closed.
-
-An open question is referred to by its SECTION, never by its id. `OQ-` is not
-one of `lib.PERRY_CITATION_FAMILIES` — a closed set, on purpose — so
-`perry-diagnose` reads a prose reference to `OQ-1` as an id that resolves
-nowhere and reports it as dangling. Found by Perry's own check, on this file,
-the day it was written.
-
-Per-module documents live beside the code they describe — `bin/ARCHITECTURE.md`
-is the first, and §2 links each one. They are not the §-overflow files the header
-mentions: those split THIS document by section; a module document describes one
-directory's internals.
--->
+> DESIGN-023 H source candidate. Descriptive reconciliation is authorized by
+> TASK-494; changed targets remain visible for independent review and the user's
+> final H/V5 decision. This file does not record acceptance or live activation.
+> Prior confirmed text is immutable at base b9be4d39f52ce1266534215b999c9db408b03bc5.
 
 ## §1. Mission & scope
 
-Perry is a project office for solo and small projects, run by agents and read by
-one human. It keeps goals, work and decisions as files in the project's own
-repository, and it computes every number it reports rather than eyeballing it.
+Perry is a virtual project office for solo and small projects. The skill supplies
+method and judgment; the generic kernel stores structured state. Markdown holds
+narrative, evidence and user decisions. The kernel uses Python's standard library,
+SQLite and a deterministic JSONL export. It runs without markdown or an agent.
 
-It runs as a **skill** on three hosts — Claude Code, OpenCode and Codex CLI —
-with no install step and no service. The `bin/` tools are stdlib-only Python 3
-and POSIX-ish bash, invoked by the skill's own procedures.
-
-It deliberately does **not**: run unattended (every write is a command an agent
-was asked to make), judge what a document means in code (that is an agent's job,
-`DESIGN-014`), or hold state outside the project it is pointed at (`ADR-002` —
-there is no cross-project registry).
+The skill supports Claude Code, OpenCode and Codex CLI. Host helpers are optional
+skill tools, with no new kernel capability. No server, model API or dependency is
+introduced by the split. Project stores remain local to each project anchor.
 
 ## §2. Components
 
-### `bin/` — the deterministic tools
-- **Purpose**: read and write project state. Twenty-one executables plus three shared
-  libraries; `perry-kernel` is the `kernel/` CLI below.
-- **Owns**: every write to a canonical store, every computed number the standup
-  prints, the argument contract those calls are made through, and the
-  **next-step recommendation**: `perry-state --section next` evaluates the
-  declared rule table `reference/next-rules.json` over the payload it already
-  computes, so the same state gives the same recommendation. The move is the
-  user's decision, `perry/design/DESIGN-020-guided-planning.md § 9`, the
-  2026-09-15 entry, confirmed by the user in session.
-- **Doesn't own**: the rules, which are declared in `reference/`, or the
-  procedure around a recommendation — when to show it and what to ask the user
-  are the `SKILL.md` files'. These tools execute, compute and refuse.
-- **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
+| Component | Responsibility | Contract |
+|---|---|---|
+| `bin/perry` | Single thin native entry point | imports `perry_kernel.main`; no dispatch aliases |
+| `kernel/` | Generic items, types, fields, transitions, guards, relations, events and attachments | [kernel target](kernel/ARCHITECTURE.md); native `describe` |
+| `SKILL.md`, `goals/`, `work/`, `decide/` | Routing, method, meaning, ownership and evidence decisions | lane procedures, [operating rules](reference/operating-rules.md) |
+| `templates/process/` | Method as data | template format in native `describe` |
+| `tools/` | Host helpers, document safety facts and architecture evidence | [tool contracts](tools/README.md), [helper shapes](tools/helper-contracts.md) |
+| `release/` | Perry product versions, updates and publishing | [release rules](release/README.md) |
+| `tests/`, `kernel/tests/` | Native/helper correctness and isolated integration | [suite definition](tests/README.md) |
+| `perry/`, `.perry/` | Historical project documents and local configuration/evidence | preserved, not rewritten by this candidate |
 
-### `kernel/` — the PMO kernel (DESIGN-023)
-- **Purpose**: hold a project's structured state in one store per project anchor
-  and answer for it through one CLI, JSON in and JSON out. Built by DESIGN-023
-  § 6 row B, behind `bin/perry-kernel`; `bin/` stays the live writer until
-  each lane cuts over.
-- **Owns**: the store (`<git-common-dir>/perry/<slug>.db`, or `<anchor>/.perry/perry.db`
-  outside git) and its deterministic export under `<state root>/export/`; eight concepts and at
-  most twelve command groups; every structural check a guard can decide without reading for
-  meaning; and the derived fields `startable`, `blocked_by`, a metric's `met` and `fraction`, and `rollup`.
-- **Doesn't own**: the method. Item types, states, fields and guards are the
-  process template, which the skill ships as data under `templates/process/`.
-  The kernel reads no markdown, runs no command, and names no skill path or
-  template-declared name.
-- **Module document**: [`kernel/ARCHITECTURE.md`](kernel/ARCHITECTURE.md)
-
-### `release/` — Perry product versions and releases
-- **Purpose**: maintain Perry's own product versions and verified release updates.
-- **Owns**: typed release records, deterministic VERSION/CHANGELOG projections,
-  integration checks and explicit publication of an exact tested commit.
-- **Doesn't own**: the versions or state of projects managed by Perry, the
-  meaning of authored change notes, or the user's decision to raise a major version.
-- **Procedure**: [`release/README.md`](release/README.md).
-
-### `viewer/parsers.py` — the one reader
-- **Purpose**: parse every state file. 5,228 lines, one implementation.
-- **Owns**: `OKR.md`, phase, linkage, config and architecture parsing, and the
-  store readers the read payloads answer from — a `BOARD.md` a project still
-  holds is parsed only for the import verbs (TASK-262 round 4b); the
-  project-root and state-root resolution, and the `installed` predicate, both
-  `bin/` and the skill read through.
-- **Doesn't own**: writing. A second parser is the defect this repository has
-  shipped twice; `NN-1` below is that rule.
-
-### `schema/` — the declared shape
-- **Purpose**: `state-schema.json` (107KB) declares every file, heading, table,
-  enum, store and claim. Eight contract pages publish the payloads outside
-  consumers read; `next-contract.md` is the eighth.
-- **Owns**: what a file must look like, and what a payload promises.
-- **Doesn't own**: how a tool reaches that shape.
-
-### `SKILL.md` + `goals/` `work/` `decide/` — the lanes
-- **Purpose**: the router (tier 0, read on every invocation; its byte cap is
-  `tests/test_router_budget.py`'s) and three lane files loaded on demand.
-- **Owns**: procedure — what an agent does, in what order, and when it stops to
-  ask the user. A lane **renders** the next step `perry-state --section next`
-  returns: **in a standup's TL;DR and in its next-step position** it does not
-  add, drop or reorder a recommendation, and it may add one line marked as its
-  own note (`perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15
-  entry, confirmed by the user in session).
-- **Outside that rule**, and still the lane's own to write: a procedural step
-  inside a subcommand's instructions ("read this, then run that"); the
-  remediation a refusal names ("no current phase — run `plan-phase` first");
-  bootstrap and first-run prompts; and a hint in a rendered dashboard row.
-  First-time setup is the largest of them: on a directory with no Perry state
-  `R-setup` recommends only `/perry`, and the order setup recommends after
-  that is the router's own (`reference/first-run.md § The recommended order for
-  a new project`, which the router's first-time setup points to). The rule is
-  about the one position the next block owns, not about naming a command.
-- **Doesn't own**: any number, or which step to recommend. Every figure a lane
-  prints comes from a `bin/` call, and so does the recommendation.
-
-### `modes/`, `packs/`, `reference/`, `templates/`
-- **Purpose**: the domain pack (`software-ops`), tier-1 reference pages loaded
-  on demand, document scaffolds, and `templates/process/` JSON applied through
-  the kernel. The legacy mode pages remain until final disposal; the work lane
-  no longer runs stage, WIP, SLA or cadence procedures. `reference/` also holds `next-rules.json`, the rule table `bin/perry-state`
-  evaluates for the next step, and `next.md`, which explains each rule.
-- **Owns**: process template data, retained legacy mode vocabulary, pack glossaries and legacy
-  next-step rules, declared as data that `bin/` evaluates.
-
-### `tests/` — 166 modules
-- **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
-  fails the suite if a run changed the checkout it ran in.
-- **Owns**: whether a claim in this repository is true.
-
-### `perry/` and `.perry/` — this project's own state
-- **Purpose**: Perry's state root and anchor. Perry runs its own office in its
-  own repository.
+`viewer/README.md` is a retirement marker, not a browser or parser. The old
+`schema/` and typed-state tools are removed in this candidate. Exact finite
+proposals and consumer blockers are [the H ledger](release/retirement/README.md).
 
 ## §3. Boundaries & dependencies
 
 ```mermaid
-flowchart TD
-    User([the one human]) -->|reads, decides| Lanes
-    Lanes["SKILL.md · goals / work / decide<br/>procedure only"] -->|invokes| Bin
-    Bin["bin/ — 23 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
-    Bin -->|imports| Lib["bin/lib · perry_store · perry_md_store"]
-    Bin -->|validates against| Schema["schema/state-schema.json"]
-    Parsers -->|reads| State[("perry/ · .perry/<br/>stores and projections")]
-    Bin -->|writes| State
-    Tests["tests/ — 166 modules"] -.asserts.-> Bin
-    Tests -.asserts.-> Parsers
-    Tests -.asserts.-> Schema
-    Outside([aiMark and other consumers]) -->|published payloads| Contracts["schema/*-contract.md"]
-    Contracts -.described by.-> Bin
+flowchart LR
+  User[User] --> Skill[Skill and process template]
+  Skill --> CLI[bin/perry]
+  CLI --> Kernel[Generic kernel]
+  Kernel --> Store[(Project store)]
+  Kernel --> Export[Deterministic export]
+  Skill --> Tools[Host and document helpers]
+  Tools --> Docs[Documents and source facts]
+  Outside[External consumers] --> CLI
 ```
 
-Allowed directions: lanes → tools → libraries → state. Tools import `parsers`;
-`parsers` imports nothing from `bin/`.
+Allowed: skill and external consumers → native CLI → kernel → store. Helpers
+that need structured state call the native CLI with explicit roots. They do not
+open SQLite or fold native exports. Architecture tools analyze source as data,
+never execute analyzed code. Release tooling is separate product infrastructure.
 
-Forbidden, and each one has cost this project something:
-- **A second reader of any state file.** `bin/` never re-implements a parse.
-- **A lane computing a number.** If a figure is not in a payload, the tool grows
-  the field; the procedure does not count rows.
-- **A tool reaching another project.** Roots come from `--root`, then
-  `$PERRY_PROJECT`, then the walk up — `ADR-002`, and `bin/lib § resolve_project_root`
-  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. The kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the second implementation DESIGN-023 introduces. It walks in the same order as `bin/lib § resolve_project_root` with a different predicate — it stops at the first `.perry/`, not the first installed project — and it refuses (`anchor_not_found`) where `bin/lib` falls back to the working directory or takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`. `kernel/tests/test_resolver_agreement.py` pins those four differences on both sides and shows the two agree on a shared set of fixture roots. The copies that already exist are unchanged and go at row H: `bin/perry-state § resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`, `perry-explain`, `bin/perry-churn § detect_perry`, which walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable, and `perry-lint`, which reads no `$PERRY_PROJECT` at any of its nine sites: one, the default lint, walks, and eight per-mode branches (`--claims`, `--verification`, `--summaries`, `--glossary`, `--reviews`, `--knowledge`, `--provenance`, `--specs`) take `--root` or else the cwd, with no walk.
-- **An agent writing `ARCHITECTURE.md`.** This file is the user's.
+Forbidden:
+
+- The kernel imports no skill/helper/release module, reads no markdown and runs
+  no command. Its eight concepts and existing command/guard budgets do not grow.
+- A helper must not become a hidden compatibility command in `bin/`, retain a
+  legacy state writer, or copy the old full viewer parser into the skill.
+- A figure about current structured state must come from native query/metric
+  output. The skill chooses recommendations and records uncertainty explicitly.
+- No caller invents actor identity, human acceptance or independent review.
+- Roots and stores are explicit in tests. `PERRY_KERNEL_TESTING=1` prevents an
+  omitted test store from using the shared live store.
+
+The old single-viewer-parser and JSONL projection rules are replaced by the
+kernel's store/export boundary. This is a visible target change under DESIGN-023,
+not an author-certified compliance result. Historical documents are retained.
 
 ## §4. Data flow
-**Current work flow:** work and aiMark call `perry-kernel`; SQLite items/events are state/history, with JSONL recovery exports. Goals/decide and the root dashboard migrate later (DESIGN-023 F/G).
-**Historical legacy flow below** (work writes are frozen at phase E): every
-mutating command writes the record first. The board is not a file:
-`perry-tasks board` prints it from the stores. A `BOARD.md` a project still
-holds is retired — no write or reader uses it, only the `--from-board` imports
-read it, and every tool that sees it says to import and then delete it
-(TASK-262 rounds 4a and 4b).
 
-```mermaid
-flowchart LR
-    subgraph write["a mutating command"]
-        direction TB
-        A["perry-task &lt;verb&gt;"] --> B["tasks.jsonl<br/>the record"]
-        B --> C["journal/&lt;YYYY-MM&gt;/&lt;day&gt;.md<br/>the history line"]
-        B --> E[".perry/events.jsonl<br/>derived, disposable"]
-    end
-    B -.->|"(1) and (2) are one<br/>recoverable transaction"| C
-    C -.->|"(3) may fail alone<br/>— reported, not silent"| E
-```
+Each project anchor resolves one store shared by its worktrees. The skill applies
+the process template and uses item/relation/attachment operations. Native queries
+return counts, blockers and metrics. Documents are attached as evidence, never
+folded into current item state. Exports are backups and review surfaces; they are
+not replication. Import is into an empty store only.
 
-Eight stores exist, one verdict line each in `perry-lint`'s census:
-`tasks.jsonl`, `risks.jsonl`, `intake.jsonl`, `asks.jsonl`, `cadence.jsonl`,
-`okr.jsonl`, `linkage.jsonl`, `.perry/config.jsonl`. `cadence.jsonl` is the
-newest (TASK-237 deliverable 3b).
-
-The historical read path below remains for the legacy dashboard; current work and aiMark query the kernel:
-
-```mermaid
-flowchart LR
-    State[("stores + projections")] --> P["viewer/parsers.py"]
-    P --> S["perry-state"]
-    S -->|"--compact ≈ 11KB"| Standup["the standup, every session"]
-    S -->|"--section &lt;name&gt;"| Detail["one key, in full"]
-    S -->|"--section next --lane / --after"| Next["the next block,<br/>narrowed"]
-    S -->|"--json ≈ 174KB"| Whole["the whole payload"]
-    T["perry-task list --json"] -->|"contract 2.4, bounded"| Outside([aiMark])
-```
-
-`--section next` is the one section that is not always the payload's key as it
-stands. With `--lane` or `--after` it prints the block evaluated again over
-only that lane's or that subcommand's rules, plus the overlays (TASK-442).
+Before reading current project state, run the skill's recovery and interrupted-run
+procedure. A legacy transaction marker blocks migration; use a pinned pre-cutover
+release to recover it. Never delete it or silently resume a dossier.
 
 ## §5. Contracts
 
-### Contract: `bin/` → an agent (the argument surface)
-- **Input**: `<tool> <subcommand> [flags]`. Each tool declares its surface in
-  `SURFACE`; the parser is driven by that declaration.
-- **Output**: exit 0 read or written · 1 refused, reason printed · 2 bad
-  invocation · 3 the bytes match and the store did not produce them. These two bullets describe the other `bin/` tools: `bin/perry-kernel` has no `SURFACE` (`describe` is its surface), and its exit 3 is an internal fault (`kernel/ARCHITECTURE.md` § 5.1).
-- **Invariant on the tool**: a flag reaches only the subcommands that declare
-  it. Accepted-and-dropped is a defect (`DESIGN-016` goal 12).
-- **Invariant on the caller**: a refusal is an outcome, not a failure. Do not
-  fall back to editing the file by hand.
+`bin/perry describe` is the native versioned argument/result contract. Every
+native result is an envelope. Unknown arguments/keys refuse; help does not execute.
+A refusal never authorizes direct edits to the store, an export or a legacy file.
 
-### Contract: `perry-task list --json` → outside consumers
-- `schema/task-list-contract.md`, version **2.4** (confirmed by the user
-  2026-09-15; 2.2 adds `installed`, 2.3 narrows it to a store with `.perry/`
-  beside it, 2.4 reads no `BOARD.md` a project still holds — TASK-262 round
-  4b). `tasks[]` is bounded at 200
-  rows by default; `bound.open_total` carries the project's figure.
-- **Error mode**: a refusal is JSON on stdout, not prose on stderr.
-
-### Contract: `perry-state --json` / `--compact` → the standup
-- `--compact` is a strict projection of `--json`, declared once in
-  `perry-state § COMPACT` and asserted against the full payload by test.
-
-### Contract: the schema → both sides
-- `perry-lint --templates` fails when a shipped template drifts from
-  `state-schema.json`. That check is what keeps the standup from breaking
-  silently.
+Host helper contracts are versioned separately in `tools/helper-contracts.md`.
+They are not the retired `schema/*-contract.md` payloads. aiMark must adapt to
+these shapes before any live cutover. Kernel source remains unchanged in H.
 
 ## §6. Non-negotiables
 
-### NN-1 — One reader per state file
-- **Severity**: hard
-- **Rule**: exactly one implementation parses any given state file, and it lives
-  in `viewer/parsers.py`. A `bin/` tool that needs a fact imports it.
-- **Rationale**: two parsers of `BOARD.md` disagreed in production twice, and
-  the disagreement was invisible until a round-trip test one project later.
-- **Check**: `grep -rn "def parse_" bin/ | grep -v perry_store | grep -v _md_store`
-- **Known exceptions**:
-  - `release/manage.py` reads `phase/CURRENT` at two git refs with its own
-    "no phase" set: the pointer reader in `viewer/parsers.py` serves a working
-    tree, and `release/` does not import `viewer/` (USER-981, 2026-09-21).
-- **Sunset (proposed, DESIGN-023)**: becomes false at DESIGN-023 § 6 row H, when `bin/`, the state readers in `viewer/parsers.py` and the state files they read are deleted, and structured state lives only in the kernel's store, read and written through the kernel CLI. Until row H it holds for everything `bin/` still reads. Its successor is `kernel/ARCHITECTURE.md` § 3: nothing but the kernel opens the store, and only `export`, to decide `unchanged`, and `import` read the export.
+1. Structured state is owned solely by the kernel. No helper opens its database.
+2. Deterministic tools judge shape and facts; evidence adequacy and document meaning
+   remain with the skill, an independent reviewer and the actual user.
+3. A command never reports a write it did not perform. Structural success is not
+   acceptance. No-op and refusal remain distinguishable.
+4. Tests use temporary roots/stores and check source-tree integrity on every suite
+   exit. Integration tests run a disposable merge of immutable local refs.
+5. Lane ownership, high-stakes screening, recovery/interrupted gates, evidence,
+   reviewer freshness and named human sign-off are retained. Safety gates cannot
+   be dropped. Document helper output does not authenticate consent.
+6. Agents may describe architecture; changing a confirmed mission, Forbidden rule,
+   contract version or hard target requires the user's actual decision before it
+   lands. Candidate text and fresh static receipts do not supply that decision.
+7. Do not self-merge. A coding-branch green is not independent combined-tree green.
 
-### NN-2 — The store is truth; the projection is rendered
-- **Severity**: hard
-- **Rule**: a mutating command writes the record first. Every reading of it — a
-  payload and `perry-tasks board` — is derived from the record. No command
-  reads, renders or creates a board file; a `BOARD.md` a project still holds is
-  retired, is read only by the import verbs that upgrade the project, and every
-  tool that sees one says it can be deleted. A projection edited by hand is not
-  absorbed: the store is what every reading reports.
-- **Rationale**: `ADR-007`. Absorbing a hand edit destroys the canonical value;
-  overwriting it destroys the human's intent. Both must be visible.
-- **Sunset (proposed, DESIGN-023)**: becomes false at DESIGN-023 § 6 row H, when `perry-tasks board`, the `BOARD.md` import verbs and every projection are deleted with `bin/`. The store stays the truth, and nothing is projected from it: readings come from kernel `query`, and the only file derived from the store is the export, which only `export`, to decide `unchanged`, and `import` read (`kernel/ARCHITECTURE.md` § 5.8).
+## §7. Open acceptance boundaries
 
-### NN-3 — A write that cannot do what it claims refuses
-- **Severity**: hard
-- **Rule**: no command reports a write it did not perform. A render that cannot
-  place every stored record exits non-zero and names what it could not place.
-- **Rationale**: `DESIGN-016 § 1.5`. The documented recovery command reported
-  `rendered … from 399 stored record(s)`, exit 0, having restored none of 151
-  deleted rows.
+The concrete drop table, viewer retirement, preference/config procedure and target
+reconciliation remain H proposals. Root/F deliveries, aiMark adapters and both
+project migration rehearsals must be tested together by an independent integrator.
+Live activation, backup/export receipts, rollback limits and the user's V5 are
+outside this source executor's authority. No current state is changed here.
 
-### NN-4 — Deterministic tools decide nothing about meaning
-- **Severity**: hard
-- **Rule**: `bin/` makes only mechanical judgements. Whether a summary reads
-  like prose, whether a spec's scope is adequate, whether an ADR applies — all
-  belong to an agent or the user.
-- **Rationale**: `DESIGN-014`. Five rounds of regex lost to a full stop.
-- **Known exceptions**: `perry-codex-preflight` shells out to `codex exec` to
-  check the CLI is alive. It judges nothing; it pings.
+## §8. Evidence
 
-### NN-5 — The suite never writes into the tree it runs in
-- **Severity**: hard
-- **Rule**: every test writes to a temporary root. `tests/tree_guard.py` runs on
-  every exit path and fails the suite otherwise.
-- **Rationale**: an un-rooted `perry-task` call once discharged real board rows
-  on every run for months, invisibly, because the sweep is idempotent.
-
-### NN-6 — An agent may describe this file, and may not decide it
-- **Severity**: hard
-- **Rule**: an agent writes and rewrites the descriptive sections (§2, §4, §5's
-  shapes, §8) freely. It may ADD to §6 and §7, marked `proposed`, and may
-  delete from neither. Changing §1, a `Forbidden` line in §3, a contract
-  version in §5, or a confirmed rule in §6 is a question for the user, asked
-  before the change lands.
-- **Rationale**: the agent doing the typing is what makes this document
-  affordable, and the agent being unable to overrule it is what keeps it from
-  becoming a mirror. A description follows the code and can refuse nothing;
-  this file has to be able to refuse. DESIGN-017 carries the argument.
-
-## §7. Open questions
-
-- **OQ-1 — The schema anchors this file in the wrong place.** *Closed
-  2026-09-21 (USER-987).* TASK-451 (DESIGN-017 A1, main 6d471770) anchors
-  `ARCHITECTURE.md` at the code root in `schema/state-schema.json`; TASK-452
-  (A2, main 5d661ec6) makes `perry-state` read and cap-check it there, and
-  `--section architecture` reports `exists: true` on this repository. `perry-diagnose`'s
-  ownership scan, the last reader that ignored the code anchor, was fixed by
-  TASK-477 (main a2a12a8f). The text below is the question as it stood.
-  ANSWERED for where it lives, open for the fix. `schema/state-schema.json § files[id=architecture]`
-  and `§ claims` both anchor `ARCHITECTURE.md` at the STATE root;
-  `packs/software-ops/architecture.md` says "at the project root". The user
-  settled the question on 2026-09-09: an architecture document describes code,
-  so it lives at the code root, and `perry/` holds runtime state only. That
-  makes the schema's `anchor: state` the defect — and while it stands,
-  `perry-state --section architecture` reports `exists: false` on a project that
-  has one. Note `.perry/config.jsonl` already separates `pmo_repo_path` from
-  `code_repo_path`, so the resolution rule has somewhere to read from. No row is
-  open for this yet.
-- **OQ-2 — What is the module document's contract?** This file links
-  `bin/ARCHITECTURE.md`, and nothing yet declares its shape, its cap, its owner,
-  or what happens when it drifts from the code beside it. *Partly answered
-  2026-09-21 (USER-978):* a component §2 declares no module document for has
-  none — an architecture reviewer does not count its absence as missing
-  context. Shape, cap, owner and drift stay open.
-- **OQ-3 — Should `perry-lint` check mermaid?** `perry-state` already counts
-  fenced mermaid blocks (`mermaid_count`) and nothing consumes the number.
-- **OQ-4 — May `--compact` be accepted with `--section next`?** *Proposed*
-  (TASK-442). `DESIGN-020 § 5.4`'s closing step runs
-  `perry-state --section next --after <subcommand> --compact`, and
-  `perry-state` refuses `--compact` together with `--section`. `TASK-443`
-  builds that step and needs one of the two to give way.
-- **OQ-5 — Should the contract registry recognise a family that is not
-  `/list`?** *Proposed* (TASK-442). `perry-next/1.0` is one object, not a list.
-  `tests/contract_key_parity.py § CONTRACT_ID` matches only a three-part id, so
-  the parity baseline keys `schema/next-contract.md` by its path, and two
-  registry tests had their `/list` assumption widened to take the page at all.
-- **OQ-6 — May `--section <name>` print something other than the payload's
-  key?** *Proposed* (TASK-442). §4 describes a section as one key in full.
-  `--section next` with `--lane` or `--after` prints a block evaluated over
-  fewer rules, which is not what `--json` carries under `next`.
-- **OQ-7 — Does the phase heartbeat survive the move to `--section next`?**
-  *Proposed* (TASK-442). `goals/SKILL.md` prompted a phase snapshot after
-  `phase_heartbeat_days`. That prompt is now the rule `R-phase-heartbeat`, but
-  no value in `perry-state`'s payload dates the last snapshot, so the rule
-  reports its fact unknown and never fires. Keeping it needs `perry-state` to
-  compute that date; dropping it means deleting the rule.
-- **OQ-8 — What covers the lane lines that name a command with no rule
-  behind them?** *Proposed* (TASK-442). Two kinds are marked and waiting.
-  **After a subcommand**: `goals/SKILL.md`'s `score-phase` row and
-  `goals/reference/phases.md` step 9, both naming `plan-phase`. They are the
-  proactive closing step `TASK-443` builds; when it ships it renders
-  `--after score-phase` and the two lines go. **In a standup's next-step
-  position**: an ADR whose sunset date has passed and the old-style
-  `DECISIONS.md` migration, both in `decide/reference/decisions.md`, and the
-  undigested `inputs/` and stale-digest counts in
-  `work/reference/digests.md`. `reference/next-rules.json` has a rule for none
-  of the four, and **the reason is the bound, not a missing fact**:
-  `DESIGN-020 § 5.3`'s table is what `TASK-442` was bounded to and names none
-  of them, so each is a later row's work. Two of the four already have their
-  fact — `decisions.expired_sunsets` for the sunset, and
-  `operations.inputs` with `operations.inputs_oldest` and
-  `operations.inputs_oldest_days` for the digests. Stale digests have no count
-  in the payload, only per-card staleness under `roles.cards[].knowledge[]`,
-  and the migration has no fact at all; those two need a fact as well as a
-  rule. *Proposed — partly answered 2026-09-23 (TASK-484):* one of the four
-  now has its rule — the undigested `inputs/` line, through `R-inputs-waiting`
-  over the facts `operations.inputs` and `operations.first_input`, and
-  `work/reference/digests.md` was rewritten to stop saying the opposite. The
-  expired-sunset ADR, the `DECISIONS.md` migration and the stale-digest count
-  stay open, and the sentence above holds for those three.
-
-## §8. Change log
-
-- 2026-10-19 · TASK-496: user retired the session ceiling; context telemetry is report-only and reads no project config. Its direct-read exception is retired.
-
-- 2026-09-24/26 · v1 · TASK-487, four rounds, and TASK-488, each confirmed by the user (NN-6): §2's `kernel/` entry adds `rollup` (its Owns bullet rewrapped to stay within the cap), says the kernel is built, and `bin/` counts 21 executables; §3's third Forbidden line gains a proposed sunset naming the four resolver differences its test pins and the copies row H removes, `perry-lint`'s nine sites among them (round 4); §2 and the §3 diagram count 21 tools and 163 test modules; §5's `bin/` contract says `perry-kernel` follows kernel §5.1. TASK-488 (the user's decisions of 2026-09-25 and 2026-09-26): §6 NN-1 and NN-2's sunsets say only `export`, to decide `unchanged`, and `import` read the export, and §3's third Forbidden line adds `bin/perry-churn § detect_perry` to the existing copies. No other section is edited.
-- 2026-09-24 · v1 · TASK-486: §2 gains `kernel/` (DESIGN-023 row A), and §6 NN-1 and
-  NN-2 gain proposed sunset bullets. Both were confirmed by the user in session.
-  No other section is edited.
-
-- 2026-09-23 · v1 · TASK-484: §7's question about lane lines naming a command
-  with no rule gains a *Proposed — partly answered* clause — the undigested
-  `inputs/` line now has `R-inputs-waiting`, so "a rule for none of the four"
-  holds for three. The clause is marked `proposed` because that is what §6
-  NN-6 grants an agent for a §7 addition; the two annotations in §7 that are
-  not so marked each name a user id. The question's words are kept, and
-  `work/reference/digests.md`, which said the recommendation stays off the
-  next-step position, was rewritten to match what ships. No other section is
-  edited. (Named by its section, not its id, as the preamble has asked since
-  2026-09-09; the two entries below were written after that and name theirs.)
-
-- 2026-09-21 · v1 · USER-989, after TASK-477: §7 OQ-1's closure names
-  TASK-477 as done. Descriptive: the preamble comment says the tooling now
-  finds this file. No other section is edited.
-
-- 2026-09-21 · v1 · USER-987: §7 OQ-1 closed after TASK-451 and TASK-452;
-  its text is kept. No other section is edited.
-
-- 2026-09-21 · v1 · USER-981, after architecture re-review 3: §6 NN-1 gains a
-  second Known exception, `release/manage.py`'s git-ref reads of
-  `phase/CURRENT`. The pointer reader's claims in `viewer/parsers.py` and its
-  test are narrowed to what they cover.
-
-- 2026-09-21 · v1 · USER-978, after two architecture reviews came back BLOCKED
-  (`perry/evidence/2026-09/2026-09-21-architecture-review-task-471.md`,
-  `…-architecture-review-entry-skills.md`):
-  - §6 NN-1 gains the Known exception USER-971 decided on 2026-09-18 and that
-    was never written: `perry-context-budget`'s direct read of one config key.
-  - §7 OQ-2 records that a component with no declared module document has none.
-  - §2, descriptive: the router's line count is dropped (it was 222, then 181 —
-    a number that drifts is not architecture), and the new-project order is
-    cited where TASK-470 moved it, `reference/first-run.md`.
-
-- 2026-09-15 · v1 · TASK-442, descriptive (NN-6), on its branch:
-  - §2 `bin/` owns the next-step recommendation: `perry-state --section next`
-    evaluates `reference/next-rules.json` over its own payload, and the lanes
-    render what it returns. The move is the user's decision in
-    `perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15 entry,
-    confirmed by the user in session. `bin/ARCHITECTURE.md § 1` says the same.
-  - §2 `schema/`: eight contract pages. §2 `reference/`: it holds the rule
-    table `bin/` evaluates.
-  - §4's read path names the narrowed `--section next`.
-  - §2's lanes say first-time setup sits outside the next block.
-  - §7 gains five questions marked proposed. The fourth is the phase
-    heartbeat. `goals/SKILL.md`'s heartbeat prompt became the rule
-    `R-phase-heartbeat`, declared with its fact reported unknown, because
-    `perry-state` computes no date for the last snapshot. It sits after
-    `R-review-due`, because DESIGN-020's order has no place for it. The fifth
-    asks what replaces the two after-subcommand suggestions.
-  - §2's rule is narrowed to the position the next block owns — a standup's
-    TL;DR and its next-step position — and names what sits outside it:
-    procedural steps, a refusal's remediation, bootstrap and first-run
-    prompts, and dashboard row hints. The user decided that in session on
-    2026-09-15, after three review rounds each found a different lane line
-    that names a command legitimately. Five TL;DR examples in the three lanes
-    describe state instead of naming a step, and the `goals` bootstrap prompt
-    says it is outside the rule; a sixth TL;DR example and four standup
-    instructions followed when later reviews read the lane documents whole.
-  - §1, §3, §5 and §6 are not edited.
-- 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
-  retired a `BOARD.md` a project still holds:
-  - §6 NN-2 takes the wording proposed in
-    `perry/evidence/2026-09/TASK-262-round3-result.md § 5`: no command reads,
-    renders or creates a board file; a held file is read only by the import
-    verbs, and every tool that sees one says it can be deleted. The "drift is
-    REPORTED" clause for the file is dropped. The user chose not to record the
-    `perry-tasks render` / `diff` / `verify` verbs, which still act on a held
-    file when called, as a known exception; they retire with `R5`.
-  - §5 `perry-task list` 2.3 → 2.4.
-  - Descriptive: §2's `viewer/parsers.py` no longer reads a held board for
-    payloads; §4's prose and write diagram lose the re-rendered `BOARD.md`
-    node, and its read-path label moves to 2.4.
-- 2026-09-14 · v1 · TASK-237 3c, measured on its branch:
-  - `perry/BOARD.md` is deleted. §2's `viewer/parsers.py` no longer owns a
-    board this repository holds; §4's write diagram and its sentence name the
-    board as re-rendered only where a project still holds one.
-  - Not edited, because NN-6 makes them the user's: §6 NN-2's projection
-    wording, and §5's `perry-task/list` version (2.1 here; the tool emits 2.3).
-    Both are proposed in `perry/evidence/2026-09/TASK-237-d3c-result.md § 5`.
-- 2026-09-14 · v1 · **User-confirmed** (NN-6), after TASK-237 3c deleted
-  `perry/BOARD.md`:
-  - §6 NN-2 no longer says the command renders "the file". The rule is kept:
-    the record comes first, every reading derives from it, a projection is
-    re-rendered and never created, and a hand edit is reported drift.
-  - §5 `perry-task list` 2.1 → 2.3.
-  - §4's read-path label 2.0 → 2.3.
-- 2026-09-14 · v1 · Descriptive refresh, measured on main:
-  - §2 and the §3 diagram: 20 executables, `parsers.py` 5,228 lines, schema
-    107KB, 136 test modules (the last full run).
-  - §4: eight stores, with `cadence.jsonl` added, and `--json` ≈ 174KB.
-  - §5: `perry-task list` 2.0 → **2.1**, the live version since TASK-237 3a.
-    The user confirmed the change the same day, as NN-6 requires for a §5
-    contract version.
-  - `BOARD.md` still appears in §2, §4 and §6 because the file still exists.
-    Its deletion (TASK-237 3c) rewrites those lines.
-- 2026-09-09 · v1 · Initial architecture document, written while Perry's own
-  `--section architecture` still reported `exists: false`. Driver: the user's
-  request for a bidirectional structure channel, and `DESIGN-016`'s finding that
-  the `bin/` surface had grown past what one reader could hold.
+The H ledger names the immutable source base, per-file SHA256, exact path mapping,
+check dispositions and real red demonstrations. Architecture start/delivery bundles
+are durable outside the executor checkout; their static limits remain visible.
+Tests/run's new suite is not a claim that the retired legacy full/slow corpus passed.

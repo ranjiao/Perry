@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""
+perry-restore-check — did the file come back to what it is supposed to be?
+
+A mutation round (`work/reference/review.md § 2`, rule 2) ends by putting
+the file back. The pattern this project prescribed for years verified that restore
+against the bytes the harness itself had snapshotted:
+
+    BASE = (f.read_bytes(), md5(f))   # snapshot before mutating
+    f.write_text("MUTATED")
+    f.write_bytes(BASE[0])            # restore
+    assert md5(f) == BASE[1]          # "verify"
+
+**That assertion cannot fail when the write succeeds.** `BASE[1]` is the digest
+of `BASE[0]`, and `BASE[0]` is what was just written back. It verifies that the
+write happened. It does not verify that the file is right — so a file that was
+ALREADY carrying a mutation when the harness started gets restored to that
+mutation and reported OK. TASK-325 found `bin/perry-task` in exactly that state
+and could not account for how it got there.
+
+This tool answers the question the snapshot cannot: it compares the working
+tree against `git show <ref>:<path>` — an independent source, content-addressed,
+living outside the working tree where no in-tree mutation can reach it.
+
+    perry-restore-check <ref> <path> [<path> ...]
+
+    --root DIR              repository to resolve <path> and <ref> against
+                            (default: the git repo containing the first path).
+    --json                  machine-readable result on stdout
+    --allow-modified-self   proceed even though this script's own bytes could
+                            not be shown to match the copy committed in its
+                            repository — whether they differ, or there is no
+                            committed copy to compare against
+    -h, --help
+
+Exit 0 when every path matches the ref, 1 when any differs, 2 on a usage or
+git error — including a refusal to run unless this script has been shown to
+match the copy committed in its own repository.
+
+**Why it checks itself.** The standing objection to shipping a harness rather
+than prescribing one is that a harness living in the tree can itself be
+mutated, and would then report OK while wrong. So before answering anything
+this script compares its own bytes against `git show HEAD:<its own path>` and
+refuses unless they match. That check is not circular — its truth also comes
+from git's object store, not from this file.
+
+**It refuses on `unverifiable`, not only on `modified`** (TASK-256 round-1
+review § 3). `self_check()` cannot compare when this script is outside a git
+repository — which is exactly what a `git archive` scratch copy is, the
+workflow `review-constraints.md § You are a reader` prescribes — or when
+`HEAD:<self>` does not exist. Those cases are *more* dangerous than `modified`,
+not safer: no comparison was made at all. Gating only on `modified` let a
+mutated helper print `✓` and exit 0 from a scratch copy while its own `--json`
+reported two disagreeing digests. A warning is not enough here, for the same
+reason refusal was chosen over a warning in the first place: a warning inside a
+verifier is a line an agent scrolls past, and this one printed to *stdout*,
+above the `✓`.
+
+The hole it does NOT close, stated plainly rather than papered over: a wrong
+helper that has been *committed* passes its own self-check. That case belongs
+to `tests/test_helpers_native.py`, which mutates this file and requires the
+check to go red.
+
+Stdlib only, read-only, no LLM. Writes nothing anywhere.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+SELF = Path(__file__).resolve()
+
+
+def _git(args: list[str], root: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True
+    )
+
+
+def repo_root(start: Path) -> Path | None:
+    """The git work tree containing `start`, or None."""
+    probe = start if start.is_dir() else start.parent
+    out = _git(["rev-parse", "--show-toplevel"], probe)
+    if out.returncode != 0:
+        return None
+    return Path(out.stdout.decode().strip())
+
+
+def blob_at(ref: str, rel: str, root: Path) -> bytes | None:
+    """The committed bytes of `rel` at `ref`. None if the ref has no such path.
+
+    This is the independent source. It is read out of git's object store, which
+    is content-addressed and outside the working tree, so a mutation to the
+    working copy cannot change what this returns.
+    """
+    out = _git(["show", f"{ref}:{rel}"], root)
+    if out.returncode != 0:
+        return None
+    return out.stdout
+
+
+def md5(data: bytes) -> str:
+    return hashlib.md5(data).hexdigest()
+
+
+def self_check() -> tuple[str, str]:
+    """Compare this script against the copy committed in its own repository.
+
+    Returns (verdict, detail) where verdict is 'clean', 'modified' or
+    'unverifiable'.
+    """
+    root = repo_root(SELF)
+    if root is None:
+        return "unverifiable", f"{SELF} is not inside a git repository"
+    try:
+        rel = SELF.relative_to(root).as_posix()
+    except ValueError:  # pragma: no cover - repo_root guarantees containment
+        return "unverifiable", f"{SELF} is not under {root}"
+    committed = blob_at("HEAD", rel, root)
+    if committed is None:
+        return "unverifiable", f"HEAD:{rel} does not exist in {root}"
+    if committed != SELF.read_bytes():
+        return "modified", f"{rel} differs from HEAD:{rel} in {root}"
+    return "clean", f"{rel} matches HEAD:{rel}"
+
+
+def check(ref: str, paths: list[Path], root: Path) -> list[dict]:
+    results = []
+    for p in paths:
+        resolved = p.resolve()
+        entry: dict = {"path": str(resolved)}
+        try:
+            rel = resolved.relative_to(root).as_posix()
+        except ValueError:
+            entry.update(ok=False, reason="outside-repo",
+                         detail=f"{resolved} is not under {root}")
+            results.append(entry)
+            continue
+        entry["rel"] = rel
+        committed = blob_at(ref, rel, root)
+        if committed is None:
+            entry.update(ok=False, reason="not-at-ref",
+                         detail=f"{ref}:{rel} does not exist")
+            results.append(entry)
+            continue
+        if not resolved.exists():
+            entry.update(ok=False, reason="missing",
+                         detail=f"{resolved} does not exist on disk")
+            results.append(entry)
+            continue
+        actual = resolved.read_bytes()
+        entry.update(
+            expected_md5=md5(committed),
+            actual_md5=md5(actual),
+            ok=actual == committed,
+        )
+        if not entry["ok"]:
+            entry["reason"] = "differs"
+            entry["detail"] = (
+                f"{rel} does not match {ref}:{rel} "
+                f"({len(actual)} bytes on disk vs {len(committed)} at ref)"
+            )
+        results.append(entry)
+    return results
+
+
+USAGE = "usage: perry-restore-check <ref> <path> [<path> ...] " \
+        "[--root DIR] [--json] [--allow-modified-self]"
+
+
+def _root_refusal(flag: str, value: str) -> str | None:
+    """Reject empty explicit roots without depending on retired legacy code."""
+    return f"{flag} must not be empty" if not value.strip() else None
+
+
+def main(argv: list[str]) -> int:
+    # Scanned across the whole of argv, not just its head. DESIGN-016 goal 2
+    # says help prints from ANY argument position on EVERY tool, and this one
+    # read `argv[0]` alone: `perry-restore-check --root /tmp -h` printed
+    # "unknown option -h" and exited 2. It escaped every help test in the
+    # suite because those iterate the six tools that declare a SURFACE, and
+    # this is not one of them.
+    if not argv or any(a in ("-h", "--help") for a in argv):
+        print(__doc__.strip())
+        return 0
+
+    as_json = False
+    allow_modified_self = False
+    root_arg: str | None = None
+    positional: list[str] = []
+
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--json":
+            as_json = True
+        elif a == "--allow-modified-self":
+            allow_modified_self = True
+        elif a == "--root":
+            i += 1
+            if i >= len(argv):
+                print(USAGE, file=sys.stderr)
+                return 2
+            root_arg = argv[i]
+            if (bad := _root_refusal(a, root_arg)) is not None:
+                print(f"perry-restore-check: {bad}", file=sys.stderr)
+                return 2
+        elif a.startswith("--root="):
+            root_arg = a.split("=", 1)[1]
+            if (bad := _root_refusal("--root", root_arg)) is not None:
+                print(f"perry-restore-check: {bad}", file=sys.stderr)
+                return 2
+        elif a.startswith("-"):
+            print(f"perry-restore-check: unknown option {a}\n{USAGE}",
+                  file=sys.stderr)
+            return 2
+        else:
+            positional.append(a)
+        i += 1
+
+    if len(positional) < 2:
+        print(USAGE, file=sys.stderr)
+        return 2
+
+    ref, raw_paths = positional[0], [Path(p) for p in positional[1:]]
+
+    verdict, detail = self_check()
+    if verdict != "clean" and not allow_modified_self:
+        headline = {
+            "modified": "this script is itself modified",
+            "unverifiable": "this script could not be checked against a "
+                            "committed copy",
+        }.get(verdict, f"this script's self-check returned {verdict!r}")
+        msg = (
+            f"perry-restore-check: REFUSING — {headline}.\n"
+            f"    {detail}\n"
+            "  A verifier that has been changed, or that cannot show it has\n"
+            "  not been, cannot vouch for anything — and 'no comparison was\n"
+            "  made' is the more dangerous answer, not the safer one. The\n"
+            "  cheapest way past this message must not be to ignore it.\n"
+            "  Run it from its own repository, commit the change, check it\n"
+            "  out clean, or pass --allow-modified-self to say you meant it."
+        )
+        if as_json:
+            print(json.dumps({"ok": False, "self_check": verdict,
+                              "self_detail": detail, "results": []}, indent=2))
+        else:
+            print(msg, file=sys.stderr)
+        return 2
+
+    if root_arg is not None:
+        root = Path(root_arg).resolve()
+    else:
+        found = repo_root(raw_paths[0].resolve())
+        if found is None:
+            print(f"perry-restore-check: {raw_paths[0]} is not in a git "
+                  f"repository; pass --root", file=sys.stderr)
+            return 2
+        root = found
+
+    if _git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            root).returncode != 0:
+        print(f"perry-restore-check: {ref} is not a commit in {root}",
+              file=sys.stderr)
+        return 2
+
+    results = check(ref, raw_paths, root)
+    ok = all(r["ok"] for r in results)
+
+    if as_json:
+        print(json.dumps({
+            "ok": ok, "ref": ref, "root": str(root),
+            "self_check": verdict, "self_detail": detail,
+            "results": results,
+        }, indent=2))
+        return 0 if ok else 1
+
+    if verdict != "clean":
+        print(f"  ! self-check {verdict}: {detail}")
+    for r in results:
+        if r["ok"]:
+            print(f"  ✓ {r.get('rel', r['path'])} matches {ref} "
+                  f"({r['expected_md5'][:12]}…)")
+        else:
+            print(f"  ✗ {r.get('rel', r['path'])}: {r['detail']}")
+    if not ok:
+        print("\nThe restore did NOT put the file back. Do not report this "
+              "round's result until it does.", file=sys.stderr)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

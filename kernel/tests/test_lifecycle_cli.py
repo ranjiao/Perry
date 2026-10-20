@@ -1,6 +1,6 @@
 """A whole lifecycle through the executable alone (Goal 3; acceptance 3).
 
-Every step is a separate `bin/perry-kernel` process: no in-process call, no
+Every step is a separate `bin/perry` process: no in-process call, no
 agent, no markdown. It inits, applies the template, creates items of each
 type, moves them through every transition, relates, attaches, queries, and
 then exports, imports into an empty store and exports again. The two exports
@@ -79,7 +79,7 @@ class TestTheLifecycleThroughTheCli(unittest.TestCase):
             "set": {"inspector": HUMAN}})
         self.assertEqual((refused.code, refused.code_name),
                          (1, "guard_refused"), refused)
-        self.assertTrue(refused.err.startswith("perry-kernel: guard_refused"))
+        self.assertTrue(refused.err.startswith("perry: guard_refused"))
         self.assertEqual(move(blocked, "start"), "cutting")
         self.assertEqual(move(blocked, "scrap"), "scrapped")
         self.assertEqual(move(late, "ship", actor=HUMAN,

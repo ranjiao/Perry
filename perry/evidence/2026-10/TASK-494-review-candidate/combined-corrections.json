@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "acceptance": "PROPOSAL",
+  "original_inventory_unchanged": 610,
+  "historical_manual_sha256": "b8c54be51cd5ca02352fe76b0785690b57f89a1d6360a3c5b528573eb696575a",
+  "corrections": [
+    {
+      "row_id": "R0090",
+      "reason": "The exact old journal/evidence line caps are proposed for retirement. Prior architecture-cap fixture did not exercise this old predicate; its claim is withdrawn. Architecture cap R0060 is a separate retained rule. Historical documents are preserved; no new document-budget scope is invented.",
+      "acceptance": "PROPOSAL"
+    },
+    {
+      "row_id": "R0094",
+      "reason": "The exact old prohibition on a Workflow role section is proposed for retirement. Current roles are descriptive context, not executable workflows. Required May touch and Must escalate safety sections plus the additive policy union remain fail-closed; no safety capability is dropped.",
+      "acceptance": "PROPOSAL"
+    },
+    {
+      "row_id": "R0095",
+      "reason": "The exact old rejection of all unknown role headings is proposed for retirement. Missing/misspelled/duplicate May touch and Must escalate sections now refuse current dispatch independently. Ordinary extra prose headings do not cancel structured policy or role rules.",
+      "acceptance": "PROPOSAL"
+    }
+  ],
+  "role_safety_subset": {
+    "row_id": "R0096",
+    "retained": [
+      "May touch",
+      "Must escalate"
+    ],
+    "proposed_exact_grammar_retirement": [
+      "required Context",
+      "required Loads"
+    ],
+    "acceptance": "PROPOSAL"
+  },
+  "current_evidence": {
+    "paths": [
+      "tools/roles.py",
+      "tools/document_checks.py",
+      "tests/test_document_checks.py",
+      "tests/test_helpers_native.py"
+    ],
+    "limit": "Current fixtures do not retroactively validate original H manual outputs. Independent current subset review and named user approval still required."
+  }
+}

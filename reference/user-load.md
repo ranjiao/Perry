@@ -117,13 +117,10 @@ the benefit is that the user can act on the sentence without leaving it.
 
 ### The lookup
 
-`bin/perry-explain <ID>` resolves any ID in a project to what it is, where it
-was defined, and everywhere it is referenced. `--all` prints the whole
-glossary; `--dangling` lists IDs that are referenced but defined nowhere.
-
-It reads the shapes markdown actually uses — table rows, headings, YAML ids,
-ID-named files — rather than Perry's schema, so it works on any project. When a
-user asks "what is X?", run it rather than searching by hand or guessing.
+Native `item get` resolves a current item ID and its readable fields/attachments.
+For a historical document ID, open the cited file and verify the exact identity.
+Do not invent an all-ID parser or fall back to frozen current-state registers.
+Unresolved/ambiguous identities remain a question, not a guessed title.
 
 ### Rules
 
@@ -140,18 +137,15 @@ user asks "what is X?", run it rather than searching by hand or guessing.
 
 ## How this is checked
 
-- `bin/perry-diagnose` measures the surface in any project and reports
-  `LOAD-01` (IDs with no way to look them up), `LOAD-02` (IDs referenced but
-  never defined), `LOAD-03` (open decisions queued on the user), and `LOAD-04`
-  (IDs defined with no readable name).
-- `/perry diagnose` treats those as findings like any other, and its own
-  interview obeys everything above — see `diagnose.md § The second rule`, which
-  covers the adjacent problem of explaining findings the user cannot evaluate.
+The skill checks first-mention titles and resolvable identities while writing,
+and records material problems during `diagnose.md`. It opens source documents
+and uses native item reads; no former LOAD regex finding or schema parser is
+reported as a current automated pass. See `operating-rules.md`.
 
 ## See also
 
 - [diagnose.md](diagnose.md) — the explanation contract for findings, and the
-  procedure that reports the `LOAD-*` findings.
+  procedure for evidence-backed findings.
 - [project-archetypes.md](project-archetypes.md) — the structural research;
   this file is its counterpart on the human side.
 - [input-quality.md](input-quality.md) — the neighbouring gate, on the quality

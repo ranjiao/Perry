@@ -1,15 +1,13 @@
 # ADR-{{N}} — {{Title in configured document language}}
 
-> **Type**: {{Process | Architecture | Operations | Risk | Cost | Design | Tooling | ...}}
-> **Status**: active
-> **Date**: {{YYYY-MM-DD}}
-> **Supersedes**: —
-> **Superseded by**: —
-> **Sunset criteria**: — <!-- omit line entirely if permanent -->
+
+Native item: {{kernel_item_id}}. Current type, lifecycle, date, supersession
+and sunset metadata are read from that item. This attachment preserves the
+reviewed decision, rationale, consequences and sources; attach its exact bytes.
 
 ## Context
 
-<!-- Why this decision needs to be made. Observable facts driving it. Write in configured language from .perry/config.jsonl. -->
+<!-- Why this decision needs to be made. Observable facts driving it. Write in the configured document language. -->
 
 ## Options
 
@@ -37,22 +35,11 @@
 - {{PR URL / commit SHA / evidence file path / journal entry / chat decision quote}}
 - ...
 
-<!-- Sunset criteria section: include ONLY when Status carries time-bound acceptance.
+## Revisit rationale (when applicable)
 
-## Sunset criteria
+{{Explain observable expiry/revisit conditions and their evidence. Record current
+sunset metadata on the native ADR item; interpretation and a user-authorized
+expire action follow the decide procedure. No automatic file/status writer.}}
 
-- {{trigger 1: date / metric threshold / event}}
-- {{trigger 2: ...}}
-
-Any trigger firing → run `/perry decide adr --expire ADR-{{N}} "<trigger-note>"`.
-Date-based triggers are auto-checked at every standup; metric/event-based triggers are surfaced by the user.
--->
-
-<!-- Status change log: appended on supersede / expire / archive. Never edit Chosen / Consequences in place.
-
-## Status change
-
-- YYYY-MM-DD — superseded by ADR-{{M}} (reason)
-- YYYY-MM-DD — expired (trigger: ...)
-- YYYY-MM-DD — archived (reason)
--->
+Native events preserve supersede/expire/archive history. Keep prior approved
+reasoning intact; update narrative only for an explicit reviewed rationale change.

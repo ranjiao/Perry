@@ -1,6 +1,6 @@
 # Work lane kernel contract
 
-Use the shipped `bin/perry-kernel describe` declaration for exact inputs. Check
+Use the shipped `bin/perry describe` declaration for exact inputs. Check
 `surface` major support before using a response. Every response has `ok`, `surface`,
 `command`, `effect`, `events`, `store_seq`, `warnings` and a result or error. A nonzero
 exit, `ok: false`, refusal or stale expectation is never an empty list or success.
@@ -14,8 +14,8 @@ file outside the checkout, in the project-specific scratch directory described i
 `dispatch.md`. Quote paths; never interpolate user prose into a shell command.
 
 ```bash
-"$PERRY_HOME/bin/perry-kernel" query --root /absolute/project --input @/absolute/scratch/query.json
-"$PERRY_HOME/bin/perry-kernel" item move --root /absolute/project --input @/absolute/scratch/move.json
+"$PERRY_HOME/bin/perry" query --root /absolute/project --input @/absolute/scratch/query.json
+"$PERRY_HOME/bin/perry" item move --root /absolute/project --input @/absolute/scratch/move.json
 ```
 
 The examples below show JSON input bodies, not shell strings to evaluate. Replace

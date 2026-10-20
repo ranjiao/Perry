@@ -1,0 +1,40 @@
+[
+  {
+    "command": [
+      "python3",
+      "tools/document_checks.py",
+      "startup",
+      "--root",
+      "/tmp/perry-scratch/Perry/task494-reference-3wI5Qf/red-project",
+      "--state-root",
+      "perry"
+    ],
+    "exit": 1,
+    "stdout": "{\n  \"version\": 1,\n  \"recovery\": {\n    \"blocking\": true,\n    \"errors\": [\n      {\n        \"path\": \"/private/tmp/perry-scratch/Perry/task494-reference-3wI5Qf/red-project/perry/.perry-task-transaction.json\",\n        \"error\": \"pending legacy transaction; recover with the pinned pre-cutover release, never delete this marker\"\n      }\n    ]\n  },\n  \"interrupted\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "python3",
+      "tools/document_checks.py",
+      "dispatch",
+      "--input",
+      "/tmp/perry-scratch/Perry/task494-reference-3wI5Qf/foreign.json"
+    ],
+    "exit": 1,
+    "stdout": "{\n  \"version\": 1,\n  \"armed\": true,\n  \"matches\": [],\n  \"errors\": [\n    \"path escapes root: ../foreign/file.md\"\n  ],\n  \"blocked\": true,\n  \"limit\": \"Does not judge naming versus doing, adequacy, or authenticity of authorization. Skill must read the spec and instruction source.\"\n}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "python3",
+      "tools/document_checks.py",
+      "review",
+      "--input",
+      "/tmp/perry-scratch/Perry/task494-reference-3wI5Qf/missing-evidence.json"
+    ],
+    "exit": 1,
+    "stdout": "{\n  \"version\": 1,\n  \"blocked\": true,\n  \"errors\": [\n    \"existing evidence files required; semantic adequacy remains with reviewer\"\n  ],\n  \"limit\": \"Structural facts only; no identity authentication, acceptance decision or state transition.\"\n}\n",
+    "stderr": ""
+  }
+]

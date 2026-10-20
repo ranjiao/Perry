@@ -42,7 +42,7 @@ execution metadata, not a kernel task field; follow `dispatch.md`.
    What this deliberately does not touch.
    ```
 
-   **The shape is load-bearing, not a style rule.** `dispatch` pre-flight step 4 screens the spec against `.perry/hook.md § High-stakes operations` by reading exactly those three sections (`work/reference/dispatch-preflight.md` step 4), and its reader — `viewer/parsers.py § _section` — matches `^## <heading>` and nothing else. A scope written as an `h3` or as a bullet is invisible to it. **The spec does not then fail the gate; it disarms it.** Every high-stakes fragment is matched against the empty string, and the scan returns `touches: {}`, `verdict: pass`, **exit 0 — byte-identical to a spec that was read in full and found genuinely clean.** `perry-lint --specs` (and the default `perry-lint --root .`) reports such a spec; the report does not undo it, and the spec is only safe in the shape above.
+   **The scope must be readable before dispatch.** Retain explicit `## Files in scope`, `## Deliverable` and `## Out of scope` sections, and run the structural dispatch packet in `reference/operating-rules.md`. Missing/unextractable sections refuse; the agent still judges the actual operations and cannot reinterpret an empty scan as permission.
 
    **The spec takes `## ` headings.** Do not copy a historical journal block into a spec; write the sections. The measurements behind both paragraphs: `add-task-notes.md § Why the spec shape is load-bearing`.
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-COVERS = ("bin/perry-context-budget",)
+COVERS = ("tools/context_budget.py",)
 
 import importlib.machinery
 import importlib.util
@@ -19,7 +19,7 @@ import contextlib
 import io
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TOOL = ROOT / "bin" / "perry-context-budget"
+TOOL = ROOT / "tools" / "context_budget.py"
 SID, TID = "11111111-aaaa", "0199-codex-thread"
 
 
@@ -152,9 +152,6 @@ class TestSessionReportsNeverGate(BudgetCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("positive numeric reference", result.stderr)
 
-    def test_schema_has_no_session_ceiling(self):
-        schema = json.loads((ROOT / "schema/state-schema.json").read_text())
-        self.assertNotIn("session_context_ceiling", schema["thresholds"])
 
     def test_reference_units_remain_compatible(self):
         self.assertEqual(mod().parse_size("200k"), mod().parse_size("200000"))

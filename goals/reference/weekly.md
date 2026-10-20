@@ -1,49 +1,19 @@
-# `okr plan-week` — the PMO hand-off
+# plan-week — hand approved work to work
 
-Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one place where OKR's output becomes PMO's input.
+Read the native active phase, KRs/checks and attached project/week narrative.
+Unstaffed, unmeasured commit KRs are useful proposal inputs; do not derive progress
+from staffing. Resolve each candidate's exact scoped KR using linkage.md.
 
-## Procedure
+Propose three to five concrete tasks with human title, KR ID/title, owner,
+priority, deliverable, falsifiable verification, dependencies and exclusions.
+Run the shared Task input rubric, fixing or surfacing at most three issues.
+Ask the user which proposals to approve, with edit/subset/skip available; approval
+of goals does not automatically approve every implementation proposal.
 
-1. Read `phase/<current-NNN>-<slug>.md` (via `phase/CURRENT`). Identify the current ISO week's row in the week-by-week breakdown.
-
-   **When `phase.krs_unstaffed > 0`** (`"$PERRY_HOME/bin/perry-state" --section next` names it, `R-kr-unstaffed`), the unstaffed key results come first: each one, with the phase document's Projects seeds for it, is the first input to the candidate tasks in step 2. `--section linkage` carries each key result's `tasks`, `state` and `met`; one with no `tasks` that is not measured and met is unstaffed (DESIGN-020 UD 14). The rest of this procedure is unchanged.
-
-2. Translate each commitment into 1–2 concrete tasks. **Resolve each task's KR by ID through `linkage.jsonl`, never by guessing from the Project name** (resolution order + the ask in `$PERRY_HOME/reference/okr-linkage.md`). If the phase-file Project name differs from what the user says now, confirm they're the same Project and append the alias to the registry before tagging. If the KR can't be resolved to exactly one → `AskUserQuestion` (candidate KRs); never fuzzy-match.
-
-   Each task gets:
-   - Short slug id (e.g., `migrate_user_table_v2`)
-   - Title
-   - Linked Objective/KR (e.g., `kr:P<NNN>-O1-KR2`) — the resolved ID, from the registry
-   - Owner (`User`, `User + Agent`, `Coding Agent`, `Research Agent`, `Review Agent`, or `PMO Agent`)
-   - Priority (`P0` if blocks a Must-Have, `P1` if advances, `P2` otherwise)
-   - Deliverable + Verification (1 line each)
-   - Out-of-scope notes if relevant (e.g., "do not touch production", "no access to prod credentials")
-
-3. Print 3–5 candidate tasks in a table. Before printing, run `$PERRY_HOME/reference/input-quality.md § 4 Task` over each candidate (verification falsifiable, deliverable is an artifact, single owner, priority justified, `kr:` linked); fix or flag inline — don't hand PMO a task with "verify it works".
-
-4. **If ≤ 4 candidates**: use `AskUserQuestion` with `multiSelect: true` (header `"Pick tasks"`) — each candidate is one option with the task title in `label` and the rationale + KR linkage in `description`. The user clicks the subset they approve.
-
-   **If 5 candidates**: use `AskUserQuestion` (single-select, header `"Subset"`) with options `Approve all 5 | Pick subset (Recommended) | Edit before approving | Skip this week`. If "Pick subset", follow up with a free-text "which IDs to include?" prompt.
-
-5. On approval, **hand off to PMO**: print the exact task block list. PMO `add-task` writes the task record and the journal definition. OKR never writes `tasks.jsonl` or `journal/` directly.
-
-6. Update the current week's row in `phase/<NNN>-<slug>.md` with the chosen TASK-IDs.
-
-7. **`bin/perry-goals link` appends one `edge` record per task** — one call per task, each dated by its own write:
-
-   ```
-   "$PERRY_HOME/bin/perry-goals" link --actor goals --root . <TASK-ID> <KR-ID>
-   ```
-
-   This is what makes the edge *declared* rather than inferred — it is resolution step 1, ahead of any name matching. A task the user approved but whose KR is genuinely undecided goes in `unlinked[]` instead; never park it under a plausible-looking KR.
-
-## Why the registry, not the name
-
-A Project's human-readable name drifts; its ID doesn't. `"$PERRY_HOME/bin/perry-state" --section attribution` reports which open tasks currently resolve to exactly one KR and which are `unlinked`. Anything `unlinked` is a question for the user, never a guess — see `$PERRY_HOME/reference/okr-linkage.md § The one rule`.
-
-If the user confirms a new name is the same Project, `bin/perry-goals link --actor goals --alias <PROJECT-ID> "<name>"` appends it to that project's `aliases[]` (OKR owns `phase/`; PMO hands aliases over rather than writing them, and the tool refuses a name another Project already claims). `bin/perry-lint` refuses two projects claiming the same name or alias, and refuses a task listed under two KRs — those ambiguities are precisely what the graph exists to prevent.
-
-## Completion routing
-
-After completed writes from `plan-week`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
-<!-- next-close: goals plan-week -->
+Hand approved blocks to work, which creates native task items through its own
+kernel procedure and preserves rung/high-stakes gates. Work returns actual minted
+IDs. Goals then accepts attribution using `contributes_to`, or records a visible
+unlinked declaration when unresolved. Never guess an ID or write task/evidence/
+journal files. An owned week narrative may link to task items without copying
+current task status. Re-read after writes and hand the next action to the root
+skill procedure; do not call legacy perry-goals/perry-state writers or next rules.

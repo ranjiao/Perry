@@ -50,7 +50,7 @@ class TestHelpNeverExecutes(unittest.TestCase):
         sb = Sandbox(self)
         r = sb.cli("init", "--help", data={"actor": ACTOR, "state_root": "x"})
         self.assertEqual(r.code, 0, r)
-        self.assertIn("usage: perry-kernel init", r.out)
+        self.assertIn("usage: perry init", r.out)
         self.assertFalse(sb.store.exists())
 
 
@@ -285,7 +285,7 @@ class TestTheEnvelope(unittest.TestCase):
             with self.subTest(out=r.out[:80]):
                 self.assertEqual(list(r.env), ENVELOPE_KEYS)
                 self.assertEqual(r.out.count("\n"), 1)
-                self.assertEqual(r.env["surface"], "1.0")
+                self.assertEqual(r.env["surface"], "1.1")
                 if r.env["ok"]:
                     self.assertIsNone(r.env["error"])
                     self.assertEqual(r.err, "")

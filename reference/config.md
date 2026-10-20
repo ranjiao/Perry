@@ -1,249 +1,65 @@
-# `.perry/config.jsonl` — repo layout, state root, tracks
+# Project preferences and document layout
 
-Tier 1. Loaded on demand from `SKILL.md § Configuration`, which carries the
-field list and points here for what each field means.
-
-Extracted from `SKILL.md` on 2026-08-18 (TASK-064) to keep the tier-0
-router inside its byte budget. This page described `.perry/config.md` until
-ADR-019 deleted that file; the settings and the track register live only in
-`.perry/config.jsonl`, written and read with `perry-config`.
+Native state belongs to the shared kernel store; `init` records its `state_root`.
+Read `bin/perry describe` and `work/reference/kernel.md` for the exact contract.
+Document layout and workflow preferences belong to the skill. Existing
+`.perry/config.jsonl` is frozen migration metadata, not a new writer surface.
+Never hand-edit JSONL to configure the new architecture.
 
 ## Repo layout options
 
-Perry supports two layouts. Pick one at first-time setup; record the choice with `perry-config set --root . "Repo layout" <single | split>`.
+A single repository holds product code and Perry documents together. A split
+layout holds project documents and product code in separate repositories. Obtain
+both absolute roots before writing; delegation identifies its exact target repo
+and evidence identifies code by immutable commit and path. A state-root preference
+never changes which Git common directory owns the store.
 
-### Option A — single repo (default for non-code projects)
+## Preferences
 
-Everything (OKR, TASKS, evidence, design, handoff, weekly) lives in one repo at the project root. Use this when:
-- The project does not produce code (research notes, ops runbooks, business planning, personal projects without a codebase).
-- The project ships code but the volume of code commits is low and PMO commits will not pollute the history.
+Record new or explicitly changed preferences as ordinary prose in the project's
+`.perry/hook.md`: Document language (default English), Chat language (default
+follow user), Repo layout, document root (default `perry`), Packs, Proactive next
+steps and review-round policy. The high-stakes list lives separately in `.perry/safety.json` (`safety-policy.md`). Preserve unrelated hook text and quote the exact
+change in the handoff. The root router owns this preference edit; lanes request
+it rather than writing another lane's state. Do not silently convert legacy
+metadata or overwrite a hook merely to obtain these defaults. Conflicting legacy
+metadata and authored preferences require reconciliation before mutation.
 
-This is the simplest layout. No cross-repo references; everything is one `git log` away.
-
-### Option B — two-repo split (PMO docs ↔ code)
-
-PMO docs live in `<project>-pmo/` (this repo, where Perry's state files sit); code lives in `<project>/`. Use this when:
-- The project ships code AND has been observed to suffer from branch contention between PMO doc commits and code commits, OR PMO commits visibly pollute code commit history.
-- The user explicitly prefers the separation.
-
-Cross-reference convention:
-- PMO docs reference code via `<commit-SHA> path/to/file.py` (commit SHA pinned, not branch — survives rebases).
-- Code commits reference PMO task IDs in commit messages (e.g., `Closes TASK-007`).
-- Each repo has its own `.git/`; neither repo is a submodule of the other.
-
-Trigger to migrate from A → B: ≥ 2 incidents of branch contention or commit-history pollution within a month. Capture the trigger as an ADR under `decisions/` (`Type: Process`) before splitting.
-
-When B is in effect, `.perry/config.jsonl` records both paths (`PMO repo path`, `Code repo path`) so every child skill knows where to look. Delegation prompts to Coding Agents must explicitly state which repo their work targets.
-
-### What the store holds
-
-One record per setting and one per track. `perry-config show` prints them;
-`set` / `unset` write a setting and `track` / `untrack` a track. The settings:
-
-```
-Document language: <English | 中文 | ...>
-Chat language: <follow user | English | 中文 | ...>
-Repo layout: <single | split>
-State root: <. | relative path>
-Packs: <comma-separated pack names; empty disables all; absent defaults to software-ops>
-Review rounds before escalation: <N>    (optional; default 2)
-PMO repo path: <absolute path>
-Code repo path: <absolute path or — if single>
-Last updated: <YYYY-MM-DD>
-```
-
-And the track register (optional; absent = one implicit `main` track, mode `project`):
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| main | project | phase/ | — | — | — | — | V3 |
-
-### Prose belongs in `.perry/hook.md`
-
-The store holds settings and track records and nothing else — no heading, no
-paragraph (ADR-019). A schema'd fact lives in exactly one store
-([DESIGN-013](perry/design/DESIGN-013-one-place-per-fact.md) § 5.1), and § 5.5
-rejects moving prose into one — a store is a bad home for a paragraph.
-
-**Write the explanation in `.perry/hook.md` instead.** It is tier 1, it is
-yours, it is read at every standup by `/perry` and by every lane, and nothing
-renders it — so a render cannot destroy it and a deletion cannot lose it. Perry
-carries its own two configuration notes there, under `## Configuration notes`:
-what its `intake` track carries versus `main`, and why its state root is not `.`.
-
-A `.perry/config.md` left in an existing project is inert: nothing reads it and
-nothing deletes it.
-
-The track register is what turns on `pipeline` / `queue` / `inquiry` mode. A
-project that never declares a track behaves exactly as Perry did before
-DESIGN-003 — that is the point — but a user who never hears the register exists
-cannot reach three of the four modes at all, so **first-time setup offers it**
-and `adopt` proposes one before it proposes goals.
-
-Children read the store (`perry-config show --json`) before any output. If `.perry/config.jsonl` is missing, prompt the user to run first-time setup.
-
-The setting **labels** above stay English in every language — this is the store that declares the language, so it has to be readable before the language is known. `Chat language` is optional; absent means `follow user`. See `reference/i18n.md`.
-
-### `State root` — where Perry's files live
-
-**`perry` is the default that setup writes**, as of 2026-08-17. It puts Perry's whole tree under `perry/`, leaving the project's own `design/`, `evidence/` and `knowledge/` untouched — removing the namespace-collision class rather than detecting it case by case.
-
-**The code fallback is still the project root, and must stay that way.** A project whose config has no `State root` setting keeps its files exactly where they are. Changing the fallback would send every reader into a subdirectory that does not exist and make an adopted project's entire history vanish from every tool at once. **The default governs what setup writes; it never governs where an existing project is looked for.** Earlier projects wrote `.` and are not migrated — `perry relocate` is there for anyone who wants to move, and "no automatic rewrite of a project's existing structure" is an Anti-Goal.
-
-Two shapes in circulation is two code paths a reader can disagree about, and one already did: `bin/perry-goals` passed the project root where the state root was wanted, and the bug was invisible on every `.`-rooted project — including the test fixture. That is why the default moved, and why `tests/test_claims.py` now asserts every tool resolves through `resolve_state_root` rather than reaching for the project root itself.
-
-**Do not enumerate the claimed paths here.** `schema/state-schema.json § claims[]` is the one authoritative list, and `perry-lint --claims --root .` computes the collision against it. This paragraph used to name five paths while the skills wrote eighteen, so a project owning `evidence/` or `knowledge/` collided silently — a second, hand-maintained copy is what drifted. Run the check; don't recite a list.
-
-`.perry/` itself **never moves**: it is the anchor that marks the folder as a Perry project and it holds this pointer, so it cannot sit behind the pointer. Every reader resolves the root the same way — `viewer/parsers.py § resolve_state_root` is the one implementation, and `schema/state-schema.json` declares which files are anchored at the project root (`anchor: project`) rather than the state root.
-
-Adoption asks this question during `confirm`, before anything is materialized (`reference/adoption.md`).
-
-### Review rounds before escalation
-
-`Review rounds before escalation` defaults to 2; `PERRY_REVIEW_ROUNDS` overrides
-the project store, which overrides the shipped schema value. `perry-lint --reviews`
-reports which source answered. On this repository 20 rows entered V4 and burned
-74 rounds; ten needed three or more. This review-failure budget remains separate
-from session management.
-
-### Session context ceiling — retired
-
-Perry no longer sets or enforces a session token limit. Legacy
-`session_context_ceiling` settings and `PERRY_CONTEXT_CEILING` values are ignored.
-The agent environment and user decide when to open a session. The optional
-`perry-context-budget` report retains usage/provenance; explicit `--ceiling`
-is a comparison reference only and never blocks work.
-
-### `Conformance gate` — deleted
-
-This setting is gone (`TASK-261`). Under ADR-004 every writer gated on a
-**declared** marker — *this file matches Perry's shape, at shape version N, and
-the user said so* — and refused a file nobody had declared.
-
-It never caught anything. `.perry/conformance.jsonl` held 23 records at the
-end, all `route: declare`, all files in Perry's own repository: zero
-disagreements, because the disagreement the design exists to surface needs a
-foreign project that drifts and Perry has never been pointed at one. The gate,
-its ledger, `bin/perry-conform` and `bin/perry-migrate` are all deleted.
-
-**What this changes for you**: nothing refuses a write for want of a
-declaration. A writer that can render a file writes it. `perry-lint` still says
-whether a file matches the schema — that half was never the gate.
-
-History: a `- Conformance gate:` line left in a pre-ADR-019 `.perry/config.md` is inert.
-Nothing reads it and nothing reports it.
-
-## Proactive next steps
-
-`Proactive next steps` is an optional exact `on | off` setting; absent means
-`on`. It controls only [the closing step](next.md#closing-step), not standup
-recommendations, safety questions, or questions inside an active planning flow.
-
-```bash
-"$PERRY_HOME/bin/perry-config" set --root . "Proactive next steps" off
-"$PERRY_HOME/bin/perry-config" set --root . "Proactive next steps" on
-"$PERRY_HOME/bin/perry-config" unset --root . "Proactive next steps"
-"$PERRY_HOME/bin/perry-config" show --root . --json
-```
-
-`show` returns the declared string under `settings.proactive_next_steps`;
-absence selects the documented default. Invalid values are refused by the
-writer; readers report invalid legacy/manual values rather than guessing.
-This uses the existing project setting record, with no new namespace or file.
+Documents live under the agreed document root. `.perry/` stays anchored at the
+project root. Create only the selected lane's needed paths after checking exact
+collisions. Native store/export locations remain kernel-owned; relocating
+ordinary documents never moves or copies SQLite. See `router-subcommands.md`.
+A session token ceiling is not a Perry preference: the host and user own sessions.
 
 ## Pack capabilities and controls
 
-Use this procedure for “what else can Perry help with?”, “show optional
-features”, “turn off software checks” or “enable release support”; the user
-need not know the word *pack*. `/perry help` points here **for the
-descriptions below, not for step 1**: help is the Explain route and runs no
-recovery gate, so it may not read project state (USER-974, principle A). The
-reads in step 1 belong to the discovery operation itself — "what else can Perry
-do?" — which is a Query and runs the gates. This is a
-project-scoped configuration operation, not a marketplace or host installation.
-Discovery reads only; routine work never asks whether to enable a pack.
-
 ### Discover and explain
 
-1. Resolve the project root normally. Read `perry-config show --root <project>
-   --json` and `perry-state --root <project> --section project`. Under the latter,
-   use `project.config.settings_source` and `project.config.packs[]`; the compact
-   snapshot instead puts the list at `project.packs[]`. An invalid/unreadable
-   config is unknown, not confirmation of the default: report the refusal or
-   source error before offering a change. Do not repair it during discovery.
-2. Read the installed `$PERRY_HOME/packs/*/pack.md` descriptions. Perry bundles
-   `software-ops`: architecture review, deployed-component runbooks, incident
-   learning, and optional release-policy guidance. Explain these purposes in
-   the user's words, not just filenames. Do not invent other installed packs.
-3. Distinguish **available** (installed description), **active** (selected by
-   config/default AND loader entry `present: true`), and **configured capability**
-   (its project policy/artifacts/tooling are actually ready). A selected entry
-   with `present: false` is unavailable, never active; name it and retain its
-   configuration until the user requests a change. A present pack does not
-   prove that any runbook, architecture document or release adapter exists.
-4. Show the source of selection and the concrete effects. An absent `packs` key
-   in `show.settings` selects `software-ops` by default; a present empty value
-   explicitly selects none. An explicit list selects only those names. A `—`
-   value is normalized to empty by the existing writer. `unset Packs` restores
-   the default; it is **not** disable. No second current-value register is kept.
+Help describes installed `packs/*/pack.md` without reading project state.
+Project-scoped discovery first follows `operating-rules.md` and then reads
+preferences. Distinguish installed, selected, present, and configured capability.
+Perry bundles software-ops (architecture, runbooks, incidents and release-policy
+guidance); its presence does not prove any project policy/tooling is ready.
+Absent Packs selects software-ops by default; an explicit empty list selects
+none. An explicit list selects only its named packs. Missing installed content
+is unavailable, never silently substituted. Report unreadable settings as unknown.
 
 ### Apply an explicit request
 
-Read the project's hook, relevant task acceptance and existing approved policies
-before a change. Explain which optional routes/checks will stop or start and which
-project obligations remain. A stored artifact alone does not re-enable its pack;
-an explicit project requirement remains binding independently. For example,
-“turn off all architecture review” conflicts with a hook requiring it: explain
-the actual requirement and obtain a separate decision to change that rule, or
-apply only the requested pack-default change with the rule still enforced.
-Do not silently waive a requirement or reinterpret disable as unset.
-
-Preserve other selected names when changing one pack. Starting from defaults,
-materialize the resulting explicit list. Show the exact project and proposed
-selection before writing; the user's explicit enable/disable request authorizes
-that change, so do not ask again unless scope or an unresolved conflict needs a
-decision. Use the existing writer, with the resolved project root:
-
-```bash
-# The bundled pack enabled explicitly:
-"$PERRY_HOME/bin/perry-config" set --root <project> Packs software-ops
-# Explicitly disable all packs (keep the empty argument):
-"$PERRY_HOME/bin/perry-config" set --root <project> Packs ""
-# Only when the user asks to restore defaults, not to disable:
-"$PERRY_HOME/bin/perry-config" unset --root <project> Packs
-```
-
-Use `--dry-run` when preview is useful, then re-read both tools after a write.
-Report the effective loaded selection, not merely command success. If a requested
-pack is missing, say it cannot be activated here; no implied install or automatic
-substitution. Enabling/disabling changes only the setting. Do not delete or rewrite
-architecture, runbooks, incidents, release records, hook policies, task criteria,
-tracks, or verification history. Re-enabling resumes applicable guidance from
-those preserved facts; it does not reset them or allocate a version.
+Read applicable hook obligations before changing selection. Describe concrete
+routes affected. Preserve other selected names, and author only the requested
+preference. Disable means explicit empty selection; removing the preference
+restores the default. Do not delete architecture/runbooks/release history, reset
+verification, or treat a selected pack as permission for new writes.
 
 ### Conditional consumers
 
-Before loading a pack route or applying its defaults, use the active test above.
-Work help **marks** pack commands as needing their pack; it does not hide them
-(USER-974, principle A). Hiding is a decision about which pack is active, and
-that decision needs a read help is not allowed to make. Discovery, which is a
-Query, still describes them as available/inactive. Direct requests for an inactive route
-explain its state and the control procedure, without silently enabling it. In
-routine work, skip disabled optional checks without an enablement question.
+Disabled optional guidance is skipped without repeatedly asking to enable it.
+Core recovery, interruption, ownership, high-stakes, verification and Git gates
+remain binding. Explicit project obligations and approved release policies
+survive pack disable; name those requirements when applying them independently.
+Release readiness additionally requires the approved policy and verified adapter
+in `packs/software-ops/releases.md`.
 
-For `software-ops`, this covers dispatch architecture pre-flight/compliance/review,
-deployed-spec observability, close-task architecture/runbook gates, health-check's
-architecture/runbook/incident scans, triage's matching software checks, eager
-bootstrap from pack defaults and goals' architecture-drift phase gate. Preserve
-core task verification, high-stakes rules, Git ownership and explicit project
-requirements. If a project independently requires one of these procedures, invoke
-that requirement's procedure and name its source; this does not reactivate other
-pack defaults. Never treat stored files alone as authorization for new writes.
-
-Release support has a second boundary: even an active `software-ops` pack does
-not configure version allocation. On an explicit release-setup request use
-`$PERRY_HOME/packs/software-ops/releases.md`; during routine phase/integration/close
-work load it only for an applicable approved project release policy. An existing
-policy survives pack disable and still governs its project. Verify the adapter
-before calling the capability ready; absent tooling stays pending under that
-procedure. Do not turn off an approved release policy by changing `Packs`.
+The preference-prose migration is a provisional H design consequence for review
+and final V5 acceptance; this source candidate performs no live preference edit.

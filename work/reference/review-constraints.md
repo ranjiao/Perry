@@ -132,12 +132,12 @@ round costs.
 
 ## Do not run the write side against what you are reviewing
 
-A Perry tool that writes — `perry-task`, `perry-goals`, `perry-decide` —
-changes board rows, journal lines and the event log. Running one against the project under review injects
-your own events into the history you are checking.
-
-Read tools are safe and are the point: `perry-task list --json`,
-`perry-state --json`, `perry-lint`.
+Native mutations (`item`, `rel`, `attach`, `template`, `init`, `import`, `replay`)
+change the project under review. Never invoke them against its actual store.
+Read current state using native `query`, `item get`, `events` and `describe`.
+Every mutation demonstration uses an explicit temporary `--store` with
+`PERRY_KERNEL_TESTING=1` and a temporary project root. Inspect output/errors;
+a test success is not a live acceptance result.
 
 **Never run `setup`.** Its `sweep_legacy_links` step removes symlinks under the
 host's skills directory, and on a developer machine those are real installs.
@@ -174,7 +174,7 @@ Not hypothetical. `TASK-325` found `bin/perry-task` already mutated at a point
 before its harness had run and could not account for how; every round that
 restored onto a baseline like that reported OK without checking anything.
 
-`bin/perry-restore-check <ref> <path> …` does exactly this, exits non-zero if
+`python3 "$PERRY_HOME/tools/restore_check.py" <ref> <path> …` does exactly this, exits non-zero if
 **any** of the paths differs, and refuses to answer unless its own bytes have
 been *shown* to match the copy committed in its repository — including when
 there is no committed copy to compare against, which is the case in a `git
@@ -186,8 +186,7 @@ hand-roll it — but the comparison is against the ref either way.
 
 ## Do not mint identifiers
 
-Example IDs written into a state file become dangling references the next lint
-run reports as real (`LOAD-02`). Use placeholders — `<TASK-ID>`, `TASK-0NN` —
+Example IDs written into a state file become misleading dangling references. Use placeholders — `<TASK-ID>`, `TASK-0NN` —
 in anything that lands in a file or in your report.
 
 ## Report the blocker; do not route around it

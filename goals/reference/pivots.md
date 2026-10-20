@@ -1,32 +1,19 @@
-# `okr pivot` / `okr dashboard`
+# Pivot and goal dashboard
 
-Loaded when either fires.
+A pivot is an explicit scope decision. Discuss what changed, which assumption
+failed, affected KRs/checks, evidence, current commitments and proposed exclusions.
+Challenge consequential premises, then show the old and proposed scope for actual
+user approval. A measurement alone does not authorize changing a target.
 
-## `pivot <reason>`
+Use a new version for material overall revisions; use native item updates/events
+for approved restatements, preserving reason and prior values. Retire withdrawn
+checks/KRs from the active parent population as phases.md explains. Never rewrite
+history, silently redate a commitment, or automatically replan/close the phase.
+Hand consequential decisions to decide; hand task changes to work.
 
-For mid-phase goal changes (market shift, big learning, capital change). High-friction by design — pivots should be rare.
-
-1. Restate the affected O / KR.
-2. Walk through: change title? change metric? drop entirely? add a new one? **Use `AskUserQuestion`** (header `"Pivot kind"`, options = `Change title | Change metric (Recommended) | Drop entirely | Add new KR`) for each affected KR.
-3. If pivoting the overall OKR → run `revise` to bump the version. If only the current phase → first run `/okr snapshot` to preserve the pre-pivot state, then write a `## Changes` line in `phase/<NNN>-<slug>.md` with `YYYY-MM-DD — <what> — <reason>`. Old text stays as strikethrough. **Each approved KR change — title, metric, drop, add — is one `kr restate`, `kr withdraw` or `kr add` call with the same `--reason`** (`phases.md § kr`), never a hand edit of `linkage.jsonl` or `okr.jsonl`.
-4. Hand off to **`decide`**, which owns `decisions/`: print `/perry decide adr <slug> --type Process` with the pivot rationale and which Operating Principle (if any) it tested. Not PMO — those files moved on 2026-08-16 by the signed hand-off contract.
-
-The friction is the feature. Never silently edit `OKR.md` — a goal that changes without a recorded reason is a goal nobody can score against later.
-
-## `dashboard`
-
-Detailed view, not just the snapshot. Start from `"$PERRY_HOME/bin/perry-state" --json` so every count is computed rather than eyeballed, then for each Objective:
-
-- Title, status (`on_track | at_risk | off_track`) computed from elapsed phase day vs KR progress
-- All KRs with current/target, evidence path, ≤2-line note
-- Open tasks grouped by KR (resolved through the linkage registry; `unlinked` tasks listed separately, never folded into a KR's number)
-- Cost ceiling burn-down (if a cost ceiling is set) — and flag it if `Wiring status: doc-only`
-- Linear-projection end-of-phase score
-- Operating Principles still in force, Anti-Goals still in force
-
-For a rich visual version, point the user at the frontend — aiMark — rather than growing this text output.
-
-## Completion routing
-
-After completed writes from `pivot`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
-<!-- next-close: goals pivot -->
+For dashboard, query native phases/objectives/KRs/checks and the relevant events.
+Use kernel-derived metric results, direct-child rollups and query counts. Show
+unmeasured/stale facts and unresolved attribution. Narrative risk limits and cost
+wiring stay labelled doc-only unless actually measured. Do not forecast from task
+counts, invent projections or compute recursive averages. Root owns the combined
+dashboard and recommendation procedure; this is the detailed goal view only.

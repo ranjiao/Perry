@@ -122,7 +122,7 @@ class TestTheKernelRunsNoCommandAndReadsNoMarkdown(unittest.TestCase):
 
 
 class TestTheWrapper(unittest.TestCase):
-    """Acceptance 10: `bin/perry-kernel --help` exits 0 and executes nothing,
+    """Acceptance 10: `bin/perry --help` exits 0 and executes nothing,
     and the wrapper holds no logic beyond importing the package."""
 
     def test_help_exits_zero_and_executes_nothing(self):
@@ -139,7 +139,7 @@ class TestTheWrapper(unittest.TestCase):
                                       env=env, capture_output=True, text=True,
                                       timeout=60)
                 self.assertEqual(proc.returncode, 0, proc.stderr)
-                self.assertIn("usage: perry-kernel", proc.stdout)
+                self.assertIn("usage: perry", proc.stdout)
                 self.assertEqual(proc.stderr, "")
                 self.assertEqual(sorted(os.listdir(tmp)), before)
         self.assertFalse(store.exists())

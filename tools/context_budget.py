@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""
+perry-context-budget — how much context this session is paying for, per turn.
+
+The report reads the host's own usage accounting for ONE session, bound by the
+host's session identity (Codex `CODEX_THREAD_ID`) or by an explicit `--session`
+file — never the newest file. Claude Code (its subagents carry the main
+session's id), OpenCode, an absent or ambiguous identity and a transcript with
+no usage are `unknown`. Read-only. The argument for each
+choice is documented in `tools/helper-contracts.md`.
+
+Usage:
+  perry-context-budget [--ceiling N] [--session <path>] [--root <p>] [--json]
+  perry-context-budget --composition [--session <path>] [--json]
+  perry-context-budget --bill NAME [--bill-skill-root PATH] [--json]
+
+  --ceiling      deprecated optional reference, e.g. 200k; comparison only.
+                 It never stops work. There is no default session ceiling;
+                 old environment and project-config ceilings are ignored.
+  --session      read this transcript instead of the host-identified one. It
+                 is `current` when its session id is the host's, `historical`
+                 (reported, never gating) when it differs, and `explicit`
+                 (caller-asserted) when the host gives none, as Claude never does.
+  --composition  what the bound transcript is made of, by block type and by
+                 the biggest repeated shell commands. Byte-based estimates.
+  --json         machine-readable, with provenance and coverage.
+  --bill NAME    static declared byte bill: snapshot, add-task, close-task,
+                 dispatch, plan-phase, or all. No session/project reads.
+  --bill-skill-root PATH  bill-only fixture root; default is this installation.
+                 Bill mode excludes conditional/transitive context; --root,
+                 --session, --composition and --ceiling are incompatible.
+
+Exit status:
+  0  any valid session report, including unknown; a bill within cap
+  1  a static bill over its cap, or refused (reason on stderr)
+  2  bad invocation
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+# The environment variable through which each measured host names its session.
+HOST_IDENTITY = {"codex-cli": "CODEX_THREAD_ID"}
+CATEGORIES = ("input", "cached_input", "cache_creation", "output", "reasoning")
+
+
+def parse_size(text: str) -> int:
+    """`200k` and `200000` are the same number. `--ceiling 200` is not 200k."""
+    t = str(text).strip().lower().replace("_", "").replace(",", "")
+    mult = 1
+    if t.endswith("k"):
+        mult, t = 1_000, t[:-1]
+    elif t.endswith("m"):
+        mult, t = 1_000_000, t[:-1]
+    return int(float(t) * mult)
+
+
+def host_identity() -> tuple[str, str | None]:
+    """The host `perry-detect-host` names, and the session id that host exports
+    for THIS session. Claude Code hands its subagents the main session's
+    `CLAUDE_CODE_SESSION_ID`, and no verified signal tells them apart, so a
+    Claude session has none (`reference/host-capabilities.md`)."""
+    detect = Path(__file__).resolve().parent / "detect-host.sh"
+    try:
+        host = subprocess.run(["bash", str(detect)], capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        host = ""
+    host = host or "unknown"
+    return host, os.environ.get(HOST_IDENTITY.get(host, ""), "").strip() or None
+
+
+def locate(session: str) -> list[Path]:
+    """Every transcript whose NAME carries this session id: a lookup, not a pick."""
+    if not re.fullmatch(r"[0-9A-Za-z-]+", session):
+        return []
+    return sorted((Path.home() / ".codex" / "sessions").glob(f"*/*/*/rollout-*-{session}.jsonl"))
+
+
+def records(path: Path, seen: collections.Counter):
+    """Each parsed record. A bad line is counted — `truncated` when it is an
+    unterminated last line, else `malformed` — and skipped, never read as zero."""
+    with path.open("rb") as fh:
+        for raw in fh:
+            try:
+                rec = json.loads(raw)
+            except ValueError:
+                if raw.strip():
+                    seen["truncated" if not raw.endswith(b"\n") else "malformed"] += 1
+                continue
+            if isinstance(rec, dict):
+                yield rec
+            else:
+                seen["malformed"] += 1
+
+
+def turn(seen: collections.Counter, *values) -> dict | None:
+    """One request's usage in Perry's five categories, or None if a field is not a
+    count. Reasoning alone may be None: the host did not record it, which is not 0."""
+    counts, reasoning = values[:4], values[4]
+    if all(isinstance(v, int) and v >= 0 for v in counts) and (reasoning is None or isinstance(reasoning, int) and reasoning >= 0):
+        return dict(zip(CATEGORIES, values))
+    seen["malformed"] += 1
+    return None
+
+
+def context_of(usage: dict) -> int:
+    """What the model was charged to read on one request: every input category."""
+    return usage["input"] + usage["cached_input"] + usage["cache_creation"]
+
+
+def read_claude(path: Path) -> dict:
+    """Claude Code writes one record per content block and repeats the message's
+    usage on each, so a message id counts once. `input_tokens`, cache reads and
+    cache creation are disjoint; `thinking_tokens` is inside `output_tokens`.
+    `Agent`/`Task` spawn one child each; a `Workflow` call spawns an unrecorded number."""
+    seen, turns, ids, last = collections.Counter(), {}, set(), {}
+    spawned = workflows = 0
+    for rec in records(path, seen):
+        message = rec.get("message") if isinstance(rec.get("message"), dict) else {}
+        ids.add((rec.get("agentId"), rec.get("sessionId")))
+        last.update({k: rec[k] for k in ("cwd", "timestamp") if rec.get(k)})
+        content = message.get("content") if isinstance(message.get("content"), list) else []
+        spawned += sum(isinstance(b, dict) and b.get("type") == "tool_use"
+                       and b.get("name") in ("Agent", "Task") for b in content)
+        workflows += sum(isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Workflow"
+                         for b in content)
+        usage = message.get("usage")
+        if isinstance(usage, dict) and usage:
+            key = message.get("id") or rec.get("requestId") or rec.get("uuid")
+            seen["duplicate"] += key in turns
+            turns[key] = turn(seen, usage.get("input_tokens"), usage.get("cache_read_input_tokens"),
+                              usage.get("cache_creation_input_tokens"), usage.get("output_tokens"),
+                              (usage.get("output_tokens_details") or {}).get("thinking_tokens"))
+    ids.discard((None, None))
+    agent, session = ids.pop() if len(ids) == 1 else (None, None)
+    return {"session": agent or session, "parent": session if agent else None, "cwd": last.get("cwd"),
+            "last_record_at": last.get("timestamp"), "turns": [t for t in turns.values() if t],
+            "seen": seen, "spawned": spawned, "workflows": workflows}
+
+
+def read_codex(path: Path) -> dict:
+    """Codex `token_count` events carry CUMULATIVE totals, so a turn is the delta
+    from the previous total; a repeat is a duplicate and a drop restarts the
+    counter. A forked child's first total already holds its parent's usage up to
+    the fork, so a counter's first request is `last_token_usage`, not the total.
+    `input_tokens` includes cached and cache-write input, and `output_tokens`
+    includes `reasoning_output_tokens`: neither is added twice."""
+    seen, turns, meta, last, prev = collections.Counter(), [], {}, {}, None
+    spawned = 0
+    for rec in records(path, seen):
+        payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+        last.update({k: rec[k] for k in ("timestamp",) if rec.get(k)})
+        if rec.get("type") == "session_meta" and not meta:
+            meta = payload  # a forked child embeds its parent's meta after its own
+        spawned += payload.get("type") in ("function_call", "custom_tool_call") and payload.get("name") == "spawn_agent"
+        info = payload.get("info") if payload.get("type") == "token_count" else None
+        total = info.get("total_token_usage") if isinstance(info, dict) else None
+        if not isinstance(total, dict) or total == prev:
+            seen["duplicate"] += total is not None and total == prev
+            continue
+        try:
+            own = info.get("last_token_usage") if isinstance(info.get("last_token_usage"), dict) else total
+            base = prev if prev and all(total.get(k, 0) >= v for k, v in prev.items()) else {
+                k: v - own.get(k, 0) for k, v in total.items()}
+            d = {k: total.get(k, 0) - base.get(k, 0) for k in
+                 ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens")}
+        except TypeError:
+            seen["malformed"] += 1
+            continue
+        prev = total
+        if not any(d.values()):
+            continue  # the inherited total at a fork carries no request of its own
+        turns.append(turn(seen, d["input_tokens"] - d["cached_input_tokens"] - d["cache_write_input_tokens"],
+                          d["cached_input_tokens"], d["cache_write_input_tokens"], d["output_tokens"],
+                          d["reasoning_output_tokens"]))
+    return {"session": meta.get("id"), "parent": meta.get("parent_thread_id"), "cwd": meta.get("cwd"),
+            "last_record_at": last.get("timestamp"), "turns": [t for t in turns if t],
+            "seen": seen, "spawned": spawned, "workflows": 0}
+
+
+def children(codex: bool, path: Path, session: str) -> list[dict]:
+    """The session's children: Claude keeps them under `<id>/subagents/`, a
+    `Workflow`'s under `subagents/workflows/`; a Codex child names its parent in
+    its first record."""
+    if not codex:
+        return [{**read_claude(p), "workflow": "workflows" in p.parts}
+                for p in sorted((path.parent / session / "subagents").rglob("*.jsonl"))]
+    kids = []
+    for p in sorted((Path.home() / ".codex" / "sessions").glob("*/*/*/rollout-*.jsonl")):
+        with p.open("rb") as fh:
+            if session.encode() in fh.readline():
+                kids.append(read_codex(p))
+    return [kid for kid in kids if kid["parent"] == session]
+
+
+def composition(path: Path) -> dict:
+    """What the context is MADE of, over the whole transcript."""
+    blocks = collections.Counter()
+    counts = collections.Counter()
+    shell = collections.Counter()
+    shell_n = collections.Counter()
+
+    for record in records(path, collections.Counter()):
+        message = record.get("message") if isinstance(record.get("message"), dict) else {}
+        role = message.get("role")
+        content = message.get("content")
+        if isinstance(content, str):
+            blocks[f"{role}:text"] += len(content)
+            counts[f"{role}:text"] += 1
+            continue
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            kind = block.get("type")
+            if kind == "thinking":
+                key, size = "assistant:thinking", len(block.get("thinking") or "")
+            elif kind == "text":
+                key, size = f"{role}:text", len(block.get("text") or "")
+            elif kind == "tool_use":
+                key = "assistant:tool_use INPUT"
+                size = len(json.dumps(block.get("input") or {}))
+                name = block.get("name")
+                if name == "Bash":
+                    cmd = (block.get("input") or {}).get("command") or ""
+                    head = " ".join(cmd.split()[:2]) or "?"
+                    shell[head] += len(cmd)
+                    shell_n[head] += 1
+            elif kind == "tool_result":
+                key = "user:tool_result"
+                body = block.get("content")
+                size = len(body) if isinstance(body, str) else len(json.dumps(body))
+            else:
+                continue
+            blocks[key] += size
+            counts[key] += 1
+
+    def ranked(totals, frequencies, name, count, limit=None):
+        return [{name: k, count: frequencies[k], "bytes": v,
+                 "approx_tokens": v // 4,
+                 "approx_tokens_each": v // 4 // max(1, frequencies[k])}
+                for k, v in totals.most_common(limit)]
+
+    return {"blocks": ranked(blocks, counts, "kind", "count"),
+            "top_shell": ranked(shell, shell_n, "command", "calls", 12),
+            "total_bytes": sum(blocks.values()),
+            "total_approx_tokens": sum(blocks.values()) // 4}
+
+
+# Caps round the declared byte totals up to 5,000 (2026-09-17; plan-phase 2026-09-18).
+BILL_BUDGETS = {"snapshot": 80_000, "add-task": 100_000, "close-task": 95_000,
+                "dispatch": 115_000, "plan-phase": 110_000}
+BILL_SCOPE = ("Static declared L0 + L1 + L2 UTF-8 file bytes, not runtime "
+              "transcript usage or tokens. Excludes non-L2 references, rows "
+              "without an explicit matching command, transitive reads and "
+              "conditional/project-specific context (modes, packs, hooks, state).")
+
+
+def command_token(token: str, lane: str) -> str:
+    """Recognize only index command tokens and the shipped CLI prefixes."""
+    words = token.split()
+    if words and words[0].startswith("/") and words[0][1:] in ("pmo", "okr", "perry"):
+        words = words[1:]
+        if words[:1] == [lane]:
+            words = words[1:]
+    return words[0] if words else ""
+
+
+def declared_bill(root: Path, command: str) -> dict:
+    root = root.resolve()
+    lane = "" if command == "snapshot" else "goals" if command == "plan-phase" else "work"
+    files, declarations, excluded = {}, [], []
+
+    def source(path, reference=False):
+        path = path.resolve()
+        relative = path.relative_to(root)  # Reject traversal and symlink escapes before reading.
+        if not path.is_file():
+            raise ValueError(f"missing file: {path}")
+        blob = b"" if reference and not re.fullmatch(r"(?:[^/]+/)?reference/[^/]+\.md", relative.as_posix()) else path.read_bytes()
+        blob.decode("utf-8")
+        return relative.as_posix(), blob
+
+    for path in [root / "SKILL.md"] + ([root / lane / "SKILL.md"] if lane else []):
+        relative, blob = source(path)
+        files[relative] = len(blob)
+    index = root / lane / "SKILL.md"
+    primary = 0
+    columns = None
+    for number, line in enumerate(index.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.startswith("|"):
+            columns = None
+            continue
+        cells = [cell.strip() for cell in re.split(r"(?<!\\)\|", line)[1:-1]]
+        if "Subcommand" in cells and "Reference" in cells:
+            columns = (cells.index("Subcommand"), cells.index("Reference"), True)
+            continue
+        if cells == ["Reference file", "Loaded when running"]:
+            columns = (1, 0, False)
+            continue
+        if columns is None:
+            continue
+        match_col, ref_col, is_primary = columns
+        if len(cells) <= max(match_col, ref_col):
+            raise ValueError(f"malformed index: {index}:{number}")
+        tokens = re.findall(r"`([^`]+)`", cells[match_col])
+        if command not in [command_token(token, lane) for token in tokens]:
+            continue
+        primary += is_primary
+        refs = re.findall(r"`([^`]+)`", re.sub(r"\([^)]*\)", "", cells[ref_col]))
+        if not refs:
+            raise ValueError(f"missing reference declaration: {index}:{number}")
+        declarations.append({"index": index.relative_to(root).as_posix(),
+                             "line": number, "references": refs})
+        for ref in refs:
+            target = root / ref[len("$PERRY_HOME/"):] if ref.startswith("$PERRY_HOME/") else index.parent / ref
+            relative, blob = source(target, reference=True)
+            if re.fullmatch(r"(?:[^/]+/)?reference/[^/]+\.md", relative):
+                files[relative] = len(blob)
+            else:
+                excluded.append({"path": relative, "reason": "non-L2"})
+    if primary != 1:
+        raise ValueError(f"{command}: expected one Subcommand/Reference row, found {primary}")
+    total, budget = sum(files.values()), BILL_BUDGETS[command]
+    return {"command": command, "files": [{"path": p, "bytes": n} for p, n in files.items()],
+            "total_bytes": total, "budget_bytes": budget,
+            "status": "over" if total > budget else "within",
+            "declarations": declarations, "excluded": excluded}
+
+
+def print_bills(args, root: Path) -> int:
+    report = {"mode": "bill", "skill_root": str(root.resolve()), "scope": BILL_SCOPE, "bills": []}
+    for command in BILL_BUDGETS if args.bill == "all" else [args.bill]:
+        try:
+            bill = declared_bill(root, command)
+        except (OSError, ValueError, RuntimeError) as error:
+            bill = {"command": command, "status": "unknown", "error": str(error)}
+        report["bills"].append(bill)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(BILL_SCOPE)
+        print(f"skill root: {report['skill_root']}")
+        for bill in report["bills"]:
+            print(f"\n{bill['command']}: {bill['status']}")
+            if "error" in bill:
+                print(f"perry-context-budget: {bill['command']}: {bill['error']}", file=sys.stderr)
+                continue
+            for item in bill["files"]:
+                print(f"  {item['bytes']:>8} bytes  {item['path']}")
+            print(f"  total {bill['total_bytes']} bytes / budget {bill['budget_bytes']} bytes")
+            for item in bill["excluded"]:
+                print(f"  excluded {item['path']}: {item['reason']}")
+    statuses = {bill["status"] for bill in report["bills"]}
+    return int(bool(statuses & {"unknown", "over"}))
+
+
+def bind(session_flag: str | None, host: str, identity: str | None) -> tuple[Path | None, str]:
+    """The one transcript this run may measure, or None and why it may not."""
+    if session_flag:
+        return Path(session_flag), "--session"
+    if host == "opencode":
+        return None, "OpenCode exposes no per-session usage telemetry Perry can read"
+    if host == "claude-code":
+        return None, ("unverified identity: Claude Code gives its subagents the main session's "
+                      "CLAUDE_CODE_SESSION_ID and no verified signal tells them apart; "
+                      "--session gives only an explicit, caller-asserted reading")
+    if host not in HOST_IDENTITY:
+        return None, f"host is {host!r}: no session identity to bind to"
+    if identity is None:
+        return None, f"absent identity: {host} gave this session no {HOST_IDENTITY[host]} of its own"
+    found = locate(identity)
+    if len(found) != 1:
+        return None, f"{len(found)} transcripts carry session id {identity!r}; need exactly one"
+    return found[0], "host identity"
+
+
+def measure(path: Path, identity: str | None, binding: str) -> dict:
+    """Usage, provenance and coverage for the bound transcript and its children."""
+    with path.open("rb") as fh:
+        codex = b'"session_meta"' in fh.readline()
+    data = (read_codex if codex else read_claude)(path)
+    kids = children(codex, path, data["session"] or "") if data["session"] else []
+    bad = sum(data["seen"][k] + sum(kid["seen"][k] for kid in kids) for k in ("malformed", "truncated"))
+    direct = [kid for kid in kids if not kid.get("workflow")]
+    with_usage = sum(bool(kid["turns"]) for kid in direct)
+    in_workflows = len(kids) - len(direct)
+    gaps = ([f"{bad} malformed or truncated line(s) skipped"] if bad else []) + (
+        [f"{data['spawned'] - with_usage} of {data['spawned']} spawned children have no usage"]
+        if with_usage < data["spawned"] else []) + (
+        [f"{len(direct) - data['spawned']} child transcript(s) that no spawn accounts for"]
+        if len(direct) > data["spawned"] else []) + (
+        [f"{data['workflows']} Workflow call(s) and {in_workflows} workflow child transcript(s): "
+         "a Workflow does not record how many children it spawned"] if data["workflows"] or in_workflows else [])
+    turns = [t for r in [data, *kids] for t in r["turns"]]
+    unrecorded = sum(t["reasoning"] is None for t in turns)
+    usage = {c: sum(t[c] for t in turns) for c in CATEGORIES[:4]}
+    usage["reasoning"] = None if unrecorded else sum(t["reasoning"] for t in turns)
+    return {"transcript_host": "codex-cli" if codex else "claude-code", "binding": binding,
+            "scope": "current" if identity and data["session"] == identity else
+                     "historical" if binding == "--session" and identity else "explicit",
+            "session": data["session"], "parent": data["parent"], "transcript": str(path),
+            "cwd": data["cwd"], "last_record_at": data["last_record_at"],
+            "transcript_age_min": round((time.time() - path.stat().st_mtime) / 60, 1),
+            "coverage": "partial" if gaps else "complete", "gaps": gaps,
+            "usage": usage,
+            "children": {"spawned": data["spawned"], "found": len(direct), "with_usage": with_usage,
+                         "workflow_calls": data["workflows"], "workflow_found": in_workflows},
+            "records": {"requests": len(data["turns"]), **data["seen"]},
+            "last": data["turns"][-1] if data["turns"] else None,
+            "measured": ["context", "usage"], "estimated": [], "cost": "unknown", "quota": "unknown",
+            "not_measured": [f"usage.reasoning: the host recorded none for {unrecorded} of {len(turns)} "
+                             "request(s)"] if unrecorded else []}
+
+
+def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if {"-h", "--help"} & set(argv):
+        print(__doc__.strip())
+        return 0
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--ceiling")
+    ap.add_argument("--session")
+    ap.add_argument("--root")
+    ap.add_argument("--composition", action="store_true")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--bill", choices=[*BILL_BUDGETS, "all"])
+    ap.add_argument("--bill-skill-root")
+    args = ap.parse_args(argv)
+
+    if args.bill:
+        if args.session is not None or args.composition or args.ceiling is not None or args.root is not None:
+            ap.error("--bill cannot combine with --session, --composition, --ceiling or --root")
+        if args.bill_skill_root == "":
+            ap.error("--bill-skill-root must not be empty")
+        return print_bills(args, Path(args.bill_skill_root or Path(__file__).resolve().parent.parent))
+    if args.bill_skill_root is not None:
+        ap.error("--bill-skill-root requires --bill")
+
+    # Empty explicit roots must not fall through to cwd.
+    if args.root is not None and not args.root.strip():
+        print("context_budget: --root must not be empty", file=sys.stderr)
+        return 2
+
+    # Compatibility comparison only: no default, environment or project ceiling.
+    ceiling = None
+    if args.ceiling is not None:
+        try:
+            ceiling = parse_size(args.ceiling)
+            if ceiling <= 0:
+                raise ValueError
+        except (ValueError, OverflowError):
+            ap.error("--ceiling requires a positive numeric reference")
+    ceiling_from = "--ceiling (reference only)" if ceiling is not None else None
+    host, identity = host_identity()
+    path, binding = bind(args.session, host, identity)
+    report = {"verdict": "unknown", "context": None, "ceiling": ceiling, "ceiling_from": ceiling_from,
+              "host": host, "identity": identity, "transcript": None, "why": binding, "report_only": True}
+    if path is not None and not path.is_file():
+        report["why"] = f"no transcript at {path}"
+    elif path is not None and args.composition:
+        data = composition(path)
+        data["transcript"] = str(path)
+        if args.json:
+            print(json.dumps(data, indent=2))
+            return 0
+        print(f"transcript : {path}")
+        print(f"accumulated: ~{data['total_approx_tokens']:,} tokens "
+              f"(estimated at ~4 bytes/token, a rule of thumb)\n")
+        print(f"{'block type':28} {'count':>7} {'~tokens':>12} {'share':>7} {'~each':>8}")
+        total = max(1, data["total_bytes"])
+        for b in data["blocks"]:
+            print(f"{b['kind']:28} {b['count']:>7} {b['approx_tokens']:>12,} "
+                  f"{100 * b['bytes'] / total:>6.1f}% {b['approx_tokens_each']:>8,}")
+        if data["top_shell"]:
+            print(f"\nbiggest shell commands by bytes TYPED into context:")
+            for s in data["top_shell"]:
+                print(f"  {s['command'][:34]:34} {s['calls']:>5} calls "
+                      f"~{s['approx_tokens']:>9,} tok  ~{s['approx_tokens_each']:>6,}/call")
+        return 0
+    elif path is not None:
+        report.update(measure(path, identity, binding))
+        last = report.pop("last")
+        if binding == "host identity" and report["session"] != identity:
+            report["why"] = f"{path} records session {report['session']!r}, not the host's {identity!r}"
+        elif last is None:
+            report["why"] = f"{path} carries no usage record yet"
+        else:
+            report["context"] = context_of(last)
+            if ceiling is not None:
+                report["pct"] = round(100 * report["context"] / ceiling, 1)
+            report["verdict"] = "historical" if report["scope"] == "historical" else "measured"
+            report.pop("why")
+    if args.json:
+        print(json.dumps(report, indent=2))
+    elif report["verdict"] == "unknown":
+        print(f"context  : unknown\nverdict  : UNKNOWN — not gating\nwhy      : {report['why']}")
+    else:
+        print(f"transcript : {path} ({report['transcript_host']}, session {report['session']}, {report['scope']})")
+        print(f"written    : {report['transcript_age_min']:.0f} min ago; coverage {report['coverage']}"
+              + "".join(f"; {gap}" for gap in report["gaps"]))
+        print(f"context    : {report['context']:,} tokens (measured; cost and quota unknown)")
+        if ceiling is not None:
+            print(f"reference  : {ceiling:,} tokens; {report['pct']}% (comparison only)")
+        print("session    : report only — the agent environment and user decide when to start a new session")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

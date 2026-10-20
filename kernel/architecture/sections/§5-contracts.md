@@ -224,7 +224,7 @@ empty.
 | Command | Input | `result` | Errors |
 |---|---|---|---|
 | `init` | `actor`, `state_root` (a relative path inside the anchor) | `store`, `anchor`, `state_root`, `journal_mode` | A, `anchor_not_found`, `store_foreign`, `store_version`, `store_busy`, `store_corrupt`, `store_live_under_test`, `io_error`, `actor_invalid`, `store_initialized` |
-| `template apply` | `actor`, `template`, `note` | `name`, `version`, `previous_version` | W, `template_invalid`, `template_version`, `template_incompatible` |
+| `template apply` | `actor`, `template`, optional `ceilings`, `note` | `name`, `version`, `previous_version` | W, `template_invalid`, `template_version`, `template_incompatible` |
 | `template show` | — | `template` (the applied one, verbatim), `version`, `applied_seq`, `applied_at`. All four are `null` before the first apply | S |
 | `template validate` | `template` | `valid: true`, `format`, `types` (a count). It checks the format only and opens no store. `template apply --dry-run` tests compatibility | A, `io_error`, `template_invalid` |
 | `item create` | `actor`, `type`, `fields{}`, `relations[]` (`{kind, to}` or `{kind, from}`, where the new item is the other end), `attachments[]` (`{ref, hash?}`), `note`, `expect` | `item` | W, `stale_write`, `no_template`, `unknown_type`, `unknown_field`, `field_invalid`, `metric_invalid`, `item_not_found`, `unknown_relation`, `relation_invalid`, `relation_cycle`, `attachment_invalid`, `guard_refused`, `id_exhausted` |
@@ -304,7 +304,7 @@ becomes the event's seq.
 - **Ids.** The store keeps a ceiling per prefix. An id is minted inside the write
   transaction as `ceiling + 1`, so two writers cannot mint the same id. A ceiling is never
   lowered, an id is never reused, and no command deletes an item. A `ceiling:<prefix>`
-  event raises a ceiling above the stored ids. No command writes one: it arrives only by
+  event raises a ceiling above the stored ids. `template apply` may write one through its optional `ceilings` input; it may also arrive by
   `import`, in an export that DESIGN-023 § 6 row D's importer builds to seed ids that were
   issued and later purged (§ 5.8). `--dry-run` reports the id it would mint unreserved.
 - **Tables.** `meta` (format, `state_root`, `last_export_seq`, `export_token`), `template`,
@@ -316,7 +316,7 @@ becomes the event's seq.
     purpose, always pass `--store <tmp>`. The harness sets `PERRY_KERNEL_TESTING=1`, under
     which a derived path is refused (`store_live_under_test`), so a call that forgets
     `--store` fails instead of writing the shared store. The variable counts as set when it
-    is present, empty included. `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
+    is present, empty included. The now-retired `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
     importer, is not a test, and it sets `PERRY_KERNEL_TESTING=1` on every kernel call as
     the same safety switch. Each of its calls names `--store` under its scratch `--work`
     directory, so a call that lost the flag is refused rather than derived to the live store.
@@ -360,7 +360,7 @@ becomes the event's seq.
 
      An event that holds a `template` change and any item change (`type`, `state`,
      `field:`, `rel:` or `attach:`) is refused as a line that breaks this section, before
-     any replay: `template apply` writes its change alone, and no other command writes a
+     any replay: `template apply` combines its template change only with ceiling changes, and no other command writes a
      `template` change (TASK-489 round 6). So the template in force is the same for every
      item change of an event. The item's type is the stored one, or, for the event's own
      item (`items[0]`), the `type` the same event sets, so a change replayed before its
@@ -414,5 +414,19 @@ becomes the event's seq.
   export, which records one (the user accepted this design on 2026-09-26). **Reversal:**
   delete the directory; only `import` loads it.
 
-Neither path is added to the current claims register, `schema/state-schema.json`: that is
-a schema change outside this row, and the file is deleted at row H.
+Neither native path belongs to the legacy claims register. H retires that schema;
+the kernel path rules remain authoritative.
+
+### Proposed surface 1.1: prefix floors (pending user approval)
+
+`template apply` accepts optional `ceilings: {"PREFIX": integer}` outside the
+template object. Each key must be a prefix declared by the submitted compatible
+template; values are integers from 0 to the safe SQLite ceiling limit. The same
+locked transaction applies the template and raises each floor monotonically.
+An equal/lower floor never lowers or emits a change. An identical current
+version with raised floors writes only ceiling changes; without changes it is
+unchanged. Dry-run rolls back both template and floors. No item is fabricated,
+no ID is reused, and the eight concepts, twelve command groups and four guards
+stay unchanged. Existing 1.0 invocations retain their behavior. The result shape
+is unchanged; ordinary events/export/replay carry actual `ceiling:` changes.
+This candidate contract needs the explicit DESIGN-023 §7 approval before release.

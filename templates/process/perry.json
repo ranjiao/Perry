@@ -1,84 +1,1052 @@
 {
   "format": 1,
   "name": "perry",
-  "version": 1,
+  "version": 2,
   "types": {
     "task": {
       "prefix": "TASK",
       "digits": 3,
-      "states": ["not_started", "blocked", "in_progress", "review", "done", "dropped"],
+      "states": [
+        "not_started",
+        "blocked",
+        "in_progress",
+        "review",
+        "done",
+        "dropped"
+      ],
       "initial": "not_started",
-      "terminal": ["done", "dropped"],
+      "terminal": [
+        "done",
+        "dropped"
+      ],
       "fields": {
-        "title": {"kind": "text"},
-        "summary": {"kind": "text"},
-        "priority": {"kind": "enum", "values": ["P0", "P1", "P2"]},
-        "owner": {"kind": "enum", "values": ["User", "PMO Agent", "Coding Agent", "Research Agent", "Review Agent", "User + Agent"]},
-        "track": {"kind": "enum", "values": ["main", "intake"]},
-        "verification": {"kind": "enum", "values": ["V1", "V2", "V3", "V4", "V5", "V6"], "ordered": true},
-        "next_action": {"kind": "text"},
-        "evidence": {"kind": "text"},
-        "reason": {"kind": "text"},
-        "verified_by": {"kind": "actor"}
+        "title": {
+          "kind": "text"
+        },
+        "summary": {
+          "kind": "text"
+        },
+        "priority": {
+          "kind": "enum",
+          "values": [
+            "P0",
+            "P1",
+            "P2"
+          ]
+        },
+        "owner": {
+          "kind": "enum",
+          "values": [
+            "User",
+            "PMO Agent",
+            "Coding Agent",
+            "Research Agent",
+            "Review Agent",
+            "User + Agent"
+          ]
+        },
+        "track": {
+          "kind": "enum",
+          "values": [
+            "main",
+            "intake"
+          ]
+        },
+        "verification": {
+          "kind": "enum",
+          "values": [
+            "V1",
+            "V2",
+            "V3",
+            "V4",
+            "V5",
+            "V6"
+          ],
+          "ordered": true
+        },
+        "next_action": {
+          "kind": "text"
+        },
+        "evidence": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "verified_by": {
+          "kind": "actor"
+        }
       },
       "create_guards": [
-        {"kind": "required", "fields": ["title", "summary", "priority", "verification"]}
+        {
+          "kind": "required",
+          "fields": [
+            "title",
+            "summary",
+            "priority",
+            "verification"
+          ]
+        }
       ],
       "transitions": {
-        "start": {"from": ["not_started", "blocked", "review"], "to": "in_progress", "guards": []},
-        "block": {"from": ["not_started", "in_progress", "review"], "to": "blocked", "guards": [
-          {"kind": "required", "fields": ["reason"]}
-        ]},
-        "submit": {"from": ["not_started", "blocked", "in_progress"], "to": "review", "guards": []},
-        "reset": {"from": ["blocked", "in_progress", "review"], "to": "not_started", "guards": []},
-        "done": {"from": ["not_started", "blocked", "in_progress", "review"], "to": "done", "guards": [
-          {"kind": "required", "fields": ["evidence"]},
-          {"kind": "required", "fields": ["verified_by"], "when": {"verification": ["V4"]}},
-          {"kind": "actor", "actor_kind": "human", "when": {"verification": ["V5"]}}
-        ]},
-        "drop": {"from": ["not_started", "blocked", "in_progress", "review"], "to": "dropped", "guards": [
-          {"kind": "required", "fields": ["reason"]}
-        ]}
+        "start": {
+          "from": [
+            "not_started",
+            "blocked",
+            "review"
+          ],
+          "to": "in_progress",
+          "guards": []
+        },
+        "block": {
+          "from": [
+            "not_started",
+            "in_progress",
+            "review"
+          ],
+          "to": "blocked",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        },
+        "submit": {
+          "from": [
+            "not_started",
+            "blocked",
+            "in_progress"
+          ],
+          "to": "review",
+          "guards": []
+        },
+        "reset": {
+          "from": [
+            "blocked",
+            "in_progress",
+            "review"
+          ],
+          "to": "not_started",
+          "guards": []
+        },
+        "done": {
+          "from": [
+            "not_started",
+            "blocked",
+            "in_progress",
+            "review"
+          ],
+          "to": "done",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "evidence"
+              ]
+            },
+            {
+              "kind": "required",
+              "fields": [
+                "verified_by"
+              ],
+              "when": {
+                "verification": [
+                  "V4"
+                ]
+              }
+            },
+            {
+              "kind": "actor",
+              "actor_kind": "human",
+              "when": {
+                "verification": [
+                  "V5"
+                ]
+              }
+            }
+          ]
+        },
+        "drop": {
+          "from": [
+            "not_started",
+            "blocked",
+            "in_progress",
+            "review"
+          ],
+          "to": "dropped",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
       }
     },
     "ask": {
       "prefix": "USER",
       "digits": 3,
-      "states": ["pending", "answered"],
+      "states": [
+        "pending",
+        "answered"
+      ],
       "initial": "pending",
-      "terminal": ["answered"],
+      "terminal": [
+        "answered"
+      ],
       "fields": {
-        "question": {"kind": "text"},
-        "answer": {"kind": "text"}
+        "question": {
+          "kind": "text"
+        },
+        "answer": {
+          "kind": "text"
+        }
       },
       "create_guards": [
-        {"kind": "required", "fields": ["question"]}
+        {
+          "kind": "required",
+          "fields": [
+            "question"
+          ]
+        }
       ],
       "transitions": {
-        "answer": {"from": ["pending"], "to": "answered", "guards": [
-          {"kind": "required", "fields": ["answer"]}
-        ]}
+        "answer": {
+          "from": [
+            "pending"
+          ],
+          "to": "answered",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "answer"
+              ]
+            }
+          ]
+        }
       }
     },
     "risk": {
       "prefix": "RX",
       "digits": 3,
-      "states": ["open", "cleared"],
+      "states": [
+        "open",
+        "cleared"
+      ],
       "initial": "open",
-      "terminal": ["cleared"],
+      "terminal": [
+        "cleared"
+      ],
       "fields": {
-        "concern": {"kind": "text"},
-        "reason": {"kind": "text"}
+        "concern": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        }
       },
       "create_guards": [
-        {"kind": "required", "fields": ["concern"]}
+        {
+          "kind": "required",
+          "fields": [
+            "concern"
+          ]
+        }
       ],
       "transitions": {
-        "clear": {"from": ["open"], "to": "cleared", "guards": [
-          {"kind": "required", "fields": ["reason"]}
-        ]}
+        "clear": {
+          "from": [
+            "open"
+          ],
+          "to": "cleared",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "objective": {
+      "prefix": "OBJ",
+      "digits": 3,
+      "states": [
+        "goal_draft",
+        "goal_active",
+        "goal_retired"
+      ],
+      "initial": "goal_draft",
+      "terminal": [
+        "goal_retired"
+      ],
+      "fields": {
+        "title": {
+          "kind": "text"
+        },
+        "legacy_id": {
+          "kind": "text"
+        },
+        "legacy_scope": {
+          "kind": "text"
+        },
+        "source_key": {
+          "kind": "text"
+        },
+        "source_hash": {
+          "kind": "text"
+        },
+        "legacy_record": {
+          "kind": "text"
+        },
+        "approval_ref": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "okr_version": {
+          "kind": "text"
+        },
+        "goal_level": {
+          "kind": "text"
+        },
+        "metric_text": {
+          "kind": "text"
+        },
+        "due_text": {
+          "kind": "text"
+        },
+        "score_note": {
+          "kind": "text"
+        },
+        "stretch": {
+          "kind": "enum",
+          "values": [
+            false,
+            true
+          ]
+        },
+        "version_record": {
+          "kind": "text"
+        }
+      },
+      "create_guards": [
+        {
+          "kind": "required",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "transitions": {
+        "approve": {
+          "from": [
+            "goal_draft"
+          ],
+          "to": "goal_active",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "approval_ref"
+              ]
+            }
+          ]
+        },
+        "withdraw": {
+          "from": [
+            "goal_draft",
+            "goal_active"
+          ],
+          "to": "goal_retired",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "kr": {
+      "prefix": "KR",
+      "digits": 3,
+      "states": [
+        "goal_draft",
+        "goal_active",
+        "goal_retired"
+      ],
+      "initial": "goal_draft",
+      "terminal": [
+        "goal_retired"
+      ],
+      "fields": {
+        "title": {
+          "kind": "text"
+        },
+        "legacy_id": {
+          "kind": "text"
+        },
+        "legacy_scope": {
+          "kind": "text"
+        },
+        "source_key": {
+          "kind": "text"
+        },
+        "source_hash": {
+          "kind": "text"
+        },
+        "legacy_record": {
+          "kind": "text"
+        },
+        "approval_ref": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "okr_version": {
+          "kind": "text"
+        },
+        "goal_level": {
+          "kind": "text"
+        },
+        "metric_text": {
+          "kind": "text"
+        },
+        "due_text": {
+          "kind": "text"
+        },
+        "score_note": {
+          "kind": "text"
+        },
+        "stretch": {
+          "kind": "enum",
+          "values": [
+            false,
+            true
+          ]
+        },
+        "measure": {
+          "kind": "metric"
+        },
+        "work_items": {
+          "kind": "list",
+          "of": {
+            "kind": "ref",
+            "to": [
+              "task"
+            ]
+          }
+        }
+      },
+      "create_guards": [
+        {
+          "kind": "required",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "transitions": {
+        "approve": {
+          "from": [
+            "goal_draft"
+          ],
+          "to": "goal_active",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "approval_ref"
+              ]
+            }
+          ]
+        },
+        "withdraw": {
+          "from": [
+            "goal_draft",
+            "goal_active"
+          ],
+          "to": "goal_retired",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "check": {
+      "prefix": "CHK",
+      "digits": 3,
+      "states": [
+        "check_declared",
+        "check_retired"
+      ],
+      "initial": "check_declared",
+      "terminal": [
+        "check_retired"
+      ],
+      "fields": {
+        "title": {
+          "kind": "text"
+        },
+        "legacy_id": {
+          "kind": "text"
+        },
+        "legacy_scope": {
+          "kind": "text"
+        },
+        "source_key": {
+          "kind": "text"
+        },
+        "source_hash": {
+          "kind": "text"
+        },
+        "legacy_record": {
+          "kind": "text"
+        },
+        "approval_ref": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "command_text": {
+          "kind": "text"
+        },
+        "evidence_ref": {
+          "kind": "text"
+        },
+        "measured_at": {
+          "kind": "text"
+        },
+        "due_text": {
+          "kind": "text"
+        },
+        "measurement_origin": {
+          "kind": "text"
+        },
+        "check_metric": {
+          "kind": "metric"
+        }
+      },
+      "create_guards": [
+        {
+          "kind": "required",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "transitions": {
+        "retire": {
+          "from": [
+            "check_declared"
+          ],
+          "to": "check_retired",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "phase": {
+      "prefix": "PH",
+      "digits": 3,
+      "states": [
+        "phase_draft",
+        "phase_active",
+        "phase_scored",
+        "phase_dropped"
+      ],
+      "initial": "phase_draft",
+      "terminal": [
+        "phase_scored",
+        "phase_dropped"
+      ],
+      "fields": {
+        "title": {
+          "kind": "text"
+        },
+        "legacy_id": {
+          "kind": "text"
+        },
+        "legacy_scope": {
+          "kind": "text"
+        },
+        "source_key": {
+          "kind": "text"
+        },
+        "source_hash": {
+          "kind": "text"
+        },
+        "legacy_record": {
+          "kind": "text"
+        },
+        "approval_ref": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "phase_slug": {
+          "kind": "text"
+        },
+        "started_on": {
+          "kind": "text"
+        },
+        "source_version": {
+          "kind": "text"
+        },
+        "close_evidence": {
+          "kind": "text"
+        },
+        "retro_ref": {
+          "kind": "text"
+        },
+        "project_registry": {
+          "kind": "list",
+          "of": {
+            "kind": "text"
+          }
+        },
+        "unlinked_tasks": {
+          "kind": "list",
+          "of": {
+            "kind": "text"
+          }
+        },
+        "agent_assignments": {
+          "kind": "list",
+          "of": {
+            "kind": "text"
+          }
+        }
+      },
+      "create_guards": [
+        {
+          "kind": "required",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "transitions": {
+        "activate": {
+          "from": [
+            "phase_draft"
+          ],
+          "to": "phase_active",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "approval_ref"
+              ]
+            }
+          ]
+        },
+        "score": {
+          "from": [
+            "phase_active"
+          ],
+          "to": "phase_scored",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "close_evidence",
+                "retro_ref"
+              ]
+            }
+          ]
+        },
+        "drop": {
+          "from": [
+            "phase_draft",
+            "phase_active"
+          ],
+          "to": "phase_dropped",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "design": {
+      "prefix": "DESIGN",
+      "digits": 3,
+      "states": [
+        "design_draft",
+        "design_review",
+        "design_locked",
+        "design_superseded",
+        "design_dropped"
+      ],
+      "initial": "design_draft",
+      "terminal": [
+        "design_superseded",
+        "design_dropped"
+      ],
+      "fields": {
+        "title": {
+          "kind": "text"
+        },
+        "legacy_id": {
+          "kind": "text"
+        },
+        "legacy_scope": {
+          "kind": "text"
+        },
+        "source_key": {
+          "kind": "text"
+        },
+        "source_hash": {
+          "kind": "text"
+        },
+        "legacy_record": {
+          "kind": "text"
+        },
+        "approval_ref": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "decided_on": {
+          "kind": "text"
+        },
+        "locked_on": {
+          "kind": "text"
+        },
+        "author_text": {
+          "kind": "text"
+        },
+        "implementation_owner": {
+          "kind": "text"
+        },
+        "linked_okr_text": {
+          "kind": "text"
+        },
+        "open_decisions": {
+          "kind": "text"
+        },
+        "implemented_by": {
+          "kind": "list",
+          "of": {
+            "kind": "ref",
+            "to": [
+              "task"
+            ]
+          }
+        }
+      },
+      "create_guards": [
+        {
+          "kind": "required",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "transitions": {
+        "review": {
+          "from": [
+            "design_draft"
+          ],
+          "to": "design_review",
+          "guards": []
+        },
+        "lock": {
+          "from": [
+            "design_draft",
+            "design_review"
+          ],
+          "to": "design_locked",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "approval_ref"
+              ]
+            }
+          ]
+        },
+        "supersede": {
+          "from": [
+            "design_locked",
+            "design_review",
+            "design_draft"
+          ],
+          "to": "design_superseded",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        },
+        "drop": {
+          "from": [
+            "design_draft",
+            "design_review",
+            "design_locked"
+          ],
+          "to": "design_dropped",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "adr": {
+      "prefix": "ADR",
+      "digits": 3,
+      "states": [
+        "adr_proposed",
+        "adr_active",
+        "adr_superseded",
+        "adr_expired",
+        "adr_archived"
+      ],
+      "initial": "adr_proposed",
+      "terminal": [
+        "adr_superseded",
+        "adr_expired",
+        "adr_archived"
+      ],
+      "fields": {
+        "title": {
+          "kind": "text"
+        },
+        "legacy_id": {
+          "kind": "text"
+        },
+        "legacy_scope": {
+          "kind": "text"
+        },
+        "source_key": {
+          "kind": "text"
+        },
+        "source_hash": {
+          "kind": "text"
+        },
+        "legacy_record": {
+          "kind": "text"
+        },
+        "approval_ref": {
+          "kind": "text"
+        },
+        "reason": {
+          "kind": "text"
+        },
+        "decided_on": {
+          "kind": "text"
+        },
+        "decision_type": {
+          "kind": "text"
+        },
+        "deciders_text": {
+          "kind": "text"
+        },
+        "sunset_text": {
+          "kind": "text"
+        },
+        "implemented_by": {
+          "kind": "list",
+          "of": {
+            "kind": "ref",
+            "to": [
+              "task"
+            ]
+          }
+        }
+      },
+      "create_guards": [
+        {
+          "kind": "required",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "transitions": {
+        "accept": {
+          "from": [
+            "adr_proposed"
+          ],
+          "to": "adr_active",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "approval_ref"
+              ]
+            }
+          ]
+        },
+        "supersede": {
+          "from": [
+            "adr_active"
+          ],
+          "to": "adr_superseded",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        },
+        "expire": {
+          "from": [
+            "adr_active"
+          ],
+          "to": "adr_expired",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        },
+        "archive": {
+          "from": [
+            "adr_proposed",
+            "adr_active",
+            "adr_superseded",
+            "adr_expired"
+          ],
+          "to": "adr_archived",
+          "guards": [
+            {
+              "kind": "required",
+              "fields": [
+                "reason"
+              ]
+            }
+          ]
+        }
       }
     }
   },
-  "relations": {}
+  "relations": {
+    "contributes_to": {
+      "from": [
+        "task"
+      ],
+      "to": [
+        "kr"
+      ]
+    },
+    "aligned_to": {
+      "from": [
+        "phase",
+        "objective",
+        "kr",
+        "design",
+        "adr"
+      ],
+      "to": [
+        "objective",
+        "kr"
+      ]
+    },
+    "in_phase": {
+      "from": [
+        "task",
+        "objective",
+        "kr",
+        "check"
+      ],
+      "to": [
+        "phase"
+      ]
+    },
+    "implements": {
+      "from": [
+        "task"
+      ],
+      "to": [
+        "design",
+        "adr"
+      ]
+    },
+    "supersedes": {
+      "from": [
+        "design",
+        "adr"
+      ],
+      "to": [
+        "design",
+        "adr"
+      ]
+    },
+    "retired_from": {
+      "from": [
+        "check",
+        "kr"
+      ],
+      "to": [
+        "kr",
+        "objective"
+      ]
+    },
+    "authorized_by": {
+      "from": [
+        "adr",
+        "design"
+      ],
+      "to": [
+        "design",
+        "adr"
+      ]
+    },
+    "amends": {
+      "from": [
+        "design",
+        "adr"
+      ],
+      "to": [
+        "design",
+        "adr"
+      ]
+    }
+  }
 }

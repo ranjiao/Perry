@@ -1,100 +1,36 @@
-# `okr init` / `okr revise` — creating and versioning the overall OKR
+# Overall goals: init and revise
 
-Loaded when `/okr init` or `/okr revise` fires. Not loaded on routine snapshots.
+Read the shared elicitation bank and `planning.md`. Existing project state is
+queried through the native kernel before drafting; no OKR file is evidence of an
+empty native store. A missing kernel requires the root's approved bootstrap or
+migration, not a goals-specific init over existing work.
 
-## `init` — first-time bootstrap of overall OKR
+1. Reuse the supplied mission, horizon, beneficiaries, operating principles and
+   anti-goals. Default to one Objective and at most three KRs; a fully formed
+   user draft skips the interview. Keep facts, proposals and unknowns distinct.
+2. Save and review the narrative draft. Run the shared Overall OKR input rubric;
+   surface at most three advisory issues. Challenge consequential premises and
+   accept explicit user overrides with their reason. Do not invent a baseline.
+3. Obtain approval of the exact draft bytes and scope. Re-read/review after edits.
+4. Through `item create`, create new `objective` and `kr` items in `goal_draft`,
+   using the applied template's fields. Store the version in `okr_version` and
+   `legacy_scope` where importing, and goal_level `overall`. Never predict the
+   next minted ID or reuse an earlier version's identity.
+5. Relate each KR to its Objective with `parent`, and attach the owned rationale
+   using exact refs/hashes. A quantitative check belongs to `check`, not a prose
+   metric parsed into a number. `metric_text` may describe an unknown measure.
+6. Record `approval_ref` identifying the user's actual reviewed decision and
+   attachment hash, then `item move` transition `approve`, with current `expect`.
+   Validate consent yourself; the guard cannot read it. Re-read all resulting
+   items. Partial progress is reported and resumed from the saved IDs, never by
+   blindly repeating creates.
 
-Run when `OKR.md` doesn't exist.
+Version-log metadata is retained once on the first overall Objective of that
+version in version_record; do not duplicate it across phase items.
 
-0. **Write the config store first, when `.perry/config.jsonl` does not exist.** A goals-only start is a start: `OKR.md` alone does not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/reference/first-run.md § The procedure` step 3 asks, then write the answers before any other file:
-
-   ```
-   "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
-   "$PERRY_HOME/bin/perry-config" set --root . "Chat language" "follow user"
-   "$PERRY_HOME/bin/perry-config" set --root . "Repo layout" "<single or split>"
-   "$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
-   ```
-
-   When the store already exists (first-time setup ran), this step writes nothing.
-
-Then use `$PERRY_HOME/goals/reference/elicitation.md` for **Route and reuse** and
-the shared question bank. Read it before asking; do not turn the fields below
-into another form. A selected commitments spine uses that route, not this
-overall template. Unknown state never proves this is a first OKR.
-
-1. Follow the bank's **Use the bank** response handling: propagate corrections
-   through dependent proposals and choose the next consequential unresolved gap.
-   Ask one question, then wait; Q1–Q4 guide coverage, not a fixed sequence.
-   Default to one objective and at most three KRs, with eight questions total
-   before a visible draft (including every clarification/push question).
-   Keep unsupported facts explicitly unknown and unaccepted targets proposed.
-2. Save the draft from the first answer on, and show it for review, through
-   `$PERRY_HOME/goals/reference/planning.md` (`perry-goals draft`): each asked
-   question and answer is persisted, so a closed session resumes at the
-   pending question. Keep source/assumption distinctions, boundaries and
-   remaining unknowns in the body.
-3. Follow the bank's **Premises, edits and approval**: surface meaningful
-   premises, incorporate disagreement into affected draft sections, then run
-   `$PERRY_HOME/reference/input-quality-rubrics.md § 1 Overall OKR` once on the resulting
-   draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
-   A refusal uses the bank's escape; a fully pasted OKR skips the interview.
-4. Stop at the reviewed or approved draft: say "draft approved; overall
-   finalize is unavailable". `draft finalize` refuses and names the one
-   writer still missing — the overall-OKR author. A *phase* draft does
-   finalize, through `perry-goals phase new`. Do not hand-append canonical goal stores, hand-author `OKR.md` for
-   an importer, or auto-run `plan-phase`.
-
-### Structural contract
-
-`OKR.md` carries each version's `## v<N>: <date>` block and its
-`### Objective <N> — <title>` headings — **no KR table** (TASK-236, `ADR-019`).
-The overall key results are records in `okr.jsonl`, each added once its version
-and objective exist with the `kr add` verb of `bin/perry-goals`
-(`--okr-version "<version>" --objective <O-id> --text "…"`, see
-`phases.md § kr`), and printed by `perry-goals krs --level overall`.
-A KR typed into `OKR.md` as a table row or a bullet is not how one is added:
-every overall `kr` write refuses a file that still carries KR rows.
-This is the target document shape, not permission to bypass a missing writer.
-The shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by
-`bin/perry-lint`. After writing, run:
-
-```
-"$PERRY_HOME/bin/perry-lint" --root .
-```
-
-## `revise` — draft a new OKR version
-
-Used when goals materially change between versions (new constraints, new mission, big learnings). Soft fork:
-
-1. Read the current accepted `OKR.md` version and the user's requested change.
-   Follow `elicitation.md`'s revision route; reuse explicit answers with sources.
-   Show what changed, why, and which Objectives/KRs it invalidates. Preserve
-   unaffected accepted wording; do not replay the first-OKR interview.
-2. Choose the next consequential affected gap from the shared bank. Ask one
-   question and wait, at most five before a visible draft, counting routing,
-   clarifications and pushes. Corrections invalidate dependent proposals under
-   **Use the bank**; new thresholds never inherit old approval.
-3. Show the proposed new version in chat, with before/after changes, reasons,
-   source distinctions and unknowns. Its proposed version/date is not an append
-   receipt. Use the bank's **Premises, edits and approval** on the resulting
-   version, including its one-pass rubric and refusal escape. A premise
-   disagreement changes that section and dependent proposals, not all wording.
-4. Keep edits separate from approval of the current draft. Finalize only through
-   an available owning approval/persistence/writer flow; if missing or refusing,
-   name the gap/message and stop. Do not append a version, render a fabricated
-   canonical input file, or hand-write stores to work around missing tooling.
-   Historical versions remain unchanged.
-5. Surface any consequence for the current phase as a proposed follow-up, never
-   an automatic phase close/start. After a supported approved revision, hand the
-   decision to `decide` via `/perry decide adr <slug> --type Process`; the goals
-   lane does not write the decision or PMO records.
-
-**Tier 1 cap**: `OKR.md` ≤ 200 lines. Before any supported write, review overflow
-handling under `goals/SKILL.md`: propose archiving historical version retros or
-trimming; a draft does not itself authorize moving history or writing a version.
-
-## Completion routing
-
-After completed writes from `init`, `revise`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
-<!-- next-close: goals init --> <!-- next-close: goals revise -->
-First/revision chat drafts are unfinished planning: do not close or bypass an unavailable writer to trigger this step.
+A revision creates a new version scope and new items, preserving prior records,
+events and documents. Discuss what changed, why, affected KRs and evidence; do
+not auto-replan the active phase. Offer an ADR hand-off to decide when needed.
+Narratives hold the mission/operating principles/anti-goals/version rationale,
+not another authoritative KR table. Keep them attached and within the 200-line
+cap; move long historical narrative only within goals' ownership.

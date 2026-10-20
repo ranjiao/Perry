@@ -94,12 +94,15 @@ restore_point: "{{branch name, or .perry/diagnose/<date>-backup/, or null}}"
 
 ## After execution
 
-Re-run the scan and record both counts, so the refactor is judged by movement
-rather than by assertion:
+Repeat the same read-only procedure in `$PERRY_HOME/reference/diagnose.md`
+against the original bounded paths. Record actual measurements and their method;
+never substitute an old classifier score or claim improvement from prose alone.
 
-```
-"$PERRY_HOME/bin/perry-diagnose" --root . --text
+On a Perry project, run startup safety before further native queries:
+
+```sh
+python3 "$PERRY_HOME/tools/document_checks.py" startup --root <absolute-project> --state-root <relative-documents>
 ```
 
-On a Perry project, `"$PERRY_HOME/bin/perry-lint" --root .` must also pass
-before `stage: done`.
+A clear safety gate is necessary, not sufficient evidence for `stage: done`.
+The user accepts the actual prescriptions and their observed results.

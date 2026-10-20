@@ -206,7 +206,7 @@ check_deps() {
   fi
 
   # --- Always required ---
-  for c in bash curl perl; do
+  for c in bash curl perl python3; do
     if dep_present "$c"; then
       log "  ✅ $c          ($(command -v "$c"))"
     else
@@ -288,7 +288,7 @@ check_deps() {
     which_timeout="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null)"
     log "  ✅ timeout     ($which_timeout)"
   else
-    log "  ⚠️  timeout     (soft — perry-codex-preflight degrades gracefully without it)"
+    log "  ⚠️  timeout     (soft — tools/codex-preflight.sh degrades gracefully without it)"
     log "                 (Mac: brew install coreutils  — installs gtimeout)"
     DEPS_MISSING_SOFT+=("coreutils")
   fi

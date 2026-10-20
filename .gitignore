@@ -1,4 +1,4 @@
-# Auto-update timestamp written by bin/perry-update-check
+# Auto-update timestamp written by tools/update-check.sh
 .update-check
 
 
@@ -7,7 +7,7 @@
 .gstack/
 .trae/
 
-# Python bytecode from bin/ + viewer/
+# Python bytecode from kernel/ + tools/
 __pycache__/
 *.pyc
 

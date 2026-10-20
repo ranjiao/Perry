@@ -2,7 +2,7 @@
 
 Perry is a virtual project office, and this repository dogfoods Perry to build
 Perry itself. Product code and skill instructions live at the repository root;
-the live project state is rooted at `perry/` through `.perry/config.jsonl`.
+native state is in the shared kernel store; narratives remain under `perry/`.
 
 ## Start every session
 
@@ -10,24 +10,25 @@ the live project state is rooted at `perry/` through `.perry/config.jsonl`.
    load `SKILL.md` and its routed lane (`goals/SKILL.md`, `work/SKILL.md`, or
    `decide/SKILL.md`) first. Follow the skill's mandatory snapshot and ownership
    rules; do not run a second startup path here.
-2. For ordinary repository work, run these read-only checks before editing:
+2. For ordinary repository work, read the configured state-root path without
+   changing configuration, then run the read-only skill safety gate before
+   current state queries:
    ```bash
-   bin/perry-state --section recovery
-   bin/perry-state --section interrupted
-   bin/perry-state --dashboard
+   python3 tools/document_checks.py startup --root "$PWD" --state-root perry
    git status --short --branch
    git log -8 --oneline --decorate
    ```
-3. If recovery is blocking, stop and report its paths/errors. Otherwise, if
-   `interrupted` is non-empty, ask; never resume a pipeline automatically.
-4. Use `perry-state` for counts and status. Do not derive a dashboard by
-   eyeballing `bin/perry-tasks board` or walking the journal.
+3. If recovery is blocking, stop and report its paths/errors. If interrupted
+   is non-empty, ask; never resume automatically. Native query failure is a
+   setup/migration condition, never an empty board or legacy fallback.
+4. Use `bin/perry query` for task counts/status and `bin/perry events` for
+   history. Read `work/reference/kernel.md`; never infer state from historical files.
 5. Read only the current phase and the selected task's spec, evidence, and
    relevant locked design. Do not preload all designs, ADRs, or journal files.
 
 ## State and task rules
 
-- `bin/perry-task list --json` is the task-detail read contract: use its
+- `bin/perry query` is the native task-detail read contract: use its
   `blocked_by`, `startable`, evidence, and verification fields instead of
   inferring dependencies from prose.
 - A user-named task has priority. Otherwise, propose the highest-priority
@@ -35,7 +36,7 @@ the live project state is rooted at `perry/` through `.perry/config.jsonl`.
 - Before implementing a P0/P1 task, locate its written acceptance criteria.
   If they are absent, treat that as a task-state problem rather than inventing
   criteria from the code.
-- Change task state through `bin/perry-task`; do not hand-edit the journal,
+- Change task state through `bin/perry item`; do not hand-edit the journal,
   `tasks.jsonl` or `.perry/events.jsonl`. There is no `BOARD.md` to edit.
 - V4 requires a fresh-context reviewer against written criteria. V5 requires
   the named human sign-off. The implementing session cannot self-award either.
@@ -55,6 +56,6 @@ the live project state is rooted at `perry/` through `.perry/config.jsonl`.
   authority. Never merge your own implementation.
 - Before starting a Perry phase or integrating product work, read [release rules](release/README.md).
 - Green on your own base is not green merged — `tests/merge-check --help`.
-- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `perry-context-budget`. That file goes under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"` — derived, never a shared directory you namespace inside; five clobbers in two days, one across two sessions. `work/reference/dispatch.md § Where the agent puts a scratch file`.
+- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `python3 tools/context_budget.py`. That file goes under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"` — derived, never a shared directory you namespace inside; five clobbers in two days, one across two sessions. `work/reference/dispatch.md § Where the agent puts a scratch file`.
 
 Keep this startup protocol under roughly 60 lines; do not duplicate skill or state records.
