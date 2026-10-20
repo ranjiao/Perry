@@ -27,9 +27,9 @@ created; a recurring meeting/report is a skill procedure, not a register workflo
 Read the current phase and goals data through the goals lane's current contract.
 Use task query/events and evidence to mark achieved, partial, missed or unknown
 outcomes. Apply the phase's actual scope-reduction rule. Save a bounded evidence
-report for goals; do not edit its OKR/phase files. The retro begins with
-`> Phase: #<number>-<slug> · started <date> · scored —` for the not-yet-cut-over
-goals lane. Read `health-check.md`, `digests.md` and `promotion.md` when those
+report for goals; do not edit its OKR/phase files. Identify the native phase ID, slug and observed store seq in the report.
+Its display header is narrative context; goals follows the native phase's
+attachment and exact identity, not a retired header parser. Read `health-check.md`, `digests.md` and `promotion.md` when those
 selected capabilities contribute relevant evidence. Promotion requires a recurring
 lesson supported by two tasks and at most one question for the whole retro.
 
@@ -74,8 +74,8 @@ Use `planning.md` for complete kernel queries, evidence checks and approved upda
 ### `end-phase-retro`
 
 Save the bounded retrospective as evidence. Its header is
-`> Phase: <NNN>-<slug> · Since: <start-date>` so the goals reader can identify
-the phase. Describe actual results, unresolved criteria and evidence limits;
+`> Phase: <PH-ID> · <slug> · Store seq: <observed-seq>`. This display context
+does not create another phase identifier or state register. Describe actual results, unresolved criteria and evidence limits;
 hand goal scoring to the goals lane. This document is evidence, not task state.
 Offer reusable findings through the explicit skill procedure in `promotion.md`;
 promote only after the user chooses a finding and its source evidence.

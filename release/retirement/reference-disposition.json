@@ -365,7 +365,7 @@
       "source": "work/reference/subcommands.md",
       "source_sha256": "a32abd4cf4e9eb69c9aac12e5776c3d832f141bd7fef068b88fce6118475e722",
       "destination": "work/reference/subcommands.md",
-      "candidate_sha256": "0d9e7b453251fe3d06ea2182f3900be7a4ffbd4e975d6d435b2c08561c72d884",
+      "candidate_sha256": "b27164d515797ca6bd5c2a6c0986c11dc95a98c02b899a51d8f50aa664e6c1b0",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
@@ -455,7 +455,7 @@
       "source": "goals/reference/phases.md",
       "source_sha256": "03a0b507ea0ce1851b5aa88c56eec4e99275f50607d91477c14c557ff5f6d285",
       "destination": "goals/reference/phases.md",
-      "candidate_sha256": "a5f42e9cfa5b144fc8ac371074a16635da1129863aeee5853e5935b72303ecd3",
+      "candidate_sha256": "3798d8116ae1c1ed0332c7f07177742386d9177ec3e705d2ccfabb5feeed78be",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."

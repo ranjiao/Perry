@@ -184,6 +184,7 @@ tests/fixtures/witness-project/.perry/config.jsonl
 tests/fixtures/witness-project/.perry/events.jsonl
 tests/fixtures/witness-project/OKR.md
 tests/fixtures/witness-project/README.md
+tests/fixtures/witness-project/asks.jsonl
 tests/fixtures/witness-project/decisions/ADR-001-sunset-that-passed.md
 tests/fixtures/witness-project/journal/2026-09/2026-09-15.md
 tests/fixtures/witness-project/linkage.jsonl

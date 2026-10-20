@@ -77,9 +77,11 @@ from prose, timestamps, task completion, or a historical score.
 
 ## score-phase and close ordering
 
-The shipped DESIGN-020 close order governs: work `end-phase-retro` first, goals
-`score-phase` second, work `close-phase` last. Do not revive DESIGN-012's earlier
-order. Read work's retro attachment and all current native items/checks/events.
+DESIGN-020 USER-996 governs: work `end-phase-retro` first, then goals
+`score-phase` completes the phase's scored lifecycle and removes it from the
+active-phase query. Work `rollover` is the optional subsequent handoff of open
+work; there is no `work close-phase` command or additional phase-state writer.
+Do not revive DESIGN-012's earlier order. Read work's retro attachment and all current native items/checks/events.
 Resolve every task by exact attribution; unlinked work is visible and excluded,
 never guessed into a KR. Ask the user about achieved/partial/missed/dropped
 assessments with evidence; imported scalar assertions are not new measurements.
@@ -91,7 +93,8 @@ Hand the summary to work for its owned evidence; never write it yourself.
 Before moving the phase to scored, attach a frozen final narrative snapshot and
 record close_evidence plus retro_ref. Then `item move` transition `score`, naming
 the actual approval/reason in the event. Re-query to verify. Hand completion to
-work's close procedure; do not close tasks or award V4/V5. Overall-period retro
+work for an explicitly requested `rollover` handoff; do not close tasks or award
+V4/V5. Overall-period retro
 is narrative attached to the relevant overall items, not a structured rewrite.
 
 Carry over only explicitly approved projects/aliases and tasks with new resolved
