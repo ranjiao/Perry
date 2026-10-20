@@ -1,4 +1,4 @@
-> Historical pre-kernel rationale. This is not an active procedure. For current writes use `kernel.md` and the matching work reference.
+> Historical pre-kernel rationale. This is not an active procedure. For current writes use `$PERRY_HOME/reference/kernel.md` and the matching work reference.
 
 # The `work` lane — why it reads the way it does
 

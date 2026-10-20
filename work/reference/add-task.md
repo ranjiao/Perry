@@ -2,7 +2,7 @@
 
 ## `add-task`
 
-Read `kernel.md` and `reference/input-quality.md §4 — Task rubric`. Resolve the user's
+Read `$PERRY_HOME/reference/kernel.md` and `reference/input-quality.md §4 — Task rubric`. Resolve the user's
 request into a bounded deliverable, out-of-scope list and falsifiable acceptance
 criteria. Propose a new specification in chat before writing it; honor prior
 session approval rather than asking twice. P0/P1 tasks require written criteria.

@@ -1,0 +1,6 @@
+{
+  "id": "ADR-026",
+  "path": "decisions/ADR-026-kernel-work-rung-boundary.md",
+  "supersedes": "ADR-020",
+  "note": "the ADR body is a skeleton — fill Context / Options / Chosen / Consequences by hand; this tool writes structure, never reasoning"
+}

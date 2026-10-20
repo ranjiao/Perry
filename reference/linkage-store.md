@@ -2,7 +2,7 @@
 
 The old linkage register is frozen history. Current relations are native kernel
 edges, read and written through `bin/perry`; read `describe`, `template show` and
-`work/reference/kernel.md` first. The shipped template declares allowed endpoint
+`reference/kernel.md` first. The shipped template declares allowed endpoint
 types, directions and relation kinds. Do not invent a relation name from prose.
 
 Goals owns attribution decisions and their corresponding edge mutations. Work

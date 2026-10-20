@@ -2,15 +2,15 @@
 
 The most powerful anti-drift tool isn't a list of rules — it's a single, user-controlled architecture document that every coding agent reads, with independent compliance review selected from the exact integration diff.
 
-This is the **`ARCHITECTURE.md`** discipline. The user writes it. Agents read it. The PMO enforces it.
+This is the **`ARCHITECTURE.md`** discipline. Confirmed target choices belong to the user. Agents may prepare a scoped draft or descriptive update when authorized; actual target changes require the user's decision before landing.
 
 ## The contract
 
-There is exactly **one** architecture document per project: `ARCHITECTURE.md` at the project root.
+There is one root architecture entry at `ARCHITECTURE.md`. It may link approved component targets and split section files; read every governing target touched by the task.
 
 | Property | Value |
 |---|---|
-| **Owner** | User. Agents never write. |
+| **Owner** | User owns confirmed target choices. An Agent may draft authorized text, but cannot approve its own mission/Forbidden/contract/hard-target change. |
 | **Visibility** | Read into every dispatch / autopilot run; injected into agent prompts. |
 | **Authority** | A change touching any section in this doc must be either consistent with the section OR accompanied by a user-approved edit to the section first. |
 | **Update cadence** | User-driven and user-triggered (annual / quarterly / ad-hoc). `okr plan-phase` and `end-phase-retro` *prompt* for a review but never force one — see `### /pmo architecture review`. |
@@ -18,12 +18,12 @@ There is exactly **one** architecture document per project: `ARCHITECTURE.md` at
 
 ## Document structure
 
-`ARCHITECTURE.md` has a fixed section layout. PMO refuses to consume malformed docs (a missing required section means the agent gets injected nothing for that area, which is itself a signal).
+`ARCHITECTURE.md` has a fixed section layout. The Agent checks the applicable sections against the task. Missing/unreadable governing context is an explicit gap, never silently injected as empty or treated as passed conformance.
 
 ```markdown
 # Architecture — <Project Name>
 
-> Owner: user (agents read-only)
+> Owner: user (confirmed target changes require actual approval)
 > Version: v<N>
 > Last reviewed: YYYY-MM-DD
 > Status: active | draft
@@ -61,19 +61,19 @@ Hard rules. Numbered NN-1, NN-2, ... Each has:
 - **Check** (optional): a runnable command that mechanically catches violations
 - **Known exceptions**: list with reason, or `(none)`
 
-## §7. Open questions
+## §7. Open questions / declared remaining acceptance boundaries
 
 Things the user hasn't decided yet. Each tagged with a USER-id if it's in PMO's input queue.
 
-## §8. Change log
+## §8. Change log / evidence references
 
 Append-only. Each entry: date · version bump · what changed · driver (ADR-NNN / incident / scheduled review).
 ```
 
-PMO never writes to this file. It can:
+An Agent does not unilaterally change confirmed targets. Within actual authorization it can:
 - Refuse to start tasks when section is missing.
 - Surface a diff when the file is edited (next standup notes "ARCHITECTURE.md changed since last standup; <N> sections touched").
-- Schedule reminders for review.
+- Propose a review reminder; schedule only when explicitly authorized and supported by the host.
 
 ## Subcommands
 
@@ -82,11 +82,11 @@ PMO never writes to this file. It can:
 Interactive bootstrap when `ARCHITECTURE.md` doesn't exist. Walks the user through filling §1–§8 with prompts. Output is a draft the user edits to completion before flipping `Status: active`.
 
 Procedure:
-1. Detect `OKR.md` / existing code structure / `decisions/` to pre-fill §1 (Mission, drawn from OKR) and seed §2 (Components, drawn from top-level code directories).
+1. Read native goals/decisions and their attached rationale, plus actual source structure, to propose mission/components. Legacy OKR files are historical evidence only; source layout cannot declare the user's intended target.
 2. For each section, prompt the user with the section's question. Capture answers via free-text (no AskUserQuestion — these are essay answers, not multiple choice).
 3. Write the draft. A legacy `draft` label does not suspend existing architecture rules.
 4. **Tier 1 cap check** — verify the draft ≤ 500 lines. If exceeds, AskUserQuestion (header `"ARCH cap"`, options): `Split — move §3+§4+§5 detail to architecture/sections/§<N>-<topic>.md and keep TOC + summaries in main (Recommended) | Trim sections in place | Override with logged reason`. Refuse the write on Override unless reason is provided.
-5. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. Existing architecture already binds the integration gate."
+5. Print: "Edit `ARCHITECTURE.md` to finish. Record the actual target review when ready. Existing architecture already binds the integration gate."
 6. Retain the dated draft-creation note in `architecture/audit-history/`; attach the note to the related kernel task, if one exists, using `attach add`. Do not append to `journal/`.
 
 ### `/pmo architecture review`
@@ -101,7 +101,7 @@ User-triggered annual / quarterly / ad-hoc review. Procedure:
 
 Drift detection — replaces the older `audit` name. Two layers:
 
-**Layer 1 — mechanical checks**: for every §6 NN with a `Check:` field, run the command. Non-zero exit → violation row.
+**Layer 1 — authorized mechanical checks**: inspect each applicable Check command and its actual effects before running it within user authority. Nonzero exit is a failed check with diagnostics, not automatic proof of semantic nonconformance.
 
 For Python code, first use [code-backed architecture analysis](architecture-analysis.md)
 to produce source facts, a host-agent responsibility model and cited target
@@ -123,13 +123,13 @@ The complete executor enum is `claude-subagent | opencode-subagent | codex | man
 **Decision flow** (skipped when `--quiet`): for each drift item, `AskUserQuestion` (batch ≤4), header = section ref, options:
 - `Fix code — schedule as P0/P1 task (Recommended)` — calls `add-task` with pre-drafted spec.
 - `Update ARCHITECTURE.md — drift was intended` — opens the doc; user edits; `## Changes since last review` records the edit + reason.
-- `Defer via ADR` — calls `/pmo decide` (type Architecture); ADR's sunset criterion is the deferral date.
+- `Defer via ADR` — hands the decision to `/perry decide adr` (type Architecture); ADR's sunset criterion is the deferral date.
 
-Bump `Last reviewed:` regardless of outcome.
+Record the audit date in its report. Update target Last reviewed only after an actual target review; an automated/static scan or quiet report does not establish that review.
 
 ### `/pmo architecture diff`
 
-Quick read-only: show `git diff` of `ARCHITECTURE.md` since last standup. Useful for "what did I change recently".
+Read-only: compare ARCHITECTURE.md against the actual recorded baseline/ref. If no last-standup reference exists, state that gap; a working-tree-versus-HEAD diff is labelled as that comparison, not invented standup history.
 
 ## Dispatch integration — the enforcement loop
 
@@ -160,14 +160,14 @@ The `add-task` spec gets one new field (replacing the older `Touches invariants:
 > Touches architecture: §2, §3, §6.NN-3        # comma-separated section refs, or '(none)'
 ```
 
-`(none)` is allowed but must be explicit. Section refs use the §-numbering. Sub-references (`§6.NN-3`) point to specific non-negotiables.
+`(none)` is allowed where supported by the actual scope but must be explicit. Section refs use the §-numbering. Sub-references (`§6.NN-3`) point to specific non-negotiables.
 
-Empty field → spec is malformed; `add-task` refuses to write.
+When required by the selected pack/project, an empty field is a spec gap the Agent must resolve. It is not a native kernel field or a new mechanical semantic guard.
 
 ## Autopilot integration
 
 `autopilot` (see `$PERRY_HOME/work/reference/autopilot.md`):
-- A spec with hard non-negotiables in `Touches architecture:` is **skipped — high-stakes** (cannot be auto-dispatched).
+- A spec whose actual operations change a confirmed hard target is **skipped without the required actual user authority** (cannot be auto-dispatched).
 - A spec with only soft sections touched keeps the same pre-flight; integration
   applies the same diff-triggered fresh review. Autopilot cannot bypass it.
 - Review cost occurs for triggered integration candidates, not every dispatch.
@@ -179,7 +179,7 @@ Empty field → spec is malformed; `add-task` refuses to write.
 2. `ARCHITECTURE.md § Open questions` (§7).
 3. `ARCHITECTURE.md § Change log` (§8) since previous phase's `plan-phase`.
 
-For each unresolved audit drift, the new phase OKR MUST include an explicit response: a KR/Project that resolves it, an ARCHITECTURE.md edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. Refusal otherwise.
+For each unresolved audit drift, the goals Agent must obtain an explicit response in the approved phase narrative: a KR/Project that resolves it, an ARCHITECTURE.md edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. Refusal otherwise.
 
 For each §7 open question idle ≥30 days, surface as a User Input Queue candidate.
 
@@ -240,7 +240,7 @@ If declared, `architecture init` pre-fills the relevant sections instead of star
 - **`mid-phase-review`** / **`end-phase-retro`**: invoke `architecture-audit --quiet` inline (via `health-check`).
 - **`incident close`**: 3-question gate's "Architecture section" question (replacing "Invariant") asks: *"Does this incident reveal that some section of `ARCHITECTURE.md` is wrong, missing, or out of date? If yes, which section, and what should change?"*
 
-## Why this guarantees what /invariants couldn't
+## What the independent review checks beyond literal invariants
 
 A grep-based invariant catches `import psycopg2`. It cannot catch:
 - A new module added at the wrong layer.
@@ -255,4 +255,14 @@ The independent review agent's job is exactly to catch those. It receives bounde
 After completed writes from `architecture init`, `architecture review`, `architecture-audit`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work architecture init --> <!-- next-close: work architecture review --> <!-- next-close: work architecture-audit -->
 
-For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.
+For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
+
+## Evidence limits
+
+This pack is an Agent procedure. Catalogs and dated target headers are authored
+documents, not native task/goal state or a hidden scanner API. Layer1 commands
+must be inspected and authorized; static rules never execute arbitrary Check
+text. Layer2 needs a genuinely independent context when claimed as independent;
+if the environment/user does not allow delegation, report that review as unrun
+and prepare its concrete brief instead of self-awarding PASS. A stated cadence
+is not an installed timer. Source facts do not prove past human acceptance.

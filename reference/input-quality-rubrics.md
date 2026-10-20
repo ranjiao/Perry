@@ -10,7 +10,7 @@ Split out of `input-quality.md` on 2026-09-21 (TASK-470), unchanged, so the `wor
 | 1.2 | **KR is an outcome, not an output/activity** (the classic trap) | "Launch the newsletter" · "Build the dashboard" | "Grow subscribers to 500" · "Cut median load time to <1s" |
 | 1.3 | **KR is measurable: number + unit + deadline** | "Improve reliability" | "p99 latency ≤ 300 ms by phase end" |
 | 1.4 | **KR has a baseline** (target is meaningless without a start point) | "Get NPS to 50" | "Raise NPS from 32 → 50" |
-| 1.5 | **2–4 Objectives, 1–5 KRs each** (solo project: fewer) | 6 Objectives, 8 KRs on one | 3 Objectives, 3–4 KRs each |
+| 1.5 | **Use the agreed scope** — default to one Objective and at most three KRs; retain a fully formed user draft | 6 Objectives, 8 KRs on one | one focused Objective with a few measurable KRs, or the user-approved supplied structure |
 | 1.6 | **Objective aligns to Mission** — state which Mission clause it serves; if none, it's scope creep | Objective unrelated to why the project exists | Each Objective traces to a Mission clause |
 | 1.7 | **Anti-Goals are concrete refusals, not platitudes** | "Don't waste time" | "No production deploys until the promotion gate; no new paid APIs this period" |
 | 1.8 | **No sandbagging on commit KRs** — if the target is obviously already met, it's a status line, not a goal | commit KR the project already hit | commit KR that requires real work; overshoot goes to a stretch KR |

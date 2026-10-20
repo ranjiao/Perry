@@ -15,7 +15,7 @@ only the selected procedure. Kernel state is authoritative; legacy `OKR.md`,
 Run the router's safety startup once, preserving recovery/interrupted refusals.
 Pin `PERRY_HOME` to the actual loaded skill root; use the configured document and
 chat languages, project anchor and state root. Read `.perry/hook.md`.
-Read `work/reference/kernel.md`, `perry describe`, and `template show`
+Read `$PERRY_HOME/reference/kernel.md`, `perry describe`, and `template show`
 for the versioned command/data contracts. Every CLI call names absolute `--root`;
 rehearsals also name scratch `--store` with `PERRY_KERNEL_TESTING=1`.
 If the six F types are absent, report migration required. Never initialize over
@@ -66,7 +66,7 @@ History is native events. No procedure here appends journal or legacy events.
 | `kr add/restate/withdraw`, `krs` | `reference/phases.md` | native fields/transitions, preserved history |
 | `check`, `measure` | `reference/phases.md` | declared conditions; actual measured current only |
 | `link`, alias, unlinked | `reference/linkage.md`, `../reference/okr-linkage.md` | explicit attribution or visible unknown |
-| `score-phase`, `snapshot` | `reference/phases.md` | work retro → goals scoring/final snapshot → work close |
+| `score-phase`, `snapshot` | `reference/phases.md` | work retro → goals scoring/final snapshot → optional work rollover |
 | `plan-week` | `reference/weekly.md` | approved proposals handed to work |
 | `pivot`, `dashboard` | `reference/pivots.md` | explicit scope revision / native goal read |
 | `help` | this table; selected reference if named | navigation only, no startup/write |

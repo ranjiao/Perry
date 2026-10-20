@@ -1,9 +1,10 @@
 # Architecture — Perry
 
-> DESIGN-023 H source candidate. Descriptive reconciliation is authorized by
-> TASK-494; changed targets remain visible for independent review and the user's
-> final H/V5 decision. This file does not record acceptance or live activation.
-> Prior confirmed text is immutable at base b9be4d39f52ce1266534215b999c9db408b03bc5.
+> Native architecture integrated through DESIGN-023 F/G/H. Local activation and
+> actual named human V5 acceptance are recorded separately under
+> `perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
+> This description does not replace those receipts or authorize another migration.
+> Pre-cutover confirmed text remains in Git at b9be4d39f52ce1266534215b999c9db408b03bc5.
 
 ## §1. Mission & scope
 
@@ -22,16 +23,22 @@ introduced by the split. Project stores remain local to each project anchor.
 |---|---|---|
 | `bin/perry` | Single thin native entry point | imports `perry_kernel.main`; no dispatch aliases |
 | `kernel/` | Generic items, types, fields, transitions, guards, relations, events and attachments | [kernel target](kernel/ARCHITECTURE.md); native `describe` |
-| `SKILL.md`, `goals/`, `work/`, `decide/` | Routing, method, meaning, ownership and evidence decisions | lane procedures, [operating rules](reference/operating-rules.md) |
+| `SKILL.md`, `goals/`, `work/`, `decide/` | Routing, lane-specific `reference/` procedures and `templates/`, meaning, ownership and evidence decisions | lane procedures, [operating rules](reference/operating-rules.md) |
 | `templates/process/` | Method as data | template format in native `describe` |
+| `templates/scaffolds/`, `templates/internal/` | Standalone artifact starting points; root-owned workflow and policy templates | [template groups](templates/README.md); selected files only, no duplicate native state writer |
 | `tools/` | Host helpers, document safety facts and architecture evidence | [tool contracts](tools/README.md), [helper shapes](tools/helper-contracts.md) |
 | `release/` | Perry product versions, updates and publishing | [release rules](release/README.md) |
 | `tests/`, `kernel/tests/` | Native/helper correctness and isolated integration | [suite definition](tests/README.md) |
-| `perry/`, `.perry/` | Historical project documents and local configuration/evidence | preserved, not rewritten by this candidate |
+| `perry/`, `.perry/` | Historical project documents and local configuration/evidence | historical inputs and current owned narratives kept distinct |
 
-`viewer/README.md` is a retirement marker, not a browser or parser. The old
-`schema/` and typed-state tools are removed in this candidate. Exact finite
-proposals and consumer blockers are [the H ledger](release/retirement/README.md).
+The old `viewer/`, `schema/` and typed-state tools are removed. The viewer's
+[retirement note](release/retirement/viewer.md) and exact finite source inventory
+remain under [the H ledger](release/retirement/README.md); actual approvals and
+consumer verification are separate cutover receipts.
+
+Shared procedures and the native caller contract live under `reference/`.
+Lane-only details remain with that lane; software artifact templates remain with
+the pack. Physical template location does not grant authority to write output.
 
 ## §3. Boundaries & dependencies
 
@@ -87,8 +94,9 @@ native result is an envelope. Unknown arguments/keys refuse; help does not execu
 A refusal never authorizes direct edits to the store, an export or a legacy file.
 
 Host helper contracts are versioned separately in `tools/helper-contracts.md`.
-They are not the retired `schema/*-contract.md` payloads. aiMark must adapt to
-these shapes before any live cutover. Kernel source remains unchanged in H.
+They replace the retired `schema/*-contract.md` payloads. Actual aiMark native
+consumer reads were verified during cutover. Future migrations still require
+consumer verification; the prior result does not accept an untested change.
 
 ## §6. Non-negotiables
 
@@ -107,13 +115,18 @@ these shapes before any live cutover. Kernel source remains unchanged in H.
    lands. Candidate text and fresh static receipts do not supply that decision.
 7. Do not self-merge. A coding-branch green is not independent combined-tree green.
 
-## §7. Open acceptance boundaries
+## §7. Cutover record and verification boundaries
 
-The concrete drop table, viewer retirement, preference/config procedure and target
-reconciliation remain H proposals. Root/F deliveries, aiMark adapters and both
-project migration rehearsals must be tested together by an independent integrator.
-Live activation, backup/export receipts, rollback limits and the user's V5 are
-outside this source executor's authority. No current state is changed here.
+F/G/H source integration, both project activations, aiMark native reads and the
+actual user V5 are complete in the dated cutover record. Its full/slow, replay,
+backup, independent-review and acceptance receipts define the verified scope.
+The finite retirement ledger retains its original proposal labels for provenance;
+those labels do not supersede the separately recorded actual user decisions.
+
+Future integrations still require independent combined-tree verification and any
+applicable user approval. Source descriptions and static architecture freshness
+alone establish neither semantic acceptance nor full architecture coverage.
+Public release, GUI acceptance and future project migrations are separate actions.
 
 ## §8. Evidence
 

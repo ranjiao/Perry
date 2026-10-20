@@ -1,0 +1,70 @@
+
+✗ test_a_write_refuses_where_nothing_is_installed.py — 16 of 10 test(s) failed
+  ! unittest counted 16 failed test(s) and the id parser named 5 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestAWriteInAnUndeclaredGroup.test_the_write_lands_in_the_tasks_own_section
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_a_pre_adr_019_project_is_told_to_write_the_config_store_first
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_dry_run_gets_the_same_refusal
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_reviewers_reproduction_run_from_the_directory
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_table_covers_every_declared_write
+  … 147 earlier line(s) elided of 172; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 213, in test_dry_run_gets_the_same_refusal
+    self.assertGreaterEqual(checked, 27 * len(SHAPES))
+AssertionError: 39 not greater than or equal to 81
+
+======================================================================
+FAIL: test_the_reviewers_reproduction_run_from_the_directory (test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_reviewers_reproduction_run_from_the_directory)
+F1 as filed: no `--root`, from inside the copy, `PERRY_PROJECT` unset.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 235, in test_the_reviewers_reproduction_run_from_the_directory
+    self.assertIn(GATE, out.stderr)
+AssertionError: 'is not an installed Perry project' not found in 'perry-task ask is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_the_table_covers_every_declared_write (test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_table_covers_every_declared_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 180, in test_the_table_covers_every_declared_write
+    self.assertGreaterEqual(len([k for k in self.table
+AssertionError: 0 not greater than or equal to 27
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.038s
+
+FAILED (failures=16)
+
+✗ test_router_budget.py — 1 of 9 test(s) failed
+    FAIL   test_router_budget.TestByteBudget.test_every_budgeted_file_is_within_its_cap
+  … 8 earlier line(s) elided of 33; the last 25 follow — re-run this module alone for all of it
+Guards the guard, in the direction that matters. ... ok
+test_the_router_still_carries_pointers_to_what_it_shed (test_router_budget.TestSectionCitationsResolve.test_the_router_still_carries_pointers_to_what_it_shed)
+Nothing may be deleted that is not reachable from a pointer. ... ok
+test_the_extracted_page_records_that_the_signed_text_did_not_move (test_router_budget.TestTheSignedContractStayedInTheRouter.test_the_extracted_page_records_that_the_signed_text_did_not_move) ... ok
+test_the_signature_is_still_in_the_router (test_router_budget.TestTheSignedContractStayedInTheRouter.test_the_signature_is_still_in_the_router) ... ok
+
+======================================================================
+FAIL: test_every_budgeted_file_is_within_its_cap (test_router_budget.TestByteBudget.test_every_budgeted_file_is_within_its_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_router_budget.py", line 248, in test_every_budgeted_file_is_within_its_cap
+    self.assertEqual(oversize, [], "\n".join(oversize))
+AssertionError: Lists differ: ['work/reference/review.md: L2 actual=32800 cap=32768'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'work/reference/review.md: L2 actual=32800 cap=32768'
+
+- ['work/reference/review.md: L2 actual=32800 cap=32768']
++ [] : work/reference/review.md: L2 actual=32800 cap=32768
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.217s
+
+FAILED (failures=1)
+
+11 modules · 286 tests · 11.5s · 4 workers
+
+durations: 166 recorded · 166 on disk · 165 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+✗ 2 of 11 MODULE(S) red
+✗ 17 of 286 TEST(S) failed

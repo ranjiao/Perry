@@ -1,7 +1,7 @@
 # Project preferences and document layout
 
 Native state belongs to the shared kernel store; `init` records its `state_root`.
-Read `bin/perry describe` and `work/reference/kernel.md` for the exact contract.
+Read `bin/perry describe` and `reference/kernel.md` for the exact contract.
 Document layout and workflow preferences belong to the skill. Existing
 `.perry/config.jsonl` is frozen migration metadata, not a new writer surface.
 Never hand-edit JSONL to configure the new architecture.
@@ -61,5 +61,7 @@ survive pack disable; name those requirements when applying them independently.
 Release readiness additionally requires the approved policy and verified adapter
 in `packs/software-ops/releases.md`.
 
-The preference-prose migration is a provisional H design consequence for review
-and final V5 acceptance; this source candidate performs no live preference edit.
+Preference prose and structured safety are the accepted native arrangement.
+Actual local H/V5 evidence is dated under
+`perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
+A source instruction does not itself change or approve a project's preferences.

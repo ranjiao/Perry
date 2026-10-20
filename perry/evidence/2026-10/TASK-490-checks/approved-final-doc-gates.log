@@ -1,0 +1,66 @@
+
+✗ test_a_write_refuses_where_nothing_is_installed.py — 12 of 10 test(s) failed
+  ! unittest counted 12 failed test(s) and the id parser named 1 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestAWriteInAnUndeclaredGroup.test_the_write_lands_in_the_tasks_own_section
+  … 111 earlier line(s) elided of 136; the last 25 follow — re-run this module alone for all of it
+AssertionError: 1 != 0 : perry-task rung is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_write_lands_in_the_tasks_own_section (test_a_write_refuses_where_nothing_is_installed.TestAWriteInAnUndeclaredGroup.test_the_write_lands_in_the_tasks_own_section) (write='evidence', held_board=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 375, in test_the_write_lands_in_the_tasks_own_section
+    self.assertEqual(out.returncode, 0, out.stderr[-600:])
+AssertionError: 1 != 0 : perry-task evidence is read-only after the kernel cutover; use perry-kernel item update / attach add --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_write_lands_in_the_tasks_own_section (test_a_write_refuses_where_nothing_is_installed.TestAWriteInAnUndeclaredGroup.test_the_write_lands_in_the_tasks_own_section) (write='depends', held_board=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 375, in test_the_write_lands_in_the_tasks_own_section
+    self.assertEqual(out.returncode, 0, out.stderr[-600:])
+AssertionError: 1 != 0 : perry-task depends is read-only after the kernel cutover; use perry-kernel rel add / rel remove --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.054s
+
+FAILED (failures=12)
+
+✗ test_router_budget.py — 1 of 9 test(s) failed
+    FAIL   test_router_budget.TestByteBudget.test_every_budgeted_file_is_within_its_cap
+  … 8 earlier line(s) elided of 33; the last 25 follow — re-run this module alone for all of it
+Guards the guard, in the direction that matters. ... ok
+test_the_router_still_carries_pointers_to_what_it_shed (test_router_budget.TestSectionCitationsResolve.test_the_router_still_carries_pointers_to_what_it_shed)
+Nothing may be deleted that is not reachable from a pointer. ... ok
+test_the_extracted_page_records_that_the_signed_text_did_not_move (test_router_budget.TestTheSignedContractStayedInTheRouter.test_the_extracted_page_records_that_the_signed_text_did_not_move) ... ok
+test_the_signature_is_still_in_the_router (test_router_budget.TestTheSignedContractStayedInTheRouter.test_the_signature_is_still_in_the_router) ... ok
+
+======================================================================
+FAIL: test_every_budgeted_file_is_within_its_cap (test_router_budget.TestByteBudget.test_every_budgeted_file_is_within_its_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_router_budget.py", line 248, in test_every_budgeted_file_is_within_its_cap
+    self.assertEqual(oversize, [], "\n".join(oversize))
+AssertionError: Lists differ: ['work/reference/review.md: L2 actual=32770 cap=32768'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'work/reference/review.md: L2 actual=32770 cap=32768'
+
+- ['work/reference/review.md: L2 actual=32770 cap=32768']
++ [] : work/reference/review.md: L2 actual=32770 cap=32768
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.214s
+
+FAILED (failures=1)
+
+5 modules · 108 tests · 10.2s · 4 workers
+
+durations: 166 recorded · 166 on disk · 165 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+✗ 2 of 5 MODULE(S) red
+✗ 13 of 108 TEST(S) failed

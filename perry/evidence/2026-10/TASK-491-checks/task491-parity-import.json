@@ -1,0 +1,271 @@
+{
+  "project": "/Users/bytedance/proj/Perry",
+  "state_root": "perry",
+  "work": "/private/tmp/perry-scratch/Perry/task491-parity-import-20261015",
+  "anchor": "/private/tmp/perry-scratch/Perry/task491-parity-import-20261015/anchor",
+  "store": "/private/tmp/perry-scratch/Perry/task491-parity-import-20261015/store.db",
+  "export": "/private/tmp/perry-scratch/Perry/task491-parity-import-20261015/anchor/perry/export",
+  "old": {
+    "records": {
+      "tasks": 489,
+      "asks": 108,
+      "risks": 4,
+      "intake": 0,
+      "cadence": 0
+    },
+    "by_type_and_state": {
+      "task": {
+        "done": 322,
+        "dropped": 144,
+        "not_started": 16,
+        "review": 3,
+        "blocked": 2,
+        "in_progress": 2
+      },
+      "ask": {
+        "answered": 105,
+        "pending": 3
+      },
+      "risk": {
+        "cleared": 2,
+        "open": 2
+      }
+    },
+    "events": 3653,
+    "ids": 601
+  },
+  "mapping": {
+    "dropped": {
+      "tasks.group": 419,
+      "tasks.arrived": 47,
+      "tasks.stage": 48,
+      "tasks.order": 23,
+      "tasks.stage_since": 7,
+      "asks.order": 108,
+      "risks.order": 4
+    },
+    "skipped_next_action": {
+      "done": 219,
+      "dropped": 96
+    },
+    "answers": {
+      "parsers.ask_answer": 105
+    },
+    "reasons": {
+      "status cell verbatim": 2
+    },
+    "status_not_carried": {
+      "asks: the answered <date>: part": 105
+    },
+    "time_rules": {
+      "create: first old event": 32,
+      "move: last old status event": 577,
+      "create: created": 458,
+      "create: start of the old log": 5,
+      "move: creation date": 2,
+      "create: asked": 106,
+      "move: cleared": 1
+    },
+    "relations": 251,
+    "attachments": 74,
+    "moves": 580,
+    "unresolved_references": [],
+    "for_task_492": [
+      {
+        "register": "asks",
+        "id": "USER-927",
+        "field": "blocks",
+        "ref": "P003-O2-KR3"
+      },
+      {
+        "register": "asks",
+        "id": "USER-929",
+        "field": "blocks",
+        "ref": "P003-O2-KR3"
+      },
+      {
+        "register": "asks",
+        "id": "USER-931",
+        "field": "blocks",
+        "ref": "P003-O2-KR3"
+      }
+    ],
+    "blocks_cells_with_no_id": [],
+    "self_edges": [],
+    "unset_cells": {
+      "tasks.summary": {
+        "empty": 182
+      },
+      "tasks.priority": {
+        "empty": 31
+      },
+      "tasks.owner": {
+        "empty": 70
+      },
+      "tasks.next_action": {
+        "empty": 70,
+        "—": 87
+      },
+      "tasks.evidence": {
+        "—": 143
+      },
+      "tasks.verification": {
+        "empty": 78
+      }
+    },
+    "clamped_moves": [
+      {
+        "id": "USER-930",
+        "rule": "last old status event",
+        "rule_time": "2026-09-13T16:16:54Z",
+        "clamped_to": "2026-09-14T00:00:00Z"
+      },
+      {
+        "id": "RX-002",
+        "rule": "cleared",
+        "rule_time": "2026-08-16T00:00:00Z",
+        "clamped_to": "2026-08-16T10:33:04Z"
+      }
+    ],
+    "open_next_action_over_300_bytes": [
+      {
+        "id": "TASK-238",
+        "state": "not_started",
+        "bytes": 351
+      },
+      {
+        "id": "TASK-286",
+        "state": "not_started",
+        "bytes": 318
+      },
+      {
+        "id": "TASK-309",
+        "state": "not_started",
+        "bytes": 333
+      },
+      {
+        "id": "TASK-334",
+        "state": "not_started",
+        "bytes": 348
+      },
+      {
+        "id": "TASK-220",
+        "state": "not_started",
+        "bytes": 343
+      },
+      {
+        "id": "TASK-371",
+        "state": "not_started",
+        "bytes": 341
+      },
+      {
+        "id": "TASK-393",
+        "state": "not_started",
+        "bytes": 335
+      }
+    ],
+    "export_events": 1183
+  },
+  "ceilings": {
+    "USER": {
+      "type": "ask",
+      "stored_max": 1007,
+      "issued_max": 1007,
+      "log_only_ids": [],
+      "seed": null
+    },
+    "RX": {
+      "type": "risk",
+      "stored_max": 4,
+      "issued_max": 4,
+      "log_only_ids": [],
+      "seed": null
+    },
+    "TASK": {
+      "type": "task",
+      "stored_max": 495,
+      "issued_max": 495,
+      "log_only_ids": [
+        "TASK-081",
+        "TASK-082",
+        "TASK-083"
+      ],
+      "seed": null
+    }
+  },
+  "import": {
+    "exit": 0,
+    "ok": true,
+    "result": {
+      "dir": "/private/tmp/perry-scratch/Perry/task491-parity-import-20261015/anchor/perry/export",
+      "items": 601,
+      "events": 1183,
+      "last_seq": 1183,
+      "verified": true
+    },
+    "error": null
+  },
+  "kernel": {
+    "errors": [],
+    "by_type_and_state": {
+      "ask": {
+        "answered": 105,
+        "pending": 3
+      },
+      "risk": {
+        "cleared": 2,
+        "open": 2
+      },
+      "task": {
+        "blocked": 2,
+        "done": 322,
+        "dropped": 144,
+        "in_progress": 2,
+        "not_started": 16,
+        "review": 3
+      }
+    },
+    "ids": {
+      "asked": 601,
+      "resolved": 601,
+      "missing_or_wrong_type": []
+    },
+    "next_ids": {
+      "USER": {
+        "next_id": "USER-1008",
+        "issued_max": 1007,
+        "above": true
+      },
+      "RX": {
+        "next_id": "RX-005",
+        "issued_max": 4,
+        "above": true
+      },
+      "TASK": {
+        "next_id": "TASK-496",
+        "issued_max": 495,
+        "above": true
+      }
+    },
+    "second_import": {
+      "exit": 1,
+      "code": "store_not_empty"
+    },
+    "export": {
+      "effect": "unchanged"
+    },
+    "events": {
+      "total": 1183,
+      "unexported": 0
+    }
+  },
+  "criteria": {
+    "1_counts_per_type_and_state": true,
+    "2_every_old_id_resolves": true,
+    "3_next_id_above_every_issued_id": true,
+    "4_import_refuses_a_store_that_is_not_empty": true,
+    "5_replay_reproduces_the_items": true
+  },
+  "not_reconciled_because": [],
+  "reconciled": true
+}

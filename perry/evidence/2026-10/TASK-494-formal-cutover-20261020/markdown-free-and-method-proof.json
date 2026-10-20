@@ -1,0 +1,82 @@
+{
+  "actual_source_commit": "7f7849060d035871160b5be6e0cc9efca0cd6a5f",
+  "work": "/tmp/perry-scratch/Perry/markdown-free-lmep_nnh",
+  "markdown_files": 0,
+  "kernel_and_wrapper_hashes_unchanged": true,
+  "method_changed_only_in_template": true,
+  "sparse_floor_design_id": "DESIGN-019",
+  "native_commands": [
+    {
+      "command": "init",
+      "effect": "written",
+      "seq": 1
+    },
+    {
+      "command": "template apply",
+      "effect": "written",
+      "seq": 2
+    },
+    {
+      "command": "item create",
+      "effect": "written",
+      "seq": 3
+    },
+    {
+      "command": "item create",
+      "effect": "refused",
+      "error": {
+        "code": "guard_refused",
+        "message": "1 guard(s) refused the create of TASK-001",
+        "details": {
+          "guards": [
+            {
+              "index": 0,
+              "kind": "required",
+              "when": null,
+              "detail": {
+                "missing": [
+                  "summary",
+                  "priority",
+                  "verification"
+                ],
+                "below": {}
+              }
+            }
+          ],
+          "warnings": []
+        }
+      }
+    },
+    {
+      "command": "item create",
+      "effect": "written",
+      "seq": 4
+    },
+    {
+      "command": "query",
+      "effect": "read",
+      "seq": 4
+    },
+    {
+      "command": "export",
+      "effect": "written",
+      "seq": 4
+    }
+  ],
+  "runtime_hashes": {
+    "bin/perry": "7ab7a59ecc5c4ede2a33a080d57c967fe269e3a430a6de537cf671131587ebc4",
+    "kernel/perry_kernel/store.py": "b8aeae2dc345e50dfbce68fbef4c16675ec4338b7b4d77b4e7fe37f37f489bca",
+    "kernel/perry_kernel/values.py": "25df88af1254162632bb1d2c8528634b11ccc699bb638de491210f5b256a3dd8",
+    "kernel/perry_kernel/guards.py": "28b82b904538e8072860f930644be0a058c0aa45335ffd485ccd026ebd1c4976",
+    "kernel/perry_kernel/paths.py": "377be8d08f12586134f2a3ebe355d2659bfcff53b79c3fc19e116ac35243a815",
+    "kernel/perry_kernel/__init__.py": "c09bc4e481f9f7fa22b14a7911a013fb3a6b4218b66816114dbbb5a224f86695",
+    "kernel/perry_kernel/cli.py": "7af088f6c7e20056d73c5e3d182b0af2c48cef1f971316fc67ae882bac2b4dfb",
+    "kernel/perry_kernel/template.py": "86dd5e6fce20b026b5a570f052d0c75ac98236c6c00d5f7576b8ca5eb656753a",
+    "kernel/perry_kernel/errors.py": "a6fd61342ee83f67a3286a5af545efe0466c1fd8522b09f0e6030c47f8ca6184",
+    "kernel/perry_kernel/commands.py": "bd440612281f1ce163579ba7dd44c1bc83f3ca3c075ea29ea6d666c821586715",
+    "kernel/perry_kernel/__main__.py": "13a1a5b340cdcfc1902b62be90e508c7c71886000d5bf087e7854aadf09fb35e",
+    "kernel/perry_kernel/surface.py": "d038e40fc13e488312d7f24c0d328c534d8769bf2214d6e8922115207e048b5e"
+  },
+  "live_store_touched": false,
+  "fixture_note": "Initial fixture omitted required summary/priority/verification and was correctly refused. An initial export invocation incorrectly supplied --input and was refused; the final run uses the described CLI. Final run retains the required-field negative control before the valid fixture."
+}

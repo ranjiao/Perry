@@ -13,7 +13,7 @@ Read this file in full and `reference/decisions.md` for ADR work. Shorthand
 
 Keep root safety startup and recovery/interrupted gates, once per operation.
 Pin the loaded `PERRY_HOME`, read configured languages and `.perry/hook.md`, and
-follow `work/reference/kernel.md`. Inspect `describe` and `template show` for exact
+follow `$PERRY_HOME/reference/kernel.md`. Inspect `describe` and `template show` for exact
 input/state contracts. All calls name the absolute project `--root`; rehearsals
 also name scratch `--store` and set `PERRY_KERNEL_TESTING=1`.
 Use native `query` for design/adr counts and state, `item get` for one record,
@@ -37,7 +37,7 @@ authority and consequences; they do not duplicate current structured headers or
 execution status. Native state is the only status/title/date/successor record.
 Attach exact state-root-relative paths and SHA256 after owned narrative writes.
 The kernel treats attachments as opaque; a hash/shape pass is not semantic proof.
-Goals owns goal/phase narratives; work owns tasks/evidence/handoffs/journal.
+Goals owns goal/phase narratives; work owns tasks/evidence/handoffs. Journal history is frozen.
 Decide proposes implementation tasks in chat and never writes work's files.
 History is native events; no procedure appends a journal or legacy event.
 

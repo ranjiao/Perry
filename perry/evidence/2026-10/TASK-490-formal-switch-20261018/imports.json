@@ -1,0 +1,100 @@
+[
+  {
+    "project": "/Users/bytedance/proj/Perry",
+    "state_root": "perry",
+    "live_store": "/Users/bytedance/proj/Perry/.git/perry/root.db",
+    "backup": "/Users/bytedance/.codex/backups/perry-kernel-cutover-20261018-66d6a5202b/manifest.json",
+    "import": {
+      "ok": true,
+      "surface": "1.0",
+      "command": "import",
+      "effect": "written",
+      "events": [],
+      "store_seq": 1183,
+      "warnings": [],
+      "result": {
+        "dir": "/Users/bytedance/proj/Perry/perry/export",
+        "items": 601,
+        "events": 1183,
+        "last_seq": 1183,
+        "verified": true
+      },
+      "error": null
+    },
+    "dry_run": {
+      "ok": true,
+      "surface": "1.0",
+      "command": "import",
+      "effect": "dry_run",
+      "events": [],
+      "store_seq": 0,
+      "warnings": [],
+      "result": {
+        "dir": "/Users/bytedance/proj/Perry/perry/export",
+        "items": 601,
+        "events": 1183,
+        "last_seq": 1183,
+        "verified": true
+      },
+      "error": null
+    },
+    "item_count": 601,
+    "all_item_fields_and_relations_match_rehearsal": true,
+    "export_sha256": {
+      "items.jsonl": "13aa8daed271d1464ed573a2fda79ca327db5b94491f588477fa480f255c482b",
+      "events.jsonl": "ff826d7231a8a3c0d33fd0a8de38bee1fcbac99aa00a48af04916a0e842bfc8c"
+    },
+    "export_bytes_match": true,
+    "repeat_import_refused": true,
+    "legacy_canonical_unchanged": true
+  },
+  {
+    "project": "/Users/bytedance/proj/SkyTonight",
+    "state_root": "doc/perry",
+    "live_store": "/Users/bytedance/proj/SkyTonight/.git/perry/root.db",
+    "backup": "/Users/bytedance/.codex/backups/perry-kernel-cutover-20261018-66d6a5202b/manifest.json",
+    "import": {
+      "ok": true,
+      "surface": "1.0",
+      "command": "import",
+      "effect": "written",
+      "events": [],
+      "store_seq": 68,
+      "warnings": [],
+      "result": {
+        "dir": "/Users/bytedance/proj/SkyTonight/doc/perry/export",
+        "items": 34,
+        "events": 68,
+        "last_seq": 68,
+        "verified": true
+      },
+      "error": null
+    },
+    "dry_run": {
+      "ok": true,
+      "surface": "1.0",
+      "command": "import",
+      "effect": "dry_run",
+      "events": [],
+      "store_seq": 0,
+      "warnings": [],
+      "result": {
+        "dir": "/Users/bytedance/proj/SkyTonight/doc/perry/export",
+        "items": 34,
+        "events": 68,
+        "last_seq": 68,
+        "verified": true
+      },
+      "error": null
+    },
+    "item_count": 34,
+    "all_item_fields_and_relations_match_rehearsal": true,
+    "export_sha256": {
+      "items.jsonl": "a8ce77e95d576ffa729eea46837d087a564da39e196e2b55ca47a8b4ce289649",
+      "events.jsonl": "cad6a26a631caf2c753e392b0009e42a94a98ce1bdc51b995c12935786aba642"
+    },
+    "export_bytes_match": true,
+    "repeat_import_refused": true,
+    "legacy_canonical_unchanged": true
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "source_copy": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/Perry-verified/source",
+  "scratch_root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/Perry-verified/anchor",
+  "scratch_store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/Perry-verified/store.db",
+  "old_item_count": 602,
+  "old_event_count": 1200,
+  "dry_run_store_unchanged": true,
+  "starting_store_seq": 1200,
+  "apply_exit": 1,
+  "apply_result": {
+    "effect": "refused",
+    "error": "DESIGN: sparse filenames need approved prefix-floor primitive; see tools/TASK-492-kernel-proposal.md",
+    "commands": null,
+    "partial": false,
+    "next_action": "Reconcile native source_key items/events and source hashes before resuming; never repeat guessed creates."
+  },
+  "refusal_store_unchanged": true,
+  "actual_source_hash_mismatches": [],
+  "source_counts": {
+    "adr": 27,
+    "check": 19,
+    "design": 22,
+    "kr": 101,
+    "objective": 31,
+    "phase": 4
+  },
+  "filename_ceilings": {
+    "ADR": 27,
+    "DESIGN": 23
+  }
+}

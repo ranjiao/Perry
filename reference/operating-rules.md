@@ -1,7 +1,7 @@
 # Skill procedures and safety gates
 
 The kernel stores state and enforces declared shape guards. The skill judges meaning.
-Use `work/reference/kernel.md` and `bin/perry describe` for exact native inputs.
+Use `reference/kernel.md` and `bin/perry describe` for exact native inputs.
 No legacy command is a compatibility interface. Never edit SQLite, JSONL exports,
 or frozen legacy registers. Read all query pages before claiming complete counts.
 
@@ -70,9 +70,10 @@ meaning; a heading, regex match or small line count does not prove correctness.
 Record material gaps against the criterion, with path and a concrete fix.
 
 The old narrative regex/heading budgets, deterministic next-step evaluator,
-method-specific mode/diagnosis scores and frozen-file parity checks are proposed
-retirements pending final human acceptance. They are not reported as green,
-approved or completed checks. The finite disposition records identify each row.
+method-specific mode/diagnosis scores and obsolete projection checks were retired
+under the actual user-approved H list. The finite source inventory retains its
+original proposal labels; actual approval/V5 is a separate dated record. An
+absent old check is not a passing test or a new semantic verification.
 Safety checks above are replacements, never dropped. Retain reviewed red cases:
 a malformed recovery marker, interrupted dossier, unauthorized high-stakes scope,
 foreign ownership, missing evidence, self-review and fabricated human signoff

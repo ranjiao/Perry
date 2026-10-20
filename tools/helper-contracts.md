@@ -1,11 +1,11 @@
-# Skill helper contracts — retirement candidate
+# Skill helper contracts
 
 These stdlib/shell helpers belong to the skill. `bin/perry` is the native
 kernel entrance. No helper imports kernel internals, legacy `bin/lib`, viewer
 parsers, or the retired state schema. None is a compatibility state CLI.
-This is a proposed source replacement, not activation or human acceptance.
+These are the integrated helper shapes. Actual cutover/acceptance is recorded separately; a helper success never authenticates consent.
 
-| Previous source | Candidate destination | Behavior |
+| Retired source | Current destination | Behavior |
 |---|---|---|
 | `bin/perry-detect-host` | `tools/detect-host.sh` | Shell host detection, manual override wins |
 | `bin/perry-update-check` | `tools/update-check.sh` | Shell wrapper for `release/update.py`; network/update only when explicitly invoked |
@@ -136,5 +136,4 @@ their claim.
 Declared role cards must contain exactly one nonempty `May touch` and
 `Must escalate` section. Missing, duplicate or misspelled safety sections produce
 a role error and block dispatch. Optional Context/Loads prose and extra headings
-do not grant authority or cancel the structured project policy. The old universal
-heading grammar is a separate proposed retirement, not helper parity.
+do not grant authority or cancel the structured project policy. The old Context/Loads closed grammar was explicitly retired under R0096; this is not a claim of legacy helper parity.

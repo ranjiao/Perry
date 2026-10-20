@@ -1,6 +1,6 @@
 # Human questions and risks
 
-Read `kernel.md`. Query pending `ask` items for `nudge`, and open `risk` items for
+Read `$PERRY_HOME/reference/kernel.md`. Query pending `ask` items for `nudge`, and open `risk` items for
 `risk`. Page through complete results when making a count or whole-queue claim.
 Use the item's events for creation/update times; report unknown dates honestly.
 

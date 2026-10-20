@@ -1,96 +1,49 @@
-# `/pmo health-check` — the per-phase reality-check meta-runner
+# Health check — bounded evidence review
 
-A single ritual that surfaces all the drift signals at once. Designed to run at phase midpoint, phase end, or on-demand when "I haven't looked at this project in a while" anxiety hits.
+This is a work Agent procedure, not a CLI scanner, timer or automatic repair
+pipeline. Follow root startup and `$PERRY_HOME/reference/kernel.md`. Establish
+actual project/document roots, review scope and requested output. A phase review
+may include this procedure when its selected capabilities contribute evidence;
+it does not silently run every pack operation or write every index.
 
-`health-check` is a meta-runner. It doesn't have unique logic; it composes existing scans and rolls their findings into one decision-ready report. Inside `mid-phase-review` and `end-phase-retro` it runs automatically; the user can also call it directly.
+## Collect evidence
 
-## What it runs
+1. Read selected pack controls and independent project obligations. Software
+   architecture, runbook and incident guidance applies only where eligible.
+   Mark inapplicable sections not run, never zero findings. Core safety remains.
+2. Query the relevant native task/ask/risk/phase/goal items and events, following
+   complete pagination for any total. Retain store seq, filters and date range.
+   Read selected criteria and actual evidence; distinguish stale wording,
+   unresolved blockers and unsupported closure claims.
+3. For software architecture use `$PERRY_HOME/packs/software-ops/architecture.md`
+   and architecture-analysis.md. Run only inspected authorized checks. A limited
+   static scan is not full conformance or an independent review. Do not update a
+   target, create a schedule or infer acceptance from a successful command.
+4. For deployed components read actual specs, runbook content and dates through
+   the pack's runbooks.md. Missing deployment facts remain unknown. For incidents
+   inspect actual records and their follow-ups through incidents.md; no process
+   liveness or runtime success is inferred from a filename.
+5. Inspect selected source digests/cards with digests.md, promotion.md and the
+   helper contracts. The knowledge helper reads cards, not digest usage history.
+   Unknown last-use time prevents an age-based archive assertion.
 
-Use `$PERRY_HOME/reference/config.md § Pack capabilities and controls` first.
-Scans 1, 2 and 4 are software-ops defaults: skip them when the pack is inactive,
-unless independently required by the project. Name retained requirements. Mark
-skipped sections “not run — pack inactive”, not zero findings; create no pack
-artifacts and ask no enablement question. Digests and task hygiene still run.
+## Report and next action
 
-In order:
+Save an authorized dated report under `evidence/<YYYY-MM>/` when needed. Include
+scope, actual commands/seqs, artifact links, findings, skipped/unreadable areas,
+known limits and proposed actions. Counts have a numerator/denominator and source;
+unmeasured spend, ages and readiness stay unknown. A report is not another state
+register or a new verification award.
 
-1. **`/pmo architecture-audit --quiet`** (`architecture.md`) — two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs `ARCHITECTURE.md`. Writes `architecture/audit-history/<YYYY-MM-DD>.md`. Also surfaces §7 open questions idle ≥30 days and §8 change-log entries from the last 30 days.
-2. **`/pmo runbook-check`** (`runbooks.md`) — missing/stale/incomplete runbooks for deployed components. Updates `runbook/INDEX.md`.
-3. **Digest stale scan** (`digests.md § Archive lifecycle`) — knowledge entries un-referenced for ≥ `archive_inactive_days`. Updates `knowledge/INDEX.md`.
-4. **Incident pattern check** (`incidents.md`) — incidents from the last 30 days, grouped by component; flag any "derived-change skipped" patterns (e.g., ≥ 3 incidents in same component with no ARCHITECTURE.md edit).
-5. **Task evidence** — kernel task query and events, read-only: stale next actions, unresolved dependencies and evidence-less closure claims.
+Report optional sub-check failures independently. Recovery, unsafe ownership,
+unarmed policy and unauthorized operations still STOP their affected procedures;
+never continue a blocked operation merely because other checks are independent.
 
-Each sub-scan is independent. A failure or hang in one does not abort the others.
+Discuss consequential findings and reuse existing user authority. Creating tasks
+uses work's native task procedure; changing goals/decisions goes to their owning
+lanes. Do not automatically close tasks/incidents, archive sources, edit confirmed
+targets or refresh verification dates without the actual supporting check.
 
-## Output
-
-Single file: `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`. Sections:
-
-```markdown
-# Health check — <YYYY-MM-DD>
-
-> Project: <name>
-> Triggered by: manual | mid-phase-review | end-phase-retro
-> Took: <duration>
-
-## Summary line
-🏛 Architecture: <v<N> · last reviewed <Nd ago> · §6 NN: <count> · §7 open: <count> · audit drift: <K>>
-📕 Runbooks:    <N active · S stale · G gaps>
-📚 Digests:     <A active · E eternal · X stale-candidates>
-🔥 Incidents:   <O open · M-this-month · D-with-derived-changes / M-total>
-📋 Tasks:       <query total> open · <stale next actions> stale · <evidence gaps> claims pending
-
-## Drift to decide
-[Numbered list — one row per item needing user decision.]
-
-## Patterns of note
-[E.g., "3 incidents in alert-bot since 2026-04-15, all with 'too narrow' ARCHITECTURE.md skip"]
-
-## Recommended actions
-[2–5 bullets, ordered by leverage. Verbs like "Fix NN-3 violation" / "Write runbook for deploy-daemon" / "Snapshot current phase".]
-
-## Detail links
-- architecture/audit-history/<YYYY-MM-DD>.md
-- runbook/INDEX.md
-- knowledge/INDEX.md
-- incidents/INDEX.md
-```
-
-## Decision flow
-
-After writing the report, run a single `AskUserQuestion` batch (multiSelect, header `"Address drift"`) listing the top 4 actionable items from "Drift to decide". Each option labelled with a verb: "Fix NN-3 violation" / "Write runbook for deploy-daemon" / etc.
-
-For items not in the top 4, the user can act later from the file — they're not lost, just deprioritised.
-
-## When to run it
-
-- **Automatically**: every `mid-phase-review` and `end-phase-retro` (they call it inline).
-- **Manually**: when starting a new phase and want fresh signal; when returning from a break; when investigating "why does this project feel off".
-- **Before a big architectural change**: gives a current baseline so the change can be measured.
-
-## What it explicitly does NOT do
-
-- **Does not modify code.** Only writes the report + (with user consent) schedules tasks via `add-task`.
-- **Does not change spec or ARCHITECTURE.md.** Only flags; user decides.
-- **Does not close incidents.** Surfaces them; user closes.
-- **Does not archive digests.** Surfaces candidates; user decides (per `digests.md` archive lifecycle).
-- **Does not block autopilot.** A failed sub-scan logs and continues.
-
-The report is information. The decisions live with the user.
-
-## Why a meta-runner
-
-Each underlying scan is useful on its own. The reason to compose them:
-
-1. **Cache warmth** — all four scans read overlapping files (spec/, kernel queries/events, ARCHITECTURE.md, runbook/INDEX, knowledge/INDEX). Running them in one session amortises the read cost.
-2. **Pattern surface** — drift in one area often correlates with drift in another. "Stale runbook for component X" + "3 incidents in X" + "no §6 NN added" is a stronger signal than any of those alone. Only a meta-runner sees the correlation.
-3. **Single decision point** — the user gets one `AskUserQuestion` batch instead of four. The cost of "should I look at this?" drops.
-
-The output report is durable, citable, and small. A user 6 months from now can read `evidence/2026-05/health-check-2026-05-13.md` and reconstruct the project's state on that day with its cited kernel events and evidence.
-
-## Completion routing
-
-After completed writes from `health-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+Follow [the shared closing step](../../reference/next.md#closing-step) after
+writes; a read-only answer does not require another planning question.
 <!-- next-close: work health-check -->
-
-For current work state and closing mutations, read `kernel.md`.

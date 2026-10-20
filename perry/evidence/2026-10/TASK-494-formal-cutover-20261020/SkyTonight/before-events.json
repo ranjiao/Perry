@@ -1,0 +1,3548 @@
+[
+  {
+    "seq": 1,
+    "at": "2026-10-18T07:12:41Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "init",
+    "items": [],
+    "transition": null,
+    "changes": [
+      {
+        "after": "doc/perry",
+        "before": null,
+        "key": "state_root"
+      }
+    ],
+    "note": "perry-kernel-migrate (DESIGN-023 row D): a snapshot of the old stores",
+    "warnings": []
+  },
+  {
+    "seq": 2,
+    "at": "2026-10-18T07:12:41Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "template apply",
+    "items": [],
+    "transition": null,
+    "changes": [
+      {
+        "after": {
+          "format": 1,
+          "name": "perry",
+          "relations": {},
+          "types": {
+            "ask": {
+              "create_guards": [
+                {
+                  "fields": [
+                    "question"
+                  ],
+                  "kind": "required"
+                }
+              ],
+              "digits": 3,
+              "fields": {
+                "answer": {
+                  "kind": "text"
+                },
+                "question": {
+                  "kind": "text"
+                }
+              },
+              "initial": "pending",
+              "prefix": "USER",
+              "states": [
+                "pending",
+                "answered"
+              ],
+              "terminal": [
+                "answered"
+              ],
+              "transitions": {
+                "answer": {
+                  "from": [
+                    "pending"
+                  ],
+                  "guards": [
+                    {
+                      "fields": [
+                        "answer"
+                      ],
+                      "kind": "required"
+                    }
+                  ],
+                  "to": "answered"
+                }
+              }
+            },
+            "risk": {
+              "create_guards": [
+                {
+                  "fields": [
+                    "concern"
+                  ],
+                  "kind": "required"
+                }
+              ],
+              "digits": 3,
+              "fields": {
+                "concern": {
+                  "kind": "text"
+                },
+                "reason": {
+                  "kind": "text"
+                }
+              },
+              "initial": "open",
+              "prefix": "RX",
+              "states": [
+                "open",
+                "cleared"
+              ],
+              "terminal": [
+                "cleared"
+              ],
+              "transitions": {
+                "clear": {
+                  "from": [
+                    "open"
+                  ],
+                  "guards": [
+                    {
+                      "fields": [
+                        "reason"
+                      ],
+                      "kind": "required"
+                    }
+                  ],
+                  "to": "cleared"
+                }
+              }
+            },
+            "task": {
+              "create_guards": [
+                {
+                  "fields": [
+                    "title",
+                    "summary",
+                    "priority",
+                    "verification"
+                  ],
+                  "kind": "required"
+                }
+              ],
+              "digits": 3,
+              "fields": {
+                "evidence": {
+                  "kind": "text"
+                },
+                "next_action": {
+                  "kind": "text"
+                },
+                "owner": {
+                  "kind": "enum",
+                  "values": [
+                    "User",
+                    "PMO Agent",
+                    "Coding Agent",
+                    "Research Agent",
+                    "Review Agent",
+                    "User + Agent"
+                  ]
+                },
+                "priority": {
+                  "kind": "enum",
+                  "values": [
+                    "P0",
+                    "P1",
+                    "P2"
+                  ]
+                },
+                "reason": {
+                  "kind": "text"
+                },
+                "summary": {
+                  "kind": "text"
+                },
+                "title": {
+                  "kind": "text"
+                },
+                "track": {
+                  "kind": "enum",
+                  "values": [
+                    "main",
+                    "intake"
+                  ]
+                },
+                "verification": {
+                  "kind": "enum",
+                  "ordered": true,
+                  "values": [
+                    "V1",
+                    "V2",
+                    "V3",
+                    "V4",
+                    "V5",
+                    "V6"
+                  ]
+                },
+                "verified_by": {
+                  "kind": "actor"
+                }
+              },
+              "initial": "not_started",
+              "prefix": "TASK",
+              "states": [
+                "not_started",
+                "blocked",
+                "in_progress",
+                "review",
+                "done",
+                "dropped"
+              ],
+              "terminal": [
+                "done",
+                "dropped"
+              ],
+              "transitions": {
+                "block": {
+                  "from": [
+                    "not_started",
+                    "in_progress",
+                    "review"
+                  ],
+                  "guards": [
+                    {
+                      "fields": [
+                        "reason"
+                      ],
+                      "kind": "required"
+                    }
+                  ],
+                  "to": "blocked"
+                },
+                "done": {
+                  "from": [
+                    "not_started",
+                    "blocked",
+                    "in_progress",
+                    "review"
+                  ],
+                  "guards": [
+                    {
+                      "fields": [
+                        "evidence"
+                      ],
+                      "kind": "required"
+                    },
+                    {
+                      "fields": [
+                        "verified_by"
+                      ],
+                      "kind": "required",
+                      "when": {
+                        "verification": [
+                          "V4"
+                        ]
+                      }
+                    },
+                    {
+                      "actor_kind": "human",
+                      "kind": "actor",
+                      "when": {
+                        "verification": [
+                          "V5"
+                        ]
+                      }
+                    }
+                  ],
+                  "to": "done"
+                },
+                "drop": {
+                  "from": [
+                    "not_started",
+                    "blocked",
+                    "in_progress",
+                    "review"
+                  ],
+                  "guards": [
+                    {
+                      "fields": [
+                        "reason"
+                      ],
+                      "kind": "required"
+                    }
+                  ],
+                  "to": "dropped"
+                },
+                "reset": {
+                  "from": [
+                    "blocked",
+                    "in_progress",
+                    "review"
+                  ],
+                  "guards": [],
+                  "to": "not_started"
+                },
+                "start": {
+                  "from": [
+                    "not_started",
+                    "blocked",
+                    "review"
+                  ],
+                  "guards": [],
+                  "to": "in_progress"
+                },
+                "submit": {
+                  "from": [
+                    "not_started",
+                    "blocked",
+                    "in_progress"
+                  ],
+                  "guards": [],
+                  "to": "review"
+                }
+              }
+            }
+          },
+          "version": 1
+        },
+        "before": null,
+        "key": "template"
+      }
+    ],
+    "note": null,
+    "warnings": []
+  },
+  {
+    "seq": 3,
+    "at": "2026-09-16T00:00:00Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "RX-001"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "risk",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "open",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "学习主动时间55～80分钟及零新增付费约束为doc-only，尚无程序强制；PMO按设计估时和后续实际记录核对，超出时缩减可选步骤。",
+        "before": null,
+        "key": "field:concern"
+      }
+    ],
+    "note": "from risks.jsonl; timed by opened 2026-09-16, a date, read as 00:00 UTC",
+    "warnings": []
+  },
+  {
+    "seq": 4,
+    "at": "2026-09-16T00:00:00Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "RX-002"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "risk",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "open",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "当前目录尚非Git仓库，文档修改缺少版本追踪；正式实现前由工程方案明确版本管理，当前修改保留原始内容并核对范围。",
+        "before": null,
+        "key": "field:concern"
+      }
+    ],
+    "note": "from risks.jsonl; timed by opened 2026-09-16, a date, read as 00:00 UTC",
+    "warnings": []
+  },
+  {
+    "seq": 5,
+    "at": "2026-09-16T10:21:09Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-001"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-001-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "PMO Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P0",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "现有 README 将产品、知识和设计混在一起，且尚未纳入最后确认的亲子同屏和品牌独立约束。整理到 doc 后，各方向有唯一入口，已确定与待验证内容清楚分开。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "拆分设计文档并整理产品全景",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 6,
+    "at": "2026-09-16T10:22:35Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-002",
+      "TASK-001"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-002-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Research Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "现有知识地图尚未逐条核对首轮活动所需的科学解释。建立核心概念、学习深度和来源对应，使教学设计有可靠依据而不强迫孩子按章节学习。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "核对知识地图与首条探索链科学依据",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-001:TASK-002"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 7,
+    "at": "2026-09-16T10:22:35Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-003",
+      "TASK-002"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-003-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Research Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "家庭希望保持兴趣又能深入理解，但目前只有教学方向没有具体活动流程。设计一条能跨日期继续的月球探索链，让每次活动有明确观察、预测或验证目标。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "设计分次完成的月球教学探索链",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-002:TASK-003"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 8,
+    "at": "2026-09-16T10:22:35Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-004",
+      "TASK-003"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-004-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "三个入口仍是候选结构，用户无法仅凭抽象描述判断是否合适。用可点击低保真原型展示第一次探索和几天后回来继续，让家庭基于实际体验选择结构。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "制作并走查低保真探索原型",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-003:TASK-004"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 9,
+    "at": "2026-09-16T10:22:35Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-005",
+      "TASK-004"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-005-experience.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "明确交互后仍需验证信息层级、可读性与模型表达是否支持亲子共同使用。形成关键页面与教学图解方案，供用户依据具体画面选择而不是决定抽象风格术语。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "形成亲子共用的视觉与教学表达方案",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-004:TASK-005"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 10,
+    "at": "2026-09-16T10:22:35Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-006",
+      "TASK-004",
+      "TASK-005"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-006-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "项目需要实现知识和探索体验，同时不绑定Seestar，也尚未选定平台。根据已验证设计提出技术方案、数据模型和验证方法，明确首轮需要做多少工程。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "明确品牌独立的工程边界与验证方案",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-004:TASK-006"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-005:TASK-006"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 11,
+    "at": "2026-09-16T10:22:36Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-007"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-007-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "User + Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "正式开发需要以完整且一致的设计为依据，当前同意方向不等于未来成品已获确认。汇总五个方向、原型反馈和未决问题，供用户决定进入实现或继续修改。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "审阅设计包并决定是否进入正式实现",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 12,
+    "at": "2026-09-16T10:55:39Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-001"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 13,
+    "at": "2026-09-16T11:05:00Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-002"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 14,
+    "at": "2026-09-16T11:11:18Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-003"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 15,
+    "at": "2026-09-16T11:33:53Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-004"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 16,
+    "at": "2026-09-17T03:00:17Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-005"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 17,
+    "at": "2026-09-17T03:12:14Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-006"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 18,
+    "at": "2026-09-17T03:31:53Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-008",
+      "TASK-007"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-008-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "原TASK-006过早关闭，用户补充双端交付、多种渲染统一风格与外部视频需求。保留历史并通过修订任务完成设计确认。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "修订双端交付与多种渲染工程设计",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-008:TASK-007"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 19,
+    "at": "2026-09-17T03:54:56Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-009",
+      "TASK-007"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-009-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "用户无法从局部Demo判断完整App的样貌和操作动线，要求先补齐完整设计，再由独立subagent对抗评审后汇报。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "补齐完整产品动线与可点击设计并对抗评审",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-009:TASK-007"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 20,
+    "at": "2026-09-17T04:23:55Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-010"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-010-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "产品设计已获用户锁定，需要独立于设计原型建立可扩展的正式代码框架。先提供三入口、共享内容和教学状态、渲染及平台边界，后续迁移完整功能。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "实现共享应用框架与iPad容器起点",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 21,
+    "at": "2026-09-17T04:26:53Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-007"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 22,
+    "at": "2026-09-17T04:26:53Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-008"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 23,
+    "at": "2026-09-17T04:26:53Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-009"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 24,
+    "at": "2026-09-17T04:30:39Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-010"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 25,
+    "at": "2026-09-17T04:52:51Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-011"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "doc/perry/evidence/2026-09/TASK-011-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "框架已可运行但iPad依赖解析未完成，三维及视频还是替代入口。继续验证真实媒体、暂停生命周期与iPad模拟器，明确实机仍待验证的边界。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "验证双端媒体与iPad构建恢复",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 26,
+    "at": "2026-09-17T05:04:18Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-011"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 27,
+    "at": "2026-09-17T07:46:33Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-012"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-012-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Research Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "将已确认大纲细化为逐屏状态、文案、视觉分镜和素材来源。完成后三个片段都能按明确边界制作，不再由工程临场决定教学过程。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三个slice制作规格与素材清单",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 28,
+    "at": "2026-09-17T07:46:34Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-013",
+      "TASK-012"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-013-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Research Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "现有题目是设计例子，缺少可实现的判定细则。此任务为三片段补齐测试理解所需的题型、单位容差和反馈，避免把算术错误等同概念错误。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三套学习检验与反馈规格",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-012:TASK-013"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 29,
+    "at": "2026-09-17T07:46:34Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-014",
+      "TASK-012",
+      "TASK-013"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-014-review.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Review Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "制作规格和题目需要独立上下文核查。审核必须覆盖核心陈述、模型边界与素材出处，发现严重误导时退回修订，不能用构建成功替代科学验证。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "科学内容与素材独立核查",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V4",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-012:TASK-014"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-013:TASK-014"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 30,
+    "at": "2026-09-17T07:46:35Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-015",
+      "TASK-012",
+      "TASK-013"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-015-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "三个片段都需要保护预测和实验结果。建立最小共用记录能力，确保知识页往返、刷新恢复和重试不会悄悄丢失或覆盖学习证据。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三个slice共用记录与恢复能力",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-012:TASK-015"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-013:TASK-015"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 31,
+    "at": "2026-09-17T07:46:36Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-016",
+      "TASK-014",
+      "TASK-015"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-016-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "将月相制作规格接入正式App，让孩子通过两个联动视图预测和解释月相。完成须包含引导、互动、检验反馈与记录，而不只是一段3D演示。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "月相slice完整实现",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-014:TASK-016"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-015:TASK-016"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 32,
+    "at": "2026-09-17T07:46:37Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-017",
+      "TASK-014",
+      "TASK-015"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-017-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "让孩子用证据为两个拍摄目标分类并放入宇宙结构中。实现图片、空间层级、距离计算和信息不足判断，避免用视觉外形冒充科学分类依据。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "深空slice完整实现",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-014:TASK-017"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-015:TASK-017"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 33,
+    "at": "2026-09-17T07:46:37Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-018",
+      "TASK-014",
+      "TASK-015"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-018-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "用可复现样本展示叠加收益和限制。孩子能比较数据、诊断不能靠多拍解决的问题，并计算有效积分；结果来自声明的模型，不靠滤镜伪造。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "成像slice完整实现",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-014:TASK-018"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-015:TASK-018"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 34,
+    "at": "2026-09-17T07:46:38Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-019",
+      "TASK-016",
+      "TASK-017",
+      "TASK-018"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-019-review.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Review Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "分别完成的片段还需要整体核查。以书面标准验证导航、视觉、输入、学习记录和故障路径，准确区分实际iPad与模拟器证据，并推动缺陷修复复查。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三slice集成与双端验证",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V4",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-016:TASK-019"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-017:TASK-019"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-018:TASK-019"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 35,
+    "at": "2026-09-17T07:46:38Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-020",
+      "TASK-019"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-020-acceptance.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "User + Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "用户确认计划不等于未来成品通过。将三个完整片段及验证边界交给用户判断清晰度、美感和交互负担，记录接受或需修改项，不强加固定家庭试用次数。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三个完整片段成品验收",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-019:TASK-020"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 36,
+    "at": "2026-09-17T08:04:01Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-012"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 37,
+    "at": "2026-09-17T08:15:31Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-013"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 38,
+    "at": "2026-09-17T08:17:57Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-015"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 39,
+    "at": "2026-09-17T08:19:19Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-014"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 40,
+    "at": "2026-09-17T08:28:45Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-016"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 41,
+    "at": "2026-09-17T08:43:47Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-017"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 42,
+    "at": "2026-09-17T08:53:22Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-018"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 43,
+    "at": "2026-09-17T09:10:01Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-019"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 44,
+    "at": "2026-09-17T09:20:30Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-020"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 45,
+    "at": "2026-09-21T11:03:38Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-021"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-021-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Research Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P0",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "Phase 3先以深空建立可推广的成品标准。诊断现有完整路径，将画面、操作、讲解和反馈问题转成逐屏分镜与可核查的实现清单。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "深空体验诊断与逐屏分镜",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 46,
+    "at": "2026-09-21T11:03:39Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-022",
+      "TASK-021"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-022-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P0",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "现有深空片段仅完成框架验收，尚未达到成品标准。依据诊断分镜完成可运行的端到端体验，并准备可供用户审阅的版本。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "深空完整片段成品打磨",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-021:TASK-022"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 47,
+    "at": "2026-09-21T11:03:39Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-023",
+      "TASK-022"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-023-review-round2.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Review Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P0",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "视觉与讲解改版可能改变科学含义或提前泄露检验答案。由未参与实现的审查者检查深空成品，先消除误导再交给用户体验判断。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "深空教学表达独立审查",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V4",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-022:TASK-023"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 48,
+    "at": "2026-09-21T11:03:40Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-024",
+      "TASK-022",
+      "TASK-023"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-024-acceptance.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "User + Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P0",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "Phase 3明确要求先确认一个代表片段再向另外两个推广。提供深空完整体验和修订证据，由Ran Jiao明确判断画面、讲解及互动是否达到推广标准。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "深空成品标准用户认可",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-022:TASK-024"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-023:TASK-024"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 49,
+    "at": "2026-09-21T11:03:40Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-025",
+      "TASK-024"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-025-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "深空成品标准获得认可后，月相片段需要沿用统一表达并保留适合几何实验的呈现方式。完成从入口、操作、反馈到回顾的逐屏打磨。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "月相片段推广成品标准",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-024:TASK-025"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 50,
+    "at": "2026-09-21T11:03:40Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-026",
+      "TASK-024"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-026-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "成像片段需把已认可的视觉和反馈标准用于可比较的图像实验。突出叠加、对齐与失焦差异，让解释随着观察展开。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "成像片段推广成品标准",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-024:TASK-026"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 51,
+    "at": "2026-09-21T11:03:41Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-027",
+      "TASK-021"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-027-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "三个片段的成品体验依赖进出、知识往返和历史记录连续性。本任务修复共用流程与异常反馈，可在深空等待认可期间推进，最终双端验证会在全部改版完成后重跑。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "共用导航与学习记录恢复打磨",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-021:TASK-027"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 52,
+    "at": "2026-09-21T11:03:41Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-028",
+      "TASK-024",
+      "TASK-025",
+      "TASK-026",
+      "TASK-027"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-028-review-round2.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Review Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "深空的早期审查不能覆盖月相和成像改版，也不能覆盖后续共用改动。对最终三个片段重新核对教学表达，形成每片段独立结论。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三片段教学表达最终独立复核",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V4",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-024:TASK-028"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-025:TASK-028"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-026:TASK-028"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-027:TASK-028"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 53,
+    "at": "2026-09-21T11:03:42Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-029",
+      "TASK-028"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-029-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "早期Web闭环证据不能覆盖本阶段改版。对最终三个片段分别走完入口到回顾的全流程，并验证布局、输入、恢复和异常处理。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "Web三片段完整路径验证",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-028:TASK-029"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 54,
+    "at": "2026-09-21T11:03:43Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-030",
+      "TASK-028"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-030-result.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Coding Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "Phase 2的原生证据仅覆盖部分操作，滚动等路径尚未完成验证。本任务在实际运行的iPad模拟器中走通三个完整片段，单列平台证据和剩余限制。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "iPad模拟器三片段完整路径验证",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V3",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-028:TASK-030"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 55,
+    "at": "2026-09-21T11:03:43Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-031",
+      "TASK-028",
+      "TASK-029",
+      "TASK-030"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-031-review.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "Review Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "分片段和分平台通过后，需要确认最终组合仍符合已认可标准。由未参与实现的reviewer核对三片段逐屏一致性、完整动线及所有验证证据。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三片段统一性与完整体验独立评审",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V4",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-028:TASK-031"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-029:TASK-031"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-030:TASK-031"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 56,
+    "at": "2026-09-21T11:03:44Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item create",
+    "items": [
+      "TASK-032",
+      "TASK-031"
+    ],
+    "transition": null,
+    "changes": [
+      {
+        "after": "task",
+        "before": null,
+        "key": "type"
+      },
+      {
+        "after": "not_started",
+        "before": null,
+        "key": "state"
+      },
+      {
+        "after": "evidence/2026-09/TASK-032-spec.md",
+        "before": null,
+        "key": "field:evidence"
+      },
+      {
+        "after": "完成月面贴图、3D标记与受影响回归，更新验收候选后重新提签",
+        "before": null,
+        "key": "field:next_action"
+      },
+      {
+        "after": "User + Agent",
+        "before": null,
+        "key": "field:owner"
+      },
+      {
+        "after": "P1",
+        "before": null,
+        "key": "field:priority"
+      },
+      {
+        "after": "Phase 3以三个成品片段的用户签收结束。整理同版本入口、平台证据和遗留清单，请Ran Jiao逐片段确认完整使用体验。",
+        "before": null,
+        "key": "field:summary"
+      },
+      {
+        "after": "三个成品片段最终用户签收",
+        "before": null,
+        "key": "field:title"
+      },
+      {
+        "after": "main",
+        "before": null,
+        "key": "field:track"
+      },
+      {
+        "after": "V5",
+        "before": null,
+        "key": "field:verification"
+      },
+      {
+        "after": true,
+        "before": false,
+        "key": "rel:blocks:TASK-031:TASK-032"
+      },
+      {
+        "after": {
+          "hash": null
+        },
+        "before": null,
+        "key": "attach:DESIGN-001"
+      }
+    ],
+    "note": "from tasks.jsonl; timed by created",
+    "warnings": []
+  },
+  {
+    "seq": 57,
+    "at": "2026-09-21T13:08:20Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-021"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 58,
+    "at": "2026-09-21T13:24:07Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-022"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 59,
+    "at": "2026-09-22T02:29:46Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-027"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 60,
+    "at": "2026-09-22T02:31:23Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-023"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 61,
+    "at": "2026-09-22T03:24:03Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-024"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 62,
+    "at": "2026-09-22T03:43:25Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-025"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 63,
+    "at": "2026-09-22T03:43:25Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-026"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 64,
+    "at": "2026-09-22T03:53:16Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-028"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 65,
+    "at": "2026-09-22T04:21:09Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-029"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 66,
+    "at": "2026-09-22T04:21:09Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-030"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 67,
+    "at": "2026-09-22T04:26:31Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-031"
+    ],
+    "transition": "done",
+    "changes": [
+      {
+        "after": "done",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'done' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  },
+  {
+    "seq": 68,
+    "at": "2026-09-22T06:07:39Z",
+    "actor": {
+      "kind": "agent",
+      "name": "perry-kernel-migrate",
+      "session": "perry-kernel-migrate"
+    },
+    "command": "item move",
+    "items": [
+      "TASK-032"
+    ],
+    "transition": "start",
+    "changes": [
+      {
+        "after": "in_progress",
+        "before": "not_started",
+        "key": "state"
+      }
+    ],
+    "note": "status 'in_progress' in tasks.jsonl; timed by last old status event",
+    "warnings": []
+  }
+]

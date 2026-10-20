@@ -1,0 +1,94 @@
+{"kind": "objective", "phase": "001-design-foundation", "id": "O1", "title": "建立一致且有依据的设计全景"}
+{"kind": "kr", "phase": "001-design-foundation", "objective": "O1", "id": "P001-O1-KR1", "title": "整理后可追溯全部已定约束与待定问题", "metric": "1 份全景及导航核对完成", "due": "阶段结束前", "stretch": false, "linked": "KR-O2.3"}
+{"kind": "kr", "phase": "001-design-foundation", "objective": "O1", "id": "P001-O1-KR2", "title": "首条探索链科学解释与来源对应", "metric": "核心科学陈述来源核对率 100%", "due": "阶段结束前", "stretch": false, "linked": "KR-O2.1"}
+{"kind": "kr", "phase": "001-design-foundation", "objective": "O1", "id": "P001-O1-KR3", "title": "教学链符合分次学习时间并包含理解证据", "metric": "1 条教学链通过时间、预测、比较、验证检查", "due": "阶段结束前", "stretch": false, "linked": "KR-O2.2"}
+{"kind": "objective", "phase": "001-design-foundation", "id": "O2", "title": "用可体验的方案支持实现决策"}
+{"kind": "kr", "phase": "001-design-foundation", "objective": "O2", "id": "P001-O2-KR1", "title": "家庭能够理解首次探索与再次继续的路径", "metric": "2 个关键场景用户走查并留存反馈", "due": "阶段结束前", "stretch": false, "linked": "KR-O1.1"}
+{"kind": "kr", "phase": "001-design-foundation", "objective": "O2", "id": "P001-O2-KR2", "title": "关键页面与教学表达支持共同使用", "metric": "1 套视觉方案完成用户审阅", "due": "阶段结束前", "stretch": false, "linked": "KR-O2.3"}
+{"kind": "kr", "phase": "001-design-foundation", "objective": "O2", "id": "P001-O2-KR3", "title": "实现边界清晰且不依赖特定设备", "metric": "1 份工程方案通过跨品牌与设计一致性检查，并获得进入实现的明确决定", "due": "阶段结束前", "stretch": false, "linked": "KR-O1.2"}
+{"kind": "edge", "task": "TASK-001", "kr": "P001-O1-KR1", "declared_at": "2026-09-16T10:21:09Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-002", "kr": "P001-O1-KR2", "declared_at": "2026-09-16T10:22:35Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-003", "kr": "P001-O1-KR3", "declared_at": "2026-09-16T10:22:35Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-004", "kr": "P001-O2-KR1", "declared_at": "2026-09-16T10:22:35Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-005", "kr": "P001-O2-KR2", "declared_at": "2026-09-16T10:22:35Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-006", "kr": "P001-O2-KR3", "declared_at": "2026-09-16T10:22:35Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-007", "kr": "P001-O2-KR3", "declared_at": "2026-09-16T10:22:36Z", "actor": "Codex", "via": "add"}
+{"kind": "check", "kr": "P001-O1-KR1", "okr_version": "", "id": "accepted", "label": "书面验收条件全部满足且所需用户审阅有证据", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-16T10:24:31Z", "actor": "Codex"}
+{"kind": "check", "kr": "P001-O1-KR2", "okr_version": "", "id": "accepted", "label": "书面验收条件全部满足且所需用户审阅有证据", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-16T10:24:31Z", "actor": "Codex"}
+{"kind": "check", "kr": "P001-O1-KR3", "okr_version": "", "id": "accepted", "label": "书面验收条件全部满足且所需用户审阅有证据", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-16T10:24:31Z", "actor": "Codex"}
+{"kind": "check", "kr": "P001-O2-KR1", "okr_version": "", "id": "accepted", "label": "书面验收条件全部满足且所需用户审阅有证据", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-16T10:24:31Z", "actor": "Codex"}
+{"kind": "check", "kr": "P001-O2-KR2", "okr_version": "", "id": "accepted", "label": "书面验收条件全部满足且所需用户审阅有证据", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-16T10:24:31Z", "actor": "Codex"}
+{"kind": "check", "kr": "P001-O2-KR3", "okr_version": "", "id": "accepted", "label": "书面验收条件全部满足且所需用户审阅有证据", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-16T10:24:31Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O1-KR1", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-16T10:55:39Z", "evidence": "evidence/2026-09/TASK-001-result.md", "computed": false, "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O1-KR2", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-16T11:05:00Z", "evidence": "evidence/2026-09/TASK-002-result.md", "computed": false, "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O1-KR3", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-16T11:11:18Z", "evidence": "evidence/2026-09/TASK-003-result.md", "computed": false, "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O2-KR1", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-16T11:34:00Z", "evidence": "evidence/2026-09/TASK-004-result.md", "computed": false, "actor": "Codex"}
+{"kind": "edge", "task": "TASK-008", "kr": "P001-O2-KR3", "declared_at": "2026-09-17T03:31:53Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-009", "kr": "P001-O2-KR1", "declared_at": "2026-09-17T03:54:56Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-010", "kr": "P001-O2-KR3", "declared_at": "2026-09-17T04:23:55Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-011", "kr": "P001-O2-KR3", "declared_at": "2026-09-17T04:52:51Z", "actor": "Codex", "via": "add"}
+{"kind": "measurement", "kr": "P001-O1-KR3", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-17T05:20:55Z", "evidence": "phase/001-design-foundation.md", "computed": false, "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O2-KR1", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-17T05:20:55Z", "evidence": "phase/001-design-foundation.md", "computed": false, "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O2-KR2", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-17T05:20:55Z", "evidence": "phase/001-design-foundation.md", "computed": false, "actor": "Codex"}
+{"kind": "measurement", "kr": "P001-O2-KR3", "okr_version": "", "check": "accepted", "value": 1, "asserted_at": "2026-09-17T05:20:55Z", "evidence": "phase/001-design-foundation.md", "computed": false, "actor": "Codex"}
+{"kind": "objective", "phase": "002-content-experience", "id": "O1", "title": "让三个片段具备可制作且可信的教学设计"}
+{"kind": "objective", "phase": "002-content-experience", "id": "O2", "title": "让三个片段形成可独立使用的学习体验"}
+{"kind": "kr", "phase": "002-content-experience", "objective": "O1", "id": "P002-O1-KR1", "title": "三个slice具备完整制作规格", "metric": "3份规格覆盖逐屏动线、媒体、科学状态、素材许可和回退；基线已有大纲，尚无制作级规格", "due": "本阶段结束前", "stretch": false, "linked": "KR-O2.3"}
+{"kind": "kr", "phase": "002-content-experience", "objective": "O1", "id": "P002-O1-KR2", "title": "核心解释与素材可追溯", "metric": "3个slice核心科学陈述及素材核查覆盖100%，严重科学误导0项；基线未进行制作级核查", "due": "本阶段结束前", "stretch": false, "linked": "KR-O2.1"}
+{"kind": "kr", "phase": "002-content-experience", "objective": "O1", "id": "P002-O1-KR3", "title": "学习检验能区分理解与猜测", "metric": "3套检验含预测、推导、适用计算、迁移、答案/单位/假设/提示/错因；基线为示例题，尚无完整判定规格", "due": "本阶段结束前", "stretch": false, "linked": "KR-O2.2"}
+{"kind": "kr", "phase": "002-content-experience", "objective": "O2", "id": "P002-O2-KR1", "title": "三个片段均可完整体验", "metric": "月相、深空、成像共3个正式slice通过引导→操作→解释→检验→反馈→记录全流程；基线仅框架样段", "due": "本阶段结束前", "stretch": false, "linked": "KR-O1.2"}
+{"kind": "kr", "phase": "002-content-experience", "objective": "O2", "id": "P002-O2-KR2", "title": "片段间切换和跨次恢复保留学习证据", "metric": "3个slice通过知识页往返、刷新重启、重试留旧答、写入失败提示4类场景；基线无对应跨次验收", "due": "本阶段结束前", "stretch": false, "linked": "KR-O1.3"}
+{"kind": "kr", "phase": "002-content-experience", "objective": "O2", "id": "P002-O2-KR3", "title": "双端交互和成品体验达到所定边界", "metric": "3个slice通过Web及可核验iPad路径测试与用户成品审阅；注明实际设备或模拟器覆盖，缺真机不虚报；无固定儿童试用次数", "due": "本阶段结束前", "stretch": false, "linked": "KR-O1.1"}
+{"kind": "check", "kr": "P002-O1-KR1", "okr_version": "", "id": "slices-v1", "label": "3份规格覆盖逐屏动线、媒体、科学状态、素材许可和回退；基线已有大纲，尚无制作级规格", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-17T07:45:04Z", "actor": "goals"}
+{"kind": "check", "kr": "P002-O1-KR2", "okr_version": "", "id": "slices-v1", "label": "3个slice核心科学陈述及素材核查覆盖100%，严重科学误导0项；基线未进行制作级核查", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-17T07:45:04Z", "actor": "goals"}
+{"kind": "check", "kr": "P002-O1-KR3", "okr_version": "", "id": "slices-v1", "label": "3套检验含预测、推导、适用计算、迁移、答案/单位/假设/提示/错因；基线为示例题，尚无完整判定规格", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-17T07:45:04Z", "actor": "goals"}
+{"kind": "check", "kr": "P002-O2-KR1", "okr_version": "", "id": "slices-v1", "label": "月相、深空、成像共3个正式slice通过引导→操作→解释→检验→反馈→记录全流程；基线仅框架样段", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-17T07:45:04Z", "actor": "goals"}
+{"kind": "check", "kr": "P002-O2-KR2", "okr_version": "", "id": "slices-v1", "label": "3个slice通过知识页往返、刷新重启、重试留旧答、写入失败提示4类场景；基线无对应跨次验收", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-17T07:45:04Z", "actor": "goals"}
+{"kind": "check", "kr": "P002-O2-KR3", "okr_version": "", "id": "slices-v1", "label": "3个slice通过Web及可核验iPad路径测试与用户成品审阅；注明实际设备或模拟器覆盖，缺真机不虚报；无固定儿童试用次数", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-17T07:45:04Z", "actor": "goals"}
+{"kind": "edge", "task": "TASK-012", "kr": "P002-O1-KR1", "declared_at": "2026-09-17T07:46:33Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-013", "kr": "P002-O1-KR3", "declared_at": "2026-09-17T07:46:34Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-014", "kr": "P002-O1-KR2", "declared_at": "2026-09-17T07:46:34Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-015", "kr": "P002-O2-KR2", "declared_at": "2026-09-17T07:46:35Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-016", "kr": "P002-O2-KR1", "declared_at": "2026-09-17T07:46:36Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-017", "kr": "P002-O2-KR1", "declared_at": "2026-09-17T07:46:37Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-018", "kr": "P002-O2-KR1", "declared_at": "2026-09-17T07:46:37Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-019", "kr": "P002-O2-KR3", "declared_at": "2026-09-17T07:46:38Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-020", "kr": "P002-O2-KR3", "declared_at": "2026-09-17T07:46:38Z", "actor": "Codex", "via": "add"}
+{"kind": "check", "kr": "P002-O1-KR1", "okr_version": "", "id": "closeout-score", "label": "用户确认的阶段结项评分；非儿童掌握率，口径见Phase 002 Retro", "direction": "increase", "target": 1, "baseline": 0, "declared_at": "2026-09-17T09:29:48Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P002-O1-KR1", "okr_version": "", "check": "closeout-score", "value": 1, "asserted_at": "2026-09-17T09:29:48Z", "evidence": "phase/002-content-experience.md", "computed": false, "actor": "Codex"}
+{"kind": "check", "kr": "P002-O1-KR2", "okr_version": "", "id": "closeout-score", "label": "用户确认的阶段结项评分；非儿童掌握率，口径见Phase 002 Retro", "direction": "increase", "target": 1, "baseline": 0, "declared_at": "2026-09-17T09:29:48Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P002-O1-KR2", "okr_version": "", "check": "closeout-score", "value": 1, "asserted_at": "2026-09-17T09:29:48Z", "evidence": "phase/002-content-experience.md", "computed": false, "actor": "Codex"}
+{"kind": "check", "kr": "P002-O1-KR3", "okr_version": "", "id": "closeout-score", "label": "用户确认的阶段结项评分；非儿童掌握率，口径见Phase 002 Retro", "direction": "increase", "target": 1, "baseline": 0, "declared_at": "2026-09-17T09:29:48Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P002-O1-KR3", "okr_version": "", "check": "closeout-score", "value": 1, "asserted_at": "2026-09-17T09:29:48Z", "evidence": "phase/002-content-experience.md", "computed": false, "actor": "Codex"}
+{"kind": "check", "kr": "P002-O2-KR1", "okr_version": "", "id": "closeout-score", "label": "用户确认的阶段结项评分；非儿童掌握率，口径见Phase 002 Retro", "direction": "increase", "target": 1, "baseline": 0, "declared_at": "2026-09-17T09:29:48Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P002-O2-KR1", "okr_version": "", "check": "closeout-score", "value": 1, "asserted_at": "2026-09-17T09:29:49Z", "evidence": "phase/002-content-experience.md", "computed": false, "actor": "Codex"}
+{"kind": "check", "kr": "P002-O2-KR2", "okr_version": "", "id": "closeout-score", "label": "用户确认的阶段结项评分；非儿童掌握率，口径见Phase 002 Retro", "direction": "increase", "target": 1, "baseline": 0, "declared_at": "2026-09-17T09:29:49Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P002-O2-KR2", "okr_version": "", "check": "closeout-score", "value": 1, "asserted_at": "2026-09-17T09:29:49Z", "evidence": "phase/002-content-experience.md", "computed": false, "actor": "Codex"}
+{"kind": "check", "kr": "P002-O2-KR3", "okr_version": "", "id": "closeout-score", "label": "用户确认的阶段结项评分；非儿童掌握率，口径见Phase 002 Retro", "direction": "increase", "target": 1, "baseline": 0, "declared_at": "2026-09-17T09:29:49Z", "actor": "Codex"}
+{"kind": "measurement", "kr": "P002-O2-KR3", "okr_version": "", "check": "closeout-score", "value": 0.6666666666666666, "asserted_at": "2026-09-17T09:29:49Z", "evidence": "phase/002-content-experience.md", "computed": false, "actor": "Codex"}
+{"kind": "objective", "phase": "003-experience-polish", "id": "O1", "title": "形成统一、有吸引力的学习体验"}
+{"kind": "objective", "phase": "003-experience-polish", "id": "O2", "title": "让完整使用过程顺畅可靠"}
+{"kind": "kr", "phase": "003-experience-polish", "objective": "O1", "id": "P003-O1-KR1", "title": "深空片段完整流程获得成品标准认可", "metric": "1个深空完整片段获用户成品标准认可，留存可体验版本、反馈与修订记录；基线尚未认可成品标准", "target": 1, "due": "本阶段结束前", "linked": "KR-O2.3"}
+{"kind": "check", "kr": "P003-O1-KR1", "okr_version": "", "id": "accepted-deliverables", "label": "1个深空完整片段获用户成品标准认可，留存可体验版本、反馈与修订记录；基线尚未认可成品标准", "direction": "at_least", "target": 1, "baseline": null, "declared_at": "2026-09-21T07:35:55Z", "actor": "Codex"}
+{"kind": "kr", "phase": "003-experience-polish", "objective": "O1", "id": "P003-O1-KR2", "title": "三个片段达到已认可的视觉与互动标准", "metric": "3个片段逐屏核对并通过最终审阅，深空先确认后推广；基线仅框架获认可，视觉未成品验收", "target": 3, "due": "本阶段结束前", "linked": "KR-O1.1"}
+{"kind": "check", "kr": "P003-O1-KR2", "okr_version": "", "id": "accepted-deliverables", "label": "3个片段逐屏核对并通过最终审阅，深空先确认后推广；基线仅框架获认可，视觉未成品验收", "direction": "at_least", "target": 3, "baseline": null, "declared_at": "2026-09-21T07:35:55Z", "actor": "Codex"}
+{"kind": "kr", "phase": "003-experience-polish", "objective": "O1", "id": "P003-O1-KR3", "title": "三个片段完成教学表达审查", "metric": "3个片段独立审查及修复复核通过；严重科学误导及直接泄露检验答案的问题0项，保留必要教学示范；基线有Phase 2科学评审，改版后待审", "target": 3, "due": "本阶段结束前", "linked": "KR-O2.1"}
+{"kind": "check", "kr": "P003-O1-KR3", "okr_version": "", "id": "accepted-deliverables", "label": "3个片段独立审查及修复复核通过；严重科学误导及直接泄露检验答案的问题0项，保留必要教学示范；基线有Phase 2科学评审，改版后待审", "direction": "at_least", "target": 3, "baseline": null, "declared_at": "2026-09-21T07:35:55Z", "actor": "Codex"}
+{"kind": "kr", "phase": "003-experience-polish", "objective": "O2", "id": "P003-O2-KR1", "title": "完整使用流程可靠并保留学习记录", "metric": "3个片段均通过进入、知识往返、退出继续、旧记录回看和异常回退检查，无阻断性问题或记录丢失；基线Phase 2 Web闭环已测，改版后待验", "target": 3, "due": "本阶段结束前", "linked": "KR-O1.3"}
+{"kind": "check", "kr": "P003-O2-KR1", "okr_version": "", "id": "accepted-deliverables", "label": "3个片段均通过进入、知识往返、退出继续、旧记录回看和异常回退检查，无阻断性问题或记录丢失；基线Phase 2 Web闭环已测，改版后待验", "direction": "at_least", "target": 3, "baseline": null, "declared_at": "2026-09-21T07:35:56Z", "actor": "Codex"}
+{"kind": "kr", "phase": "003-experience-polish", "objective": "O2", "id": "P003-O2-KR2", "title": "Web与iPad模拟器完整路径验证通过", "metric": "Web和iPad模拟器分别走通3个完整流程，共6组；补齐滚动、旋转和后台恢复适用检查，分别记录平台结果；真机结果单列，基线原生仅部分验证", "target": 6, "due": "本阶段结束前", "linked": "KR-O1.1"}
+{"kind": "check", "kr": "P003-O2-KR2", "okr_version": "", "id": "accepted-deliverables", "label": "Web和iPad模拟器分别走通3个完整流程，共6组；补齐滚动、旋转和后台恢复适用检查，分别记录平台结果；真机结果单列，基线原生仅部分验证", "direction": "at_least", "target": 6, "baseline": null, "declared_at": "2026-09-21T07:35:56Z", "actor": "Codex"}
+{"kind": "kr", "phase": "003-experience-polish", "objective": "O2", "id": "P003-O2-KR3", "title": "三个片段完成最终用户签收", "metric": "3个片段最终成品由用户签收，验收包逐项说明遗留影响与处理建议；基线仅Phase 2框架签收", "target": 3, "due": "本阶段结束前", "linked": "KR-O1.1"}
+{"kind": "check", "kr": "P003-O2-KR3", "okr_version": "", "id": "accepted-deliverables", "label": "3个片段最终成品由用户签收，验收包逐项说明遗留影响与处理建议；基线仅Phase 2框架签收", "direction": "at_least", "target": 3, "baseline": null, "declared_at": "2026-09-21T07:35:56Z", "actor": "Codex"}
+{"kind": "edge", "task": "TASK-021", "kr": "P003-O1-KR1", "declared_at": "2026-09-21T11:03:38Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-022", "kr": "P003-O1-KR1", "declared_at": "2026-09-21T11:03:39Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-023", "kr": "P003-O1-KR3", "declared_at": "2026-09-21T11:03:39Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-024", "kr": "P003-O1-KR1", "declared_at": "2026-09-21T11:03:40Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-025", "kr": "P003-O1-KR2", "declared_at": "2026-09-21T11:03:40Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-026", "kr": "P003-O1-KR2", "declared_at": "2026-09-21T11:03:40Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-027", "kr": "P003-O2-KR1", "declared_at": "2026-09-21T11:03:41Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-028", "kr": "P003-O1-KR3", "declared_at": "2026-09-21T11:03:41Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-029", "kr": "P003-O2-KR2", "declared_at": "2026-09-21T11:03:42Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-030", "kr": "P003-O2-KR2", "declared_at": "2026-09-21T11:03:43Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-031", "kr": "P003-O1-KR2", "declared_at": "2026-09-21T11:03:43Z", "actor": "Codex", "via": "add"}
+{"kind": "edge", "task": "TASK-032", "kr": "P003-O2-KR3", "declared_at": "2026-09-21T11:03:44Z", "actor": "Codex", "via": "add"}

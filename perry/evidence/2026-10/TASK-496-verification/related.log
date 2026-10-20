@@ -1,0 +1,15 @@
+................................................................................................<unknown>:1525: DeprecationWarning: invalid escape sequence '\w'
+<unknown>:117: DeprecationWarning: invalid escape sequence '\w'
+.<unknown>:1525: DeprecationWarning: invalid escape sequence '\w'
+<unknown>:117: DeprecationWarning: invalid escape sequence '\w'
+.<unknown>:1525: DeprecationWarning: invalid escape sequence '\w'
+<unknown>:117: DeprecationWarning: invalid escape sequence '\w'
+.<unknown>:1525: DeprecationWarning: invalid escape sequence '\w'
+<unknown>:117: DeprecationWarning: invalid escape sequence '\w'
+...........<unknown>:117: DeprecationWarning: invalid escape sequence '\w'
+........<unknown>:1525: DeprecationWarning: invalid escape sequence '\w'
+.................................................
+----------------------------------------------------------------------
+Ran 167 tests in 37.166s
+
+OK

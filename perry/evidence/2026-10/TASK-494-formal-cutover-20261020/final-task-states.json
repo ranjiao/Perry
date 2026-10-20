@@ -1,0 +1,165 @@
+{
+  "TASK-492": {
+    "id": "TASK-492",
+    "type": "task",
+    "state": "done",
+    "fields": {
+      "evidence": "evidence/2026-10/TASK-494-formal-cutover-20261020/TASK-492-acceptance.md",
+      "next_action": null,
+      "owner": "Coding Agent",
+      "priority": "P2",
+      "reason": null,
+      "summary": "DESIGN-023 phase F. Objectives, KRs, checks and phases become kernel items with metric fields. They are re-keyed, because OKR versions share ids, and the old ids are kept as labels. Designs and ADRs become items with their documents attached. The OKR-items ADR that ADR-025 schedules is written alongside.",
+      "title": "DESIGN-023 F — goals and decide on the kernel",
+      "track": "main",
+      "verification": "V3",
+      "verified_by": null
+    },
+    "seq": 1886,
+    "created_at": "2026-09-24T11:42:09Z",
+    "updated_at": "2026-10-20T03:25:21Z",
+    "relations": [
+      {
+        "kind": "blocks",
+        "from": "TASK-490",
+        "to": "TASK-492"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-492",
+        "to": "TASK-220"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-492",
+        "to": "TASK-393"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-492",
+        "to": "TASK-493"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "DESIGN-023",
+        "hash": null
+      },
+      {
+        "ref": "evidence/2026-10/TASK-492-spec.md",
+        "hash": null
+      },
+      {
+        "ref": "evidence/2026-10/TASK-494-formal-cutover-20261020/TASK-492-acceptance.md",
+        "hash": "sha256:df8358b83dd190fa4bf7b3768be5f8e76cc68fdb3cda80074aa39a8f8263a8af"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  "TASK-493": {
+    "id": "TASK-493",
+    "type": "task",
+    "state": "done",
+    "fields": {
+      "evidence": "evidence/2026-10/TASK-494-formal-cutover-20261020/TASK-493-acceptance.md",
+      "next_action": null,
+      "owner": "Coding Agent",
+      "priority": "P2",
+      "reason": null,
+      "summary": "DESIGN-023 phase G and ADR-024. The standup dashboard is rebuilt from kernel queries, and the next-step recommendation becomes a written skill procedure; together they replace perry-state. Every fact the old rules read from documents gets an item or a query, so no recommendation counts by eye.",
+      "title": "DESIGN-023 G — dashboard from kernel queries, next step as a skill procedure",
+      "track": "main",
+      "verification": "V3",
+      "verified_by": null
+    },
+    "seq": 1891,
+    "created_at": "2026-09-24T11:42:09Z",
+    "updated_at": "2026-10-20T03:25:21Z",
+    "relations": [
+      {
+        "kind": "blocks",
+        "from": "TASK-492",
+        "to": "TASK-493"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-493",
+        "to": "TASK-444"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-493",
+        "to": "TASK-461"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-493",
+        "to": "TASK-465"
+      },
+      {
+        "kind": "blocks",
+        "from": "TASK-493",
+        "to": "TASK-494"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "DESIGN-023",
+        "hash": null
+      },
+      {
+        "ref": "evidence/2026-10/TASK-493-spec.md",
+        "hash": null
+      },
+      {
+        "ref": "evidence/2026-10/TASK-494-formal-cutover-20261020/TASK-493-acceptance.md",
+        "hash": "sha256:c3fb14fe74bd630d333c4b8ef9dddec6f50b1fadd67d3901b5b193922b9bf63e"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  "TASK-494": {
+    "id": "TASK-494",
+    "type": "task",
+    "state": "done",
+    "fields": {
+      "evidence": "evidence/2026-10/TASK-494-formal-cutover-20261020/V5-acceptance.json",
+      "next_action": null,
+      "owner": "User + Agent",
+      "priority": "P2",
+      "reason": null,
+      "summary": "DESIGN-023 phase H, the final cutover. Every remaining bin/ tool, and every perry-lint and perry-diagnose check, is given a disposition: kernel, skill procedure, or dropped. Then the old bin/, schema/state-schema.json, the contracts and their tests are deleted. The user signs it off at V5, the refactor's one sign-off.",
+      "title": "DESIGN-023 H — dispose of the old bin/ and its checks, then delete it",
+      "track": "main",
+      "verification": "V5",
+      "verified_by": null
+    },
+    "seq": 1895,
+    "created_at": "2026-09-24T11:42:10Z",
+    "updated_at": "2026-10-20T03:32:48Z",
+    "relations": [
+      {
+        "kind": "blocks",
+        "from": "TASK-493",
+        "to": "TASK-494"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "DESIGN-023",
+        "hash": null
+      },
+      {
+        "ref": "evidence/2026-10/TASK-494-spec.md",
+        "hash": null
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  }
+}

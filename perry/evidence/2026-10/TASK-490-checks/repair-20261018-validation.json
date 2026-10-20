@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-18",
+  "instruction": "先修复; formal switch deferred",
+  "candidate": "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry",
+  "branch": "codex/task-490-kernel-cutover",
+  "commit": "da04f3f71ad29de5f12d4999a22a400ad9c2d178",
+  "clean": true,
+  "full_gate": {
+    "command": "env -u PERRY_PROJECT PERRY_HOME=/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry bash tests/run",
+    "exit_code": 0,
+    "modules": 162,
+    "tests": 4116,
+    "seconds": 110.6,
+    "workers": 8,
+    "tree_unchanged": true,
+    "log": "repair-20261018-da04f3f7-full.log",
+    "sha256": "f69955621f5107b7de8967d36299f8897e231393e81bdf756d68689bea1f73bc"
+  },
+  "kernel_separate_run": {
+    "tests": 279,
+    "exit_code": 0,
+    "skipped": 1,
+    "note": "Existing platform skip; root suite also invokes kernel/tests/run.py with its live-store guard."
+  },
+  "diff_check": true,
+  "test_migration_inventory": "repair-20261018-test-migration-inventory.json",
+  "deleted_test_modules": 0,
+  "new_skip_decorators": 0,
+  "architecture": [
+    {
+      "baseline": "original",
+      "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/delivery-20261018T010930Z-394470709e",
+      "status": "attention",
+      "reasons": [
+        "target_changed",
+        "incomplete_coverage"
+      ],
+      "fresh": true,
+      "acceptance": "implementing-session static evidence, not semantic approval"
+    },
+    {
+      "baseline": "approved",
+      "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/delivery-20261018T010938Z-8dacffe62c",
+      "status": "attention",
+      "reasons": [
+        "target_changed",
+        "incomplete_coverage"
+      ],
+      "fresh": true,
+      "acceptance": "implementing-session static evidence, not semantic approval"
+    }
+  ],
+  "live_switch": false,
+  "main_merge": false,
+  "adr_activation": false,
+  "release_publication": false,
+  "independent_acceptance": false
+}

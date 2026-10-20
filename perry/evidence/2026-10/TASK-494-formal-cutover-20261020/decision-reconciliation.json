@@ -1,0 +1,19 @@
+{
+  "native_adr": "ADR-028",
+  "source_commit": "7f7849060d035871160b5be6e0cc9efca0cd6a5f",
+  "states": {
+    "ADR-028": "adr_active",
+    "ADR-026": "adr_active",
+    "ADR-011": "adr_archived",
+    "ADR-012": "adr_superseded",
+    "ADR-014": "adr_superseded",
+    "ADR-015": "adr_active",
+    "ADR-017": "adr_superseded",
+    "ADR-019": "adr_active",
+    "ADR-022": "adr_superseded",
+    "DESIGN-023": "design_locked"
+  },
+  "seq": 1882,
+  "historical_headers_untouched": true,
+  "final_V5": "not granted"
+}

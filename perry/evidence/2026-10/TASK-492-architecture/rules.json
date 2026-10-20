@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "4b8e46a1642b7ddbd81dcfade3fac8b2d9bc5a97e654b42ed7cf14690ef737d0"
+    },
+    {
+      "path": "bin/ARCHITECTURE.md",
+      "sha256": "a10fe5b36fa27d16e3498f7722be78dbc539c8a677d7e5578892c27570d19c00"
+    },
+    {
+      "path": "kernel/ARCHITECTURE.md",
+      "sha256": "c333cff1b12b8dafd4c87c9b11b0882332479a50041625ab57375b423d8caa9d"
+    },
+    {
+      "path": "kernel/architecture/sections/\u00a75-contracts.md",
+      "sha256": "9efa2498a4d11cc3760b0530b27527d3ea272965d72a6ab166f448057314ff92"
+    },
+    {
+      "path": "perry/design/DESIGN-023-a-kernel-and-a-skill.md",
+      "sha256": "8a1d7bff24854e0b0b3b65300c54d4655892d8cfac42b43a1472100b047f3196"
+    }
+  ],
+  "rules": [
+    {
+      "id": "kernel-no-process",
+      "kind": "forbid-call",
+      "scope": [
+        "kernel/perry_kernel/*"
+      ],
+      "origin": "stdlib",
+      "forbidden_calls": [
+        "subprocess.*",
+        "os.system",
+        "os.exec*",
+        "os.spawn*"
+      ],
+      "source": {
+        "path": "kernel/ARCHITECTURE.md",
+        "line": 102,
+        "end_line": 103,
+        "quote": "- **Running a command.** The kernel makes no `subprocess`, `os.system`, `os.exec*` or\n  `os.spawn*` call. It finds the git common dir by reading `.git` and `commondir` (\u00a7 5.7)."
+      }
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "Perry": {
+    "added_keys": [],
+    "removed_keys": [],
+    "record_changes": [
+      {
+        "key": "design:DESIGN-023",
+        "changed_fields": [
+          "attachments"
+        ]
+      }
+    ],
+    "relations_unchanged": true,
+    "source_hash_changes": [
+      ".perry/hook.md",
+      "perry/design/DESIGN-023-a-kernel-and-a-skill.md"
+    ],
+    "counts": {
+      "adr": 27,
+      "check": 19,
+      "design": 22,
+      "kr": 101,
+      "objective": 31,
+      "phase": 4
+    }
+  },
+  "SkyTonight": {
+    "added_keys": [],
+    "removed_keys": [],
+    "record_changes": [],
+    "relations_unchanged": true,
+    "source_hash_changes": [
+      ".perry/hook.md"
+    ],
+    "counts": {
+      "check": 24,
+      "design": 1,
+      "kr": 24,
+      "objective": 8,
+      "phase": 3
+    }
+  }
+}

@@ -1,0 +1,168 @@
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -134,15 +134,17 @@
+   prints comes from a `bin/` call, and so does the recommendation.
+ 
+ ### `modes/`, `packs/`, `reference/`, `templates/`
+-- **Purpose**: the vocabulary a project can declare (four work modes), the
+-  domain pack (`software-ops`, which is where this discipline is defined),
+-  tier-1 reference pages loaded on demand, and the scaffolds a new project gets.
++- **Purpose**: the domain pack (`software-ops`), tier-1 reference pages loaded
++  on demand, document scaffolds, and `templates/process/` JSON applied through
++  the kernel. The legacy mode pages remain until final disposal; the work lane
++  no longer runs stage, WIP, SLA or cadence procedures.
+   `reference/` also holds `next-rules.json`, the rule table `bin/perry-state`
+   evaluates for the next step, and `next.md`, which explains each rule.
+-- **Owns**: per-project variation. A track's mode, a pack's glossary. The
++- **Owns**: process template data, retained legacy mode vocabulary, and pack
++  glossaries. The legacy
+   next-step rules, declared as data that `bin/` evaluates.
+ 
+-### `tests/` — 163 modules
++### `tests/` — 166 modules
+ - **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
+   fails the suite if a run changed the checkout it ran in.
+ - **Owns**: whether a claim in this repository is true.
+@@ -157,12 +159,12 @@
+ flowchart TD
+     User([the one human]) -->|reads, decides| Lanes
+     Lanes["SKILL.md · goals / work / decide<br/>procedure only"] -->|invokes| Bin
+-    Bin["bin/ — 21 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
++    Bin["bin/ — 23 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
+     Bin -->|imports| Lib["bin/lib · perry_store · perry_md_store"]
+     Bin -->|validates against| Schema["schema/state-schema.json"]
+     Parsers -->|reads| State[("perry/ · .perry/<br/>stores and projections")]
+     Bin -->|writes| State
+-    Tests["tests/ — 163 modules"] -.asserts.-> Bin
++    Tests["tests/ — 166 modules"] -.asserts.-> Bin
+     Tests -.asserts.-> Parsers
+     Tests -.asserts.-> Schema
+     Outside([aiMark and other consumers]) -->|published payloads| Contracts["schema/*-contract.md"]
+--- a/bin/ARCHITECTURE.md
++++ b/bin/ARCHITECTURE.md
+@@ -2,7 +2,7 @@
+ 
+ > Written by: agent · Confirmed by: user (§6, §7)
+ > Version: v1
+-> Last reviewed: 2026-10-07
++> Last reviewed: 2026-10-15 (agent review; user confirmation at application)
+ > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
+ > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
+ 
+@@ -29,7 +29,6 @@
+ ```mermaid
+ flowchart TD
+     subgraph write["writers — every canonical write goes through one of these"]
+-        Task["perry-task<br/>31 subcommands · the lane writer"]
+         Tasks["perry-tasks<br/>22 · store ↔ projection, 5 registers · board"]
+         Okr["perry-okr"]
+         Goals["perry-goals"]
+@@ -38,6 +37,7 @@
+         Know["perry-knowledge"]
+     end
+     subgraph read["readers"]
++        Task["perry-task<br/>31 retained verbs · writes refused"]
+         State["perry-state<br/>the standup payload · the next block"]
+         Lint["perry-lint<br/>9 modes · the census"]
+         Diag["perry-diagnose"]
+@@ -94,6 +94,9 @@
+ | `lib/__init__.py` | 2,169 | primitives every tool needs: the project-root resolver, the argument parser driven by a `SURFACE` declaration, the project lock, atomic writes, the schema loader, KR progress |
+ | `perry_store.py` | 2,237 | the record shape, the store-only board render behind `perry-tasks board`, and the renderer and `--from-board` importers for a `BOARD.md` a project still holds |
+ | `perry_md_store.py` | 1,806 | the same pair for documents keyed by heading — `OKR.md` today |
++
++`perry-task` and `perry-goals` also consume the shared `read_events` reader;
++they do not own a second event parser.
+ 
+ ### What `perry-context-budget` reads outside the project
+ 
+@@ -133,7 +136,9 @@
+ 
+ Before it reads any store, it refuses a project whose state root holds a
+ pending `perry-task` recovery marker, as `parsers.scan_recovery` reports one,
+-whether or not the project has asks.
++whether or not the project has asks. That shared scanner also reads dossier
++frontmatter. The frozen legacy reader refuses a late transaction marker and
++never replays a write during a read.
+ 
+ Without `--work` it only plans: it writes nothing itself, and the
+ `perry-task asks` read above is the only command it can run. With `--work`,
+@@ -141,11 +146,8 @@
+ empty or absent, and outside the project and any `.git`. It then runs
+ `bin/perry-kernel import`, `query`, `item create --dry-run`, `export` and
+ `events` as subprocesses, each naming `--store <work>/store.db` and
+-`--root <work>/anchor`. It writes nothing in the project itself. If a file
+-under the project changes across its `perry-task asks` read, the most likely
+-cause is a pending recovery marker that appeared after the check and that the
+-read completed; the importer names the file and stops before anything is
+-imported. Row H deletes it with the rest of this directory; the mapping it
++`--root <work>/anchor`. It writes nothing in the project itself. If a file under the state root or `.perry/` changes across its legacy
++asks read, the importer names the concurrent change and stops before importing. Row H deletes it with the rest of this directory; the mapping it
+ applies is `bin/README.md § perry-kernel-migrate`.
+ 
+ ### The one tool that reaches outside
+@@ -297,7 +299,7 @@
+ 
+ ## §7. Open questions
+ 
+-- **OQ-B1 — The other fourteen tools.** Six declare a `SURFACE`. Converting the
++- **OQ-B1 — The other fourteen tools.** Seven declare a `SURFACE`. Converting the
+   rest is mechanical but not free, and `perry list` reports them as undeclared
+   in the meantime. No row is open for it.
+ - **OQ-B2 — Should `perry-task` be split?** 9,069 lines and 31 subcommands against `perry-okr`'s 68. The subcommands cover five different objects
+--- a/kernel/ARCHITECTURE.md
++++ b/kernel/ARCHITECTURE.md
+@@ -2,7 +2,7 @@
+ 
+ > Written by: agent · Confirmed by: —
+ > Version: v1
+-> Last reviewed: 2026-10-07
++> Last reviewed: 2026-10-15 (agent review; user confirmation at application)
+ > Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
+ > Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
+ > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`, the root document's convention under `kernel/`. § 5 is split out.
+@@ -23,8 +23,8 @@
+ It deliberately does **not** read, parse, lint or render markdown (Goal 2). It does not run
+ a command or spawn a process (decision 8), judge what a document means (decision 3), or
+ recommend a next step (decision 5). It does not serve several users, run a server, sync
+-machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `bin/` stays
+-the live writer until each lane cuts over, and row C writes the first template.
++machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `work` calls the kernel after phase E; goals and decide retain their existing
++writers until phase F. The first template is shipped under `templates/process/`.
+ 
+ ## §2. Components
+ 
+@@ -88,6 +88,10 @@
+ only through the CLI, as the skill does (`bin/ARCHITECTURE.md` § 2). The test
+ suites also run the CLI, and `bin/perry` forwards `perry kernel …` to the
+ wrapper's `main` in-process.
++
++aiMark also calls the native CLI as the external consumer required by
++DESIGN-023 decision 11; it adapts the native response in its own repository.
++The kernel imports no consumer code.
+ 
+ Allowed directions: skill → kernel → store, where each caller named above
+ stands in the skill's place. There are no others.
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -38,6 +38,9 @@
+ Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and writing `.perry/config.jsonl`.
+ 
+ > **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. That is routing vocabulary for the agent, not a command the user can type, so it is left as-is. Translate it only when quoting a command back to the user.
++>
++> `templates/process/` contains JSON applied through the kernel, not copied
++> document scaffolds. Its declared names still use the live vocabulary.
+ >
+ > The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, rendered output; `*/state/*_TEMPLATE.md`, `state/*_TEMPLATE.md` and `templates/`, copied verbatim into the user's repo; `setup`, install banner; `CHANGELOG.md`/`release/`; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
+ >
+--- a/templates/README.md
++++ b/templates/README.md
+@@ -47,3 +47,9 @@
+ ```bash
+ ln -s AGENTS.md CLAUDE.md
+ ```
++
++## Process templates
++
++`templates/process/perry.json` is data applied with kernel `template apply`,
++not a Markdown scaffold copied into a project. The kernel stores the applied
++version; the skill supplies the work procedure and evidence checks.

@@ -50,6 +50,8 @@ self-review, failed verdicts and agent V5 actors. They are real red inputs; the
 suite expects the refusal. Native guard red cases live in `kernel/tests/`.
 
 Ordinary document meaning checks are explicit skill procedures. The
-[finite H ledger](../release/retirement/README.md) records each old check's
-replacement or proposed drop. It does not assert a manual check ran merely
-because its procedure exists. Pending demonstrations remain blockers.
+[finite H ledger](../release/retirement/README.md) preserves each old check's
+original disposition proposal. Actual approvals and final cutover evidence are
+separate records; a procedure's existence never proves that its manual check
+ran. One-time F preparation notes now live under
+`release/retirement/pre-cutover-notes/`, outside the maintained helper surface.

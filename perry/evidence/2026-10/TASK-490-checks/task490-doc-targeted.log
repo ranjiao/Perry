@@ -1,0 +1,6 @@
+
+2 modules · 41 tests · 3.4s · 8 workers
+
+durations: 166 recorded · 166 on disk · 165 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+✓ all green

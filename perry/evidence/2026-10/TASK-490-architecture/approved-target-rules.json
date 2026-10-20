@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "fe43e8c4f6e31e26c50f71320f7176c6e67b47f78806fc28868fefdcf5c34b12"
+    },
+    {
+      "path": "bin/ARCHITECTURE.md",
+      "sha256": "cd0ab3003405b56e7555cd0d16779421a7b0c33b8db603029f5dd06f01445d60"
+    },
+    {
+      "path": "kernel/ARCHITECTURE.md",
+      "sha256": "c333cff1b12b8dafd4c87c9b11b0882332479a50041625ab57375b423d8caa9d"
+    },
+    {
+      "path": "kernel/architecture/sections/\u00a75-contracts.md",
+      "sha256": "9efa2498a4d11cc3760b0530b27527d3ea272965d72a6ab166f448057314ff92"
+    }
+  ],
+  "rules": [
+    {
+      "id": "kernel-no-process",
+      "kind": "forbid-call",
+      "scope": [
+        "kernel/perry_kernel/*"
+      ],
+      "origin": "stdlib",
+      "forbidden_calls": [
+        "subprocess.*",
+        "os.system",
+        "os.exec*",
+        "os.spawn*"
+      ],
+      "source": {
+        "path": "kernel/ARCHITECTURE.md",
+        "line": 102,
+        "end_line": 102,
+        "quote": "- **Running a command.** The kernel makes no `subprocess`, `os.system`, `os.exec*` or"
+      }
+    }
+  ]
+}

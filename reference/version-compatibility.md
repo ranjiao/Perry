@@ -1,6 +1,6 @@
 # Native cutover and compatibility
 
-The final candidate has one native entry point, `bin/perry`. `describe` is the
+The integrated architecture has one native entry point, `bin/perry`. `describe` is the
 versioned contract; consumers must reject unsupported majors and error envelopes.
 No legacy CLI, old typed state contract or hidden compatibility command remains.
 Historical documents stay historical and do not govern current-state reads.
@@ -26,9 +26,9 @@ current-state counts.
 
 aiMark must use native probes and its reviewed goals/decide adapters. Knowledge,
 role and churn reads use skill-side helpers under `tools/`, whose versioned output
-shapes are documented there. The viewer's source retirement is a reviewable
-proposal pending final acceptance after required consumers are covered. No
-source deletion means the user has accepted a dropped behavior.
+shapes are documented there. The viewer retirement and actual consumer verification were accepted separately
+in the dated local cutover record. Historical proposal labels remain unchanged;
+source deletion or a helper read does not accept another consumer migration.
 
 ## Verification boundary
 
@@ -38,5 +38,7 @@ records each retired test. Independent integration uses the exact base/head
 candidate and the new `tests/merge-check` receipt. Live activation and final H V5
 remain outside source implementation.
 
-The preference-prose migration is a provisional H design consequence for review
-and final V5 acceptance; this source candidate performs no live preference edit.
+The final local H/V5 record is
+`perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
+Future projects still need their own reviewed setup/migration; previous acceptance
+does not authorize new live writes or public publication.

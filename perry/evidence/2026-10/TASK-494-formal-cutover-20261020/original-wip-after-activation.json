@@ -1,0 +1,15 @@
+{
+  "checked": 521,
+  "changed": [
+    "perry/export/events.jsonl",
+    "perry/export/items.jsonl"
+  ],
+  "all_unchanged": false,
+  "expected_derived_exports_regenerated": [
+    "perry/export/events.jsonl",
+    "perry/export/items.jsonl"
+  ],
+  "original_export_bytes_preserved_in_backup": true,
+  "unrelated_wip_unchanged": true,
+  "additional_owned_metadata_update": "perry/handoff/2026-10-19-remaining-kernel-cutover.md: current snapshot written by this same cutover operation; historical sections retained"
+}

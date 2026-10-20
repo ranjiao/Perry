@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-18",
+  "backup_root": "/Users/bytedance/.codex/backups/perry-kernel-cutover-20261018-dcb7c55be7",
+  "projects": [
+    {
+      "project": "/Users/bytedance/proj/Perry",
+      "state_root": "perry",
+      "git_head": "558e698f3e3672e5f1a9004eca4aa00555305529",
+      "canonical": {
+        ".perry/config.jsonl": "0e05e209bfe46b7d26ab4ad4303d5eb26c703ca164aaefa89d2fd8933fc7ced1",
+        ".perry/events.jsonl": "5099f9881c2a5934ddf3139b213b48bdc93655b7b537701e4e3a0236475ff8fc",
+        "perry/tasks.jsonl": "f1de807f310b3c8c460022226657b406e471684836b811b998cf5fe832d092ba",
+        "perry/asks.jsonl": "3ab2361093516855a97dca537bcb746838c56741740737b57d2f72ec9bf23ee7",
+        "perry/risks.jsonl": "1cd9385b66cfbdac4387e9b3f993edd62b95feb1063c49e5a90ae04d3515e1a5",
+        "perry/intake.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "perry/cadence.jsonl": null
+      },
+      "live_store": "/Users/bytedance/proj/Perry/.git/perry/root.db",
+      "live_store_existed": false,
+      "archive": "/Users/bytedance/.codex/backups/perry-kernel-cutover-20261018-dcb7c55be7/Perry.tar",
+      "sha256": "ad7bbbcecdc51f4a4bb40dd4d266211fa54549b13d9fc6be517f5014cb351d58",
+      "bytes": 365291520,
+      "verified_readable": true
+    },
+    {
+      "project": "/Users/bytedance/proj/SkyTonight",
+      "state_root": "doc/perry",
+      "git_head": "d3a153bf83c56a071d7b8df9fdad95c556478b62",
+      "canonical": {
+        ".perry/config.jsonl": "e4b22d3798b3b7af1f891c7e363f1afb062a3a6ab8fd7e4b8a4ab1d7af7675ea",
+        ".perry/events.jsonl": "b13af863c405f5d30dbdfa701a52ff97912e404e8da4683220776fed49ab5416",
+        "doc/perry/tasks.jsonl": "efad45d20780c324056ac884c4ce7489d3520344d2ce338c75b51c5adac8d425",
+        "doc/perry/asks.jsonl": null,
+        "doc/perry/risks.jsonl": "b654ac0f3ae1ff0700c6b3671e36671b0124471b16aacf6f42474b101d1ffe2b",
+        "doc/perry/intake.jsonl": null,
+        "doc/perry/cadence.jsonl": null
+      },
+      "live_store": "/Users/bytedance/proj/SkyTonight/.git/perry/root.db",
+      "live_store_existed": false,
+      "archive": "/Users/bytedance/.codex/backups/perry-kernel-cutover-20261018-dcb7c55be7/SkyTonight.tar",
+      "sha256": "5c1002104fa665f88e66a5047cce37baab4e79370e8688521f24b568702a1022",
+      "bytes": 33904640,
+      "verified_readable": true
+    }
+  ],
+  "aimark_wip_sha256": "da915b23075d37d7fb2719dc17c734734d7e6a9812ba86b1bb13099dae72648a",
+  "aimark_untracked": [
+    "src/preview-tab.test.ts",
+    "src/preview-tab.ts"
+  ],
+  "live_import_performed": false
+}

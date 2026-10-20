@@ -2,7 +2,7 @@
 
 Perry runs on **Claude Code**, **OpenCode**, and **Codex CLI**. It registers **one** skill, `perry`, on every host; `goals`, `work`, and `decide` are lanes loaded on demand. OpenCode is an explicitly added host adapter after DESIGN-003 decision 8; this support does not reinterpret that older Claude+Codex decision as having already authorized OpenCode.
 
-> **This page is outside the shorthand carve-out.** It owns host translation, so all commands and directories below use the live vocabulary. `tests/test_shipped_vocabulary.py::TestHostCapabilitiesNamesTheOneLiveEntrance` enforces that boundary.
+> **This page is outside the shorthand carve-out.** It owns host translation, so all commands and directories below use the live vocabulary. This is a source-review requirement; the retired shipped-vocabulary byte pins no longer enforce it.
 
 ## Detect once per session
 
@@ -42,6 +42,14 @@ Project-local installs are `.claude/skills/perry` for Claude Code and `.opencode
 
 ## Capability matrix
 
+This matrix describes Perry's existing CLI adapters and executor identifiers.
+A desktop/session environment may expose additional input, job or agent tools.
+Inspect the actual available tools and their instructions; use a native choice
+UI when available and permitted, otherwise the fallback below. Tool availability
+is not delegation or messaging authority. Environment/user restrictions win;
+never invent a new Perry executor ID or bypass a strict existing adapter check.
+
+
 | Capability | claude-code | opencode | codex-cli |
 |---|---|---|---|
 | User choices | `AskUserQuestion` | `question` tool | numbered free-text fallback |
@@ -69,11 +77,11 @@ to the newest transcript. Missing identity, ambiguous matches and unsupported ho
 report `unknown`. Claude Code is always unknown here because its session identity
 is not verified; `--session` is only an explicit caller-asserted reading. Neither
 unknown nor a large token count blocks work or requires a handoff. Session changes
-belong to the agent environment and user. Detail: `tools/README.md § context budget`.
+belong to the agent environment and user. Details: `work/reference/budget-boundary.md` and the current `tools/context_budget.py --help`.
 
 ## Prompt rendering
 
-An instruction to use `AskUserQuestion` means the host's native choice UI. Claude Code uses `AskUserQuestion`; OpenCode uses `question` with equivalent labels, options and recommendation. Translate Claude's `multiSelect: true` to OpenCode's `multiple: true` exactly; passing the Claude field name to OpenCode is invalid. Codex prints numbered options and waits for free text:
+An instruction to use `AskUserQuestion` means the host's native choice UI. Claude Code uses `AskUserQuestion`; OpenCode uses `question` with equivalent labels, options and recommendation. Translate Claude's `multiSelect: true` to OpenCode's `multiple: true` exactly; passing the Claude field name to OpenCode is invalid. For the baseline Codex CLI fallback, print numbered options and wait for free text (a provided session choice tool takes precedence):
 
 ```
 [Header]

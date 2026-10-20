@@ -30,7 +30,7 @@ raised again for that task; the evidence already records what happened.
 ## The write
 
 Only after the actual user choice, work writes an ordinary Markdown card under
-`knowledge/<topic>/<slug>.md` using `work/state/knowledge_card_TEMPLATE.md`.
+`knowledge/<topic>/<slug>.md` using `work/templates/knowledge_card_TEMPLATE.md`.
 Require real Claim, Source, Invalidated by, Kind, Last verified and an actual
 owner when roles are declared. Check both target and parent collisions, including
 symlinks, immediately before writing; refuse an existing target. Preserve other

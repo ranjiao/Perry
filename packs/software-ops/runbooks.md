@@ -10,7 +10,7 @@ A **deployed component** is anything that runs unattended after the dispatch clo
 - A scheduled deploy, alert, ingest job, or any other process that touches real state on its own.
 - A canned op the user invokes by name (e.g., a Slack command, a CLI alias).
 
-A **runbook** is a markdown file at `runbook/<component>.md` that answers — at minimum — four questions, in this fixed order: **What it does · How to tell it's healthy · Common failures + canned ops · Escalation**. Template: `$PERRY_HOME/work/state/runbook_TEMPLATE.md`.
+A **runbook** is a markdown file at `runbook/<component>.md` that answers — at minimum — four questions, in this fixed order: **What it does · How to tell it's healthy · Common failures + canned ops · Escalation**. Template: `$PERRY_HOME/packs/software-ops/templates/runbook_TEMPLATE.md`.
 
 **Tier 1 hard cap: ≤ 150 lines.** Runbooks live or die by being readable in a moment of crisis. PMO refuses writes that would exceed. Overflow → split troubleshooting matrix to `runbook/<component>-troubleshooting.md` (still tier 1, just chaptered). The main `runbook/<component>.md` keeps the four mandatory sections in their canonical short form; the companion `-troubleshooting.md` carries the long failure-mode reference. See `work/SKILL.md § Axis B`.
 
@@ -19,9 +19,9 @@ A one-off coding task that does not produce a deployed component does NOT need a
 ## Directory layout
 
 ```
-<project_root>/
+<agreed_document_root>/
 ├── runbook/
-│   ├── INDEX.md                     # auto-maintained catalog
+│   ├── INDEX.md                     # maintained by the Agent during authorized work
 │   ├── <component-slug>.md          # one file per deployed component
 │   └── ...
 ```
@@ -46,7 +46,7 @@ Plus, when `Deployed: yes`, the spec MUST contain an `## Observability` section 
 - Runbook path:     runbook/<slug>.md
 ```
 
-These three are not narrative — they're machinery. "It will log on success" is not a success signal; `grep "DEPLOY_COMPLETE" logs/deployer.log | tail -1` is.
+These are authored operational evidence requirements, not kernel fields or automatically executed machinery. "It will log on success" is not a success signal; `grep "DEPLOY_COMPLETE" logs/deployer.log | tail -1` is.
 
 ## `close-task` gate (the enforcement)
 
@@ -58,7 +58,7 @@ When `/pmo close-task <id>` fires (see `$PERRY_HOME/work/reference/task-close.md
    - Confirm the runbook file has all four mandatory sections (What / Healthy / Failures / Escalation) — empty placeholders count as missing.
    - Confirm `## Observability` section exists in the spec with non-empty values for the three sub-fields.
    - **If any check fails**, refuse the close. Use `AskUserQuestion` (header = TASK-ID, options): `Add runbook now (Recommended) | Keep as review until runbook exists | Override — close without runbook (NOT recommended)`. "Override" requires the actual user's written reason in the task's close evidence document as `runbook-override: <reason>`. Attach that document with `attach add` before the closing transition; retain its path in the transition's `evidence`. Never append to `journal/`.
-3. If `Deployed: no` or field absent: proceed with the normal close flow. No runbook required.
+3. If Deployed is explicitly no and actual scope agrees, use the normal close flow. An absent/unreadable field is unknown, not evidence that deployment did not occur; resolve the applicable spec requirement before closure.
 
 The override path exists because there are legitimate edge cases (one-off scripts, deprecation closes, runbook lives in another system). The attached close evidence and kernel attachment/transition events make the override auditable.
 
@@ -72,7 +72,7 @@ Procedure:
    - Read header: component name, owner, last verified date.
    - Verify the four mandatory sections exist.
    - Compute days since `Last verified:` field.
-2. Query **all kernel tasks**, including terminal tasks, with `query` (`{"type":"task","limit":50}`), following `next_after`/`after` until `truncated` is false. Read each task's attachments with `item get` and its authored `evidence` references; inspect the referenced specs for `Deployed: yes`. Resolve document refs under the recorded state root, preserving their exact spelling. Missing or unreadable specs are an explicit inspection gap, never proof that a task is not deployed. These are candidate deployed components that should have a runbook. Do not discover current tasks from `BOARD.md` or `journal/`; legacy journal reads are supplementary dated evidence only. Read `work/reference/kernel.md` for response/error and pagination handling.
+2. Query **all kernel tasks**, including terminal tasks, with `query` (`{"type":"task","limit":50}`), following `next_after`/`after` until `truncated` is false. Read each task's attachments with `item get` and its authored `evidence` references; inspect the referenced specs for `Deployed: yes`. Resolve document refs under the recorded state root, preserving their exact spelling. Missing or unreadable specs are an explicit inspection gap, never proof that a task is not deployed. These are candidate deployed components that should have a runbook. Do not discover current tasks from `BOARD.md` or `journal/`; legacy journal reads are supplementary dated evidence only. Read `$PERRY_HOME/reference/kernel.md` for response/error and pagination handling.
 3. **Gap detection**:
    - **Missing runbook**: a task closed with `Deployed: yes` but its referenced `runbook/<slug>.md` doesn't exist.
    - **Stale runbook**: `Last verified:` ≥ 90 days ago (or `runbook_stale_days` from hook).
@@ -81,8 +81,8 @@ Procedure:
 5. For each gap row, use `AskUserQuestion` (batch up to 4) — header = component slug, options: `Write/refresh now (Recommended) | Schedule as P1 task | Mark obsolete — component removed`.
    - "Write/refresh now": offer to draft a runbook from the spec, kernel events and related attachments (the user reviews and edits).
    - "Schedule as P1": calls `add-task` with a stub spec for the runbook work.
-   - "Mark obsolete": prompts for confirmation that the component is decommissioned; on confirm, moves `runbook/<slug>.md` to `runbook/archive/<slug>.md` and updates INDEX.
-6. Rebuild `runbook/INDEX.md` at the end.
+   - "Mark obsolete": prompts for confirmation that the component is decommissioned; on actual confirmation, proposes an owned archive move after checking incoming references and rollback; preserves or updates every reference before retiring the old path.
+6. Rebuild the authored index only when that maintenance is in the authorized scope, preserving unrelated entries. A read-only check reports facts without writing it.
 
 Gaps with no user response are surfaced in the next standup as a `🚧` line: `Runbook gaps: <n> (oldest <component> · <days>d)`.
 
@@ -91,12 +91,12 @@ Gaps with no user response are surfaced in the next standup as a `🚧` line: `R
 PMO does NOT create `runbook/` at project bootstrap by default. It's created lazily, the first time a task spec uses `Deployed: yes`. On that event:
 
 1. `mkdir -p runbook/`
-2. Create `runbook/INDEX.md` from `$PERRY_HOME/work/state/runbook_INDEX_TEMPLATE.md` (empty catalog).
+2. Create `runbook/INDEX.md` from `$PERRY_HOME/packs/software-ops/templates/runbook_INDEX_TEMPLATE.md` (empty catalog).
 3. Tell the user: "First deployed component in this project. Runbook required at close-task time. See `runbook/INDEX.md`."
 
 For projects with a `.perry/hook.md` declaring an `## Operational profile` section (see § Per-project hooks below), bootstrap creates `runbook/` immediately and seeds it with known components.
 
-## Runbook template (`$PERRY_HOME/work/state/runbook_TEMPLATE.md`)
+## Runbook template (`$PERRY_HOME/packs/software-ops/templates/runbook_TEMPLATE.md`)
 
 ```markdown
 # Runbook — {{component-slug}}
@@ -176,7 +176,7 @@ Runbook freshness: <override default 90d here, e.g., 30d for fast-moving project
 Runbook stale_days: 90                # default; override per project
 ```
 
-If declared, bootstrap seeds `runbook/` with empty markdown stubs for each known component and adds them to the User Input Queue as P1 "Write runbook for <component>" tasks.
+If declared, bootstrap seeds `runbook/` with empty markdown stubs for each known component and proposes native P1 tasks for the missing runbooks after scope approval. Human asks and executable tasks are different item types; no old input-queue register is created.
 
 ## Why this isn't optional
 
@@ -187,4 +187,10 @@ If the user can't operate the system without reading code that an agent wrote, t
 After completed writes from `runbook-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work runbook-check -->
 
-For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.
+For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
+
+This is an Agent procedure under the agreed document root. No helper computes
+all deployment/runbook facts or refreshes verification dates on a schedule.
+Read/refresh dates require actual verification evidence; an index rebuild alone
+cannot change Last verified. Read-only inspection does not authorize rebuilding
+an index. Pack disable never removes independent operational obligations.

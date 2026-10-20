@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "approval_ref": "Actual user2026-10-20 accepted423 retirement rows and safety replacement; /Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-review-candidate/approval.json",
+  "rules": [
+    {
+      "id": "prior-rule-1",
+      "label": "Host skill installation — setup, ~/.claude/skills, ~/.agents/skills, ln -s, ln -sf, ln -snf, ln -sfn, repointing or removing an existing symlink",
+      "patterns": [
+        "setup",
+        "~/.claude/skills",
+        "~/.agents/skills",
+        "ln -s",
+        "ln -sf",
+        "ln -snf",
+        "ln -sfn"
+      ]
+    },
+    {
+      "id": "prior-rule-2",
+      "label": "System package installs — brew install, npm install -g, Homebrew bootstrap, Xcode CLT",
+      "patterns": [
+        "brew install",
+        "npm install -g"
+      ]
+    },
+    {
+      "id": "prior-rule-3",
+      "label": "Writing into a project Perry does not own — adopt commit stage, diagnose execute stage, relocate, git mv",
+      "patterns": [
+        "adopt",
+        "diagnose",
+        "relocate",
+        "git mv"
+      ]
+    },
+    {
+      "id": "prior-rule-4",
+      "label": "The claim surface — claims, state-schema.json, anything that changes which paths Perry writes into someone else's project",
+      "patterns": [
+        "claims",
+        "state-schema.json"
+      ]
+    },
+    {
+      "id": "prior-rule-5",
+      "label": "Publishing to a public repo — git push, origin, gh release, publish, publishes, publishing, published, tag creation",
+      "patterns": [
+        "git push",
+        "origin",
+        "gh release",
+        "publish",
+        "publishes",
+        "publishing",
+        "published"
+      ]
+    },
+    {
+      "id": "prior-rule-6",
+      "label": "Git history rewrites — push --force, --force-with-lease, rebase onto main, tag deletion",
+      "patterns": [
+        "push --force",
+        "--force-with-lease",
+        "rebase",
+        "main"
+      ]
+    },
+    {
+      "id": "prior-rule-7",
+      "label": "Destructive filesystem operations — rm -rf, rm -fr, rm -f, bulk delete, overwriting a project's own design/, evidence/, knowledge/, inputs/",
+      "patterns": [
+        "rm -rf",
+        "rm -fr",
+        "rm -f",
+        "design/",
+        "evidence/",
+        "knowledge/",
+        "inputs/"
+      ]
+    },
+    {
+      "id": "prior-rule-8",
+      "label": "Self-update — git pull inside $PERRY_HOME",
+      "patterns": [
+        "git pull",
+        "$PERRY_HOME"
+      ]
+    },
+    {
+      "id": "database",
+      "label": "Database mutation, migration or replacement",
+      "patterns": [
+        "sqlite3",
+        "DROP TABLE",
+        "DELETE FROM",
+        ".git/perry",
+        "root.db",
+        "perry.db",
+        "migrate --down"
+      ]
+    },
+    {
+      "id": "policy",
+      "label": "Changing safety policy or self-update",
+      "patterns": [
+        ".perry/safety.json",
+        "git pull"
+      ]
+    }
+  ]
+}

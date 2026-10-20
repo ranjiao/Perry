@@ -1,0 +1,24 @@
+{
+  "base": "09231bd25b3b79ef8f630aef0474a490f1ed056e",
+  "adapter": "3e941d3454c363c793d87135fe9d8991c728034e",
+  "merge": "27586cdb5a59ecbed6afda5ed0dc7ada9b981947",
+  "tree": "f8a2678adcdea2744f0ed18d80da43e7503a83ec",
+  "compared_files": 257,
+  "combined_test_tree_byte_equal": true,
+  "user_wip_files_preserved": 51,
+  "user_version_preserved": "0.19.2",
+  "contract_user_delta": "Only original0.19.0-to0.19.2 version line remains unstaged atop native adapter text",
+  "recovery_stash": "a963e4b3e2d3c09685a790409332ce2e4cabf99b",
+  "contract_before": {
+    "sha256": "1d04d77b47faa0dac370da2574428dd90b214d67c07cbccf3d4d634a908ea50a",
+    "mtime_ns": 1792465052576981203,
+    "size": 7572
+  },
+  "contract_after": {
+    "sha256": "e32da18251955c87cf2fc5af2f32488a557ac75d2419b6e9fd1726a9534222f9",
+    "mtime_ns": 1792465721748355898
+  },
+  "diff_check": "PASS",
+  "user_changes_staged": false,
+  "publication": "local only, unpublished"
+}

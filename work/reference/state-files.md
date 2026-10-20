@@ -1,6 +1,6 @@
 # Work state and document ownership
 
-Current task/ask/risk state lives only in the kernel store. Use `kernel.md` for
+Current task/ask/risk state lives only in the kernel store. Use `$PERRY_HOME/reference/kernel.md` for
 queries, mutations, relations, events, attachments and export. The store is resolved
 by the kernel from the primary repository; never duplicate it inside a checkout or edit SQLite.
 The deterministic export is a recovery artifact, not another writer surface.

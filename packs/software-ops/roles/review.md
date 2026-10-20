@@ -17,8 +17,8 @@ artifact and the criteria, not the builder's account.
 
 ## May touch
 
-- write: `evidence/`
-- run: the project's own test, lint and mutation commands
+- write: assigned review evidence in an isolated/external output location; never the reviewed checkout
+- run: authorized read-only tests on the target; mutation demonstrations only on isolated copies/stores
 
 ## Must escalate
 

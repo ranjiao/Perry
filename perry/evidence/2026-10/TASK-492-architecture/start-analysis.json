@@ -1,0 +1,666 @@
+{
+  "version": 1,
+  "producer": "host-agent",
+  "snapshot": "480f07362838bd1fc5a96f97858f9cb9887588d093140cd1d39f643f5a9f7563",
+  "title": "TASK-492 observed file responsibilities",
+  "components": [
+    {
+      "id": "unit-0",
+      "label": "bin/lib/__init__.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/lib/__init__.py"
+      ],
+      "evidence": [
+        "import:0",
+        "import:1"
+      ]
+    },
+    {
+      "id": "unit-1",
+      "label": "bin/perry",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry"
+      ],
+      "evidence": [
+        "import:17",
+        "import:18"
+      ]
+    },
+    {
+      "id": "unit-2",
+      "label": "bin/perry-architecture",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-architecture"
+      ],
+      "evidence": [
+        "import:25",
+        "import:26"
+      ]
+    },
+    {
+      "id": "unit-3",
+      "label": "bin/perry-churn",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-churn"
+      ],
+      "evidence": [
+        "import:40",
+        "import:41"
+      ]
+    },
+    {
+      "id": "unit-4",
+      "label": "bin/perry-config",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-config"
+      ],
+      "evidence": [
+        "import:51",
+        "import:52"
+      ]
+    },
+    {
+      "id": "unit-5",
+      "label": "bin/perry-context-budget",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-context-budget"
+      ],
+      "evidence": [
+        "import:59",
+        "import:60"
+      ]
+    },
+    {
+      "id": "unit-6",
+      "label": "bin/perry-decide",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-decide"
+      ],
+      "evidence": [
+        "import:70",
+        "import:71"
+      ]
+    },
+    {
+      "id": "unit-7",
+      "label": "bin/perry-diagnose",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-diagnose"
+      ],
+      "evidence": [
+        "import:80",
+        "import:81"
+      ]
+    },
+    {
+      "id": "unit-8",
+      "label": "bin/perry-explain",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-explain"
+      ],
+      "evidence": [
+        "import:99",
+        "import:100"
+      ]
+    },
+    {
+      "id": "unit-9",
+      "label": "bin/perry-goals",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-goals"
+      ],
+      "evidence": [
+        "import:112",
+        "import:113"
+      ]
+    },
+    {
+      "id": "unit-10",
+      "label": "bin/perry-kernel",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-kernel"
+      ],
+      "evidence": [
+        "import:140",
+        "import:141"
+      ]
+    },
+    {
+      "id": "unit-11",
+      "label": "bin/perry-kernel-migrate",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-kernel-migrate"
+      ],
+      "evidence": [
+        "import:143",
+        "import:144"
+      ]
+    },
+    {
+      "id": "unit-12",
+      "label": "bin/perry-knowledge",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-knowledge"
+      ],
+      "evidence": [
+        "import:153",
+        "import:154"
+      ]
+    },
+    {
+      "id": "unit-13",
+      "label": "bin/perry-lint",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-lint"
+      ],
+      "evidence": [
+        "import:164",
+        "import:165"
+      ]
+    },
+    {
+      "id": "unit-14",
+      "label": "bin/perry-okr",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-okr"
+      ],
+      "evidence": [
+        "import:185",
+        "import:186"
+      ]
+    },
+    {
+      "id": "unit-15",
+      "label": "bin/perry-restore-check",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-restore-check"
+      ],
+      "evidence": [
+        "import:190",
+        "import:191"
+      ]
+    },
+    {
+      "id": "unit-16",
+      "label": "bin/perry-state",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-state"
+      ],
+      "evidence": [
+        "import:197",
+        "import:198"
+      ]
+    },
+    {
+      "id": "unit-17",
+      "label": "bin/perry-state-cost",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-state-cost"
+      ],
+      "evidence": [
+        "import:212",
+        "import:213"
+      ]
+    },
+    {
+      "id": "unit-18",
+      "label": "bin/perry-task",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-task"
+      ],
+      "evidence": [
+        "import:219",
+        "import:220"
+      ]
+    },
+    {
+      "id": "unit-19",
+      "label": "bin/perry-tasks",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-tasks"
+      ],
+      "evidence": [
+        "import:243",
+        "import:244"
+      ]
+    },
+    {
+      "id": "unit-20",
+      "label": "bin/perry_architecture/analysis.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/analysis.py"
+      ],
+      "evidence": [
+        "import:261",
+        "import:262"
+      ]
+    },
+    {
+      "id": "unit-21",
+      "label": "bin/perry_architecture/audit.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/audit.py"
+      ],
+      "evidence": [
+        "import:264",
+        "import:265"
+      ]
+    },
+    {
+      "id": "unit-22",
+      "label": "bin/perry_architecture/checkpoint.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/checkpoint.py"
+      ],
+      "evidence": [
+        "import:267",
+        "import:268"
+      ]
+    },
+    {
+      "id": "unit-23",
+      "label": "bin/perry_architecture/facts.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/facts.py"
+      ],
+      "evidence": [
+        "import:278",
+        "import:279"
+      ]
+    },
+    {
+      "id": "unit-24",
+      "label": "bin/perry_architecture/model.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/model.py"
+      ],
+      "evidence": [
+        "import:281",
+        "import:282"
+      ]
+    },
+    {
+      "id": "unit-25",
+      "label": "bin/perry_architecture/report.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/report.py"
+      ],
+      "evidence": [
+        "import:285",
+        "import:286"
+      ]
+    },
+    {
+      "id": "unit-26",
+      "label": "bin/perry_architecture/scan.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/scan.py"
+      ],
+      "evidence": [
+        "import:287",
+        "import:288"
+      ]
+    },
+    {
+      "id": "unit-27",
+      "label": "bin/perry_md_store.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_md_store.py"
+      ],
+      "evidence": [
+        "import:298",
+        "import:299"
+      ]
+    },
+    {
+      "id": "unit-28",
+      "label": "bin/perry_store.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_store.py"
+      ],
+      "evidence": [
+        "import:312",
+        "import:313"
+      ]
+    },
+    {
+      "id": "unit-29",
+      "label": "kernel/perry_kernel/__init__.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/__init__.py"
+      ],
+      "evidence": [
+        "import:325",
+        "import:326"
+      ]
+    },
+    {
+      "id": "unit-30",
+      "label": "kernel/perry_kernel/__main__.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/__main__.py"
+      ],
+      "evidence": [
+        "import:327",
+        "import:328"
+      ]
+    },
+    {
+      "id": "unit-31",
+      "label": "kernel/perry_kernel/cli.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/cli.py"
+      ],
+      "evidence": [
+        "import:329",
+        "import:330"
+      ]
+    },
+    {
+      "id": "unit-32",
+      "label": "kernel/perry_kernel/commands.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/commands.py"
+      ],
+      "evidence": [
+        "import:344",
+        "import:345"
+      ]
+    },
+    {
+      "id": "unit-33",
+      "label": "kernel/perry_kernel/errors.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/errors.py"
+      ],
+      "evidence": [
+        "import:375",
+        "kernel/perry_kernel/errors.py::KernelError@82"
+      ]
+    },
+    {
+      "id": "unit-34",
+      "label": "kernel/perry_kernel/guards.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/guards.py"
+      ],
+      "evidence": [
+        "import:376",
+        "import:377"
+      ]
+    },
+    {
+      "id": "unit-35",
+      "label": "kernel/perry_kernel/paths.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/paths.py"
+      ],
+      "evidence": [
+        "import:381",
+        "import:382"
+      ]
+    },
+    {
+      "id": "unit-36",
+      "label": "kernel/perry_kernel/store.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/store.py"
+      ],
+      "evidence": [
+        "import:385",
+        "import:386"
+      ]
+    },
+    {
+      "id": "unit-37",
+      "label": "kernel/perry_kernel/surface.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/surface.py"
+      ],
+      "evidence": [
+        "import:395",
+        "import:396"
+      ]
+    },
+    {
+      "id": "unit-38",
+      "label": "kernel/perry_kernel/template.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/template.py"
+      ],
+      "evidence": [
+        "import:404",
+        "import:405"
+      ]
+    },
+    {
+      "id": "unit-39",
+      "label": "kernel/perry_kernel/values.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/values.py"
+      ],
+      "evidence": [
+        "import:412",
+        "import:413"
+      ]
+    },
+    {
+      "id": "unit-40",
+      "label": "release/manage.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/manage.py"
+      ],
+      "evidence": [
+        "import:417",
+        "import:418"
+      ]
+    },
+    {
+      "id": "unit-41",
+      "label": "release/publish.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/publish.py"
+      ],
+      "evidence": [
+        "import:429",
+        "import:430"
+      ]
+    },
+    {
+      "id": "unit-42",
+      "label": "release/update.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/update.py"
+      ],
+      "evidence": [
+        "import:439",
+        "import:440"
+      ]
+    },
+    {
+      "id": "unit-43",
+      "label": "templates/knowledge-base/bin/kb-lint",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "templates/knowledge-base/bin/kb-lint"
+      ],
+      "evidence": [
+        "import:451",
+        "import:452"
+      ]
+    },
+    {
+      "id": "unit-44",
+      "label": "templates/ops/bin/deliverable-lint",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "templates/ops/bin/deliverable-lint"
+      ],
+      "evidence": [
+        "import:456",
+        "import:457"
+      ]
+    },
+    {
+      "id": "unit-45",
+      "label": "viewer/parsers.py",
+      "description": "Legacy state readers",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "viewer/parsers.py"
+      ],
+      "evidence": [
+        "import:461",
+        "import:462"
+      ]
+    },
+    {
+      "id": "unit-46",
+      "label": "viewer/tables.py",
+      "description": "Legacy state readers",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "viewer/tables.py"
+      ],
+      "evidence": [
+        "import:482",
+        "import:483"
+      ]
+    }
+  ]
+}

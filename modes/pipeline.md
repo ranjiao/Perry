@@ -21,6 +21,6 @@ never silently drop work or erase history.
 Closure requires exit criteria and evidence against the promised outcome.
 High-stakes consequences, V4 independence and V5 human signoff remain binding via
 `reference/operating-rules.md`. A dropped task has an authorized reason; it is not
-a successful delivery. The old stage/mode/verification scanners are proposed
-retirements pending final H acceptance. Read actual documents and evidence in the
+a successful delivery. The old stage/mode/verification scanners were retired in the accepted H cutover;
+that does not establish a new automated stage evaluator. Read actual documents and evidence in the
 review rather than reporting absent automated scores as green.

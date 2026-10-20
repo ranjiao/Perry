@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "errors": [],
+  "status": "source_checks_pass_with_pending_kernel_revision",
+  "inventory_rows": 610,
+  "source_files_covered": 365,
+  "limitations": [
+    "Source inventory, hashes and paths only; no semantic equivalence or safety review approval.",
+    "Consumer declarations are reported, not verified migration or live activation.",
+    "Local unsigned inventory provenance still requires independent review and named user acceptance."
+  ]
+}

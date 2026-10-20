@@ -1,7 +1,8 @@
 # Architecture — tests/
 
-Candidate source map for DESIGN-023 H. This changes the verification target and
-requires reviewer/user reconciliation; it does not certify that target itself.
+Source map for the integrated DESIGN-023 H native/helper harness. The dated
+cutover record contains actual independent integration and human acceptance;
+this map does not certify a subsequent source change.
 
 ## Entry points
 
@@ -24,8 +25,7 @@ and modes, excluding Git internals and bytecode. The native runner separately
 prevents default-store writes and detects its own live-store events.
 
 Full/slow now name the new source suite described in [README.md](README.md).
-They are not evidence for the removed typed-state/parser corpus. Complete
-legacy source dispositions remain proposed until actual acceptance. External
+They are not evidence for the removed typed-state/parser corpus. The legacy source inventory retains proposal labels for provenance; actual acceptance is recorded separately. External
 receipts bind local refs, the reconstructed merged tree and transcript bytes;
 they do not establish evidence truth, semantic architecture correctness,
 independent review, production readiness or human sign-off.

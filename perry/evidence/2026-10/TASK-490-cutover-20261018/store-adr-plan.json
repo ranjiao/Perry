@@ -1,0 +1,6 @@
+{
+  "id": "ADR-026",
+  "path": "decisions/ADR-026-kernel-work-store.md",
+  "supersedes": "ADR-006",
+  "note": "the ADR body is a skeleton — fill Context / Options / Chosen / Consequences by hand; this tool writes structure, never reasoning"
+}

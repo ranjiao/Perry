@@ -1,0 +1,7 @@
+{
+  "effect": "refused",
+  "error": "DESIGN: sparse filenames need approved prefix-floor primitive; see tools/TASK-492-kernel-proposal.md",
+  "commands": null,
+  "partial": false,
+  "next_action": "Reconcile native source_key items/events and source hashes before resuming; never repeat guessed creates."
+}

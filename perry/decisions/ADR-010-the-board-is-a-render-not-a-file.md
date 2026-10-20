@@ -1,6 +1,6 @@
 # ADR-010 — BOARD.md stops existing; the board is what a command prints
 
-> Status: active
+> Status: archived
 > Type: Architecture
 > Date: 2026-08-29
 > Deciders: Ran Jiao
@@ -153,3 +153,7 @@ This also resolves a live contradiction rather than merely annotating one.
 writing `BOARD.md` and marks it `(work, unchanged)`. That is correct for the
 repository as it stands, and only conflicts with this ADR if this ADR is read as
 already done. It is not.
+
+## Status change
+
+Archived 2026-10-18 — DESIGN-023 phase E replaces the legacy register-backed board command with kernel queries for current work. The board is still a view, but the old projection contract no longer governs work; ADR-025 schedules this archival at the actual cutover.

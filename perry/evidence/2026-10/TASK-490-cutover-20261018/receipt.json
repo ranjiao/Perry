@@ -1,0 +1,370 @@
+{
+  "date": "2026-10-18",
+  "user_instruction": "先修复",
+  "switch_authorized": false,
+  "waiver_of_previous_validation_condition": "User explicitly chose repair first; no waiver. Formal cutover deferred until validation and acceptance.",
+  "source_main": "558e698f",
+  "candidate": "e890317f",
+  "full_gate": {
+    "command": "bash tests/run",
+    "exit_code": 1,
+    "modules": 162,
+    "failed_modules": 46,
+    "runner_test_count": 4631,
+    "runner_failed_assertions_or_subtests": 1125,
+    "tree_unchanged": true
+  },
+  "backup_root": "/Users/bytedance/.codex/backups/perry-kernel-cutover-20261018-dcb7c55be7",
+  "canonical_state_unchanged": "Rehearsal did not mutate live state; PMO task-next was subsequently updated to record repair first.",
+  "rehearsal": [
+    {
+      "project": "perry",
+      "imported_task_count": 489,
+      "query_total": 23,
+      "calls": [
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item create",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item create",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item create",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "rel add",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item get",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item get",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "attach add",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item update",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 1,
+          "effect": "refused",
+          "error": "guard_refused"
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "rel remove",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "events",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item update",
+          "code": 1,
+          "effect": "refused",
+          "error": "stale_write"
+        },
+        {
+          "command": "export",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        }
+      ],
+      "all_expected_outcomes": true
+    },
+    {
+      "project": "sky",
+      "imported_task_count": 32,
+      "query_total": 1,
+      "calls": [
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "query",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item create",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item create",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item create",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "rel add",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item get",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item get",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "attach add",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item update",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 1,
+          "effect": "refused",
+          "error": "guard_refused"
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "item move",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "rel remove",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        },
+        {
+          "command": "events",
+          "code": 0,
+          "effect": "read",
+          "error": null
+        },
+        {
+          "command": "item update",
+          "code": 1,
+          "effect": "refused",
+          "error": "stale_write"
+        },
+        {
+          "command": "export",
+          "code": 0,
+          "effect": "written",
+          "error": null
+        }
+      ],
+      "all_expected_outcomes": true
+    }
+  ],
+  "live_stores_created": false,
+  "adrs_activated": false,
+  "main_merged": false
+}

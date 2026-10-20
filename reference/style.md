@@ -46,7 +46,7 @@ router inside its byte budget. The prose is carried over unchanged.
 
 Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the host's structured choice tool over free-text "what do you want?" prompts. Claude Code uses `AskUserQuestion`; OpenCode uses `question`. Both render clickable choices with a free-text fallback.
 
-> **Host translation**: OpenCode maps Claude's `multiSelect: true` to `multiple: true`; field names are not portable even when the behavior is. Codex has no choice tool, so render the same options as a numbered free-text prompt per `$PERRY_HOME/reference/host-capabilities.md`. The chosen value and downstream writes are unchanged.
+> **Host translation**: OpenCode maps Claude's `multiSelect: true` to `multiple: true`; field names are not portable even when the behavior is. Use a provided, permitted session choice tool on Codex when available; otherwise render numbered options per `$PERRY_HOME/reference/host-capabilities.md`. The chosen value and downstream writes are unchanged.
 
 ### When to use it
 
@@ -77,19 +77,19 @@ Whenever a Perry skill (top-level or any child) needs the user to make a choice 
 
 ### Concrete pattern: child skills with structured option lists
 
-For child skills whose state files already enumerate options (notably `design/<DESIGN-ID>-*.md`'s `User Decisions` table), write the Options column in **pipe-separated short labels** so `decide` can map each cell directly to `AskUserQuestion` options without rephrasing:
+For child skills whose state files already enumerate options (notably `design/<DESIGN-ID>-*.md`'s `User Decisions` table), write the Options column in **slash-separated short labels** so `decide` can map each cell directly to `AskUserQuestion` options without rephrasing:
 
 ```
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | Cache backend | Redis | Memcached | DynamoDB | TBD | — |
+| 1 | Cache backend | Redis / Memcached / DynamoDB | TBD | — |
 ```
 
-Each piped token becomes one `AskUserQuestion` option label.
+Use slash-separated short labels inside the Options cell; raw pipes would create extra Markdown columns. Render the parsed choices through the actual host UI.
 
 ## Per-project hooks (optional)
 
-If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
+Store project-specific roadmap references, MCP tools, role context and approved preferences only in the project's `.perry/hook.md` through the root procedure. Root and lanes read it; never add project blocks to the installed skill's SKILL.md files.
 
 Project hook files live at the project root (not in the skill folder), so a single Perry installation can serve many projects without entanglement. The recommended location is `<project_root>/.perry/hook.md`; children read it on every invocation.
 

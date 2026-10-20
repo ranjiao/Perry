@@ -1,0 +1,266 @@
+{
+  "base": "09231bd25b3b79ef8f630aef0474a490f1ed056e",
+  "candidate": "3e941d3454c363c793d87135fe9d8991c728034e",
+  "patch_sha256": "223f2dcc2e6a31ab1b70b4eebf64464ab2a0be1d37a894cd97dc0eecd1fc01e2",
+  "files": {
+    "AIMARK.md": {
+      "sha256": "6bf8fcd1e99a5332aa80be3669478495bdacdfade3b66c94430512316aa57ca8",
+      "mtime_ns": 1792465237299682418,
+      "size": 8042
+    },
+    "CHANGELOG.md": {
+      "sha256": "d901b277282643ab6ee2d9dcf5969f10f1db54a9127fb9f18c8a3de99717830f",
+      "mtime_ns": 1792465052230568713,
+      "size": 86578
+    },
+    "PERRY-CONTRACTS.md": {
+      "sha256": "1d04d77b47faa0dac370da2574428dd90b214d67c07cbccf3d4d634a908ea50a",
+      "mtime_ns": 1792465052576981203,
+      "size": 7572
+    },
+    "README.md": {
+      "sha256": "d70201cee650841b7ed603ecce252838ff6d947f104861f5d35b46ec6ffad04a",
+      "mtime_ns": 1792400581592935518,
+      "size": 7213
+    },
+    "bun.lock": {
+      "sha256": "8873552c393863357701f47bb4bea079b41c42f7087d1750b1f7c8f0f1d41e44",
+      "mtime_ns": 1792399646344465003,
+      "size": 38251
+    },
+    "doc/adversarial-review-2026-10-19.md": {
+      "sha256": "fc6d0b43eca8e5376218380768e1a030f349573d8ed91485f7ee1256e7a88df4",
+      "mtime_ns": 1792400581592351894,
+      "size": 22391
+    },
+    "doc/p1-fixes-2026-10-19.md": {
+      "sha256": "9985cbe65420d12a716d6eaa0ad90e7a3736379ade4d2ff92ecd6bffc9548938",
+      "mtime_ns": 1792465237300427840,
+      "size": 7581
+    },
+    "doc/recent-list-freeze-2026-10.md": {
+      "sha256": "696ef3ad61e25ca57277fba6bb011044931360076685d9f46b7bc02a46ce5bc4",
+      "mtime_ns": 1792398137685799542,
+      "size": 2075
+    },
+    "doc/release-0.19.2.md": {
+      "sha256": "b6582bf08df96f12ace74f642a4fc67cca29f228908118c3749a5e955976d7c1",
+      "mtime_ns": 1792465237300808737,
+      "size": 1362
+    },
+    "doc/review-evidence/2026-10-19-p1-fixes/browser-save.png": {
+      "sha256": "bea3459a4ffb469437c8de167643d03abb24384d9a1b979662ecc1063504aeec",
+      "mtime_ns": 1792400598192374862,
+      "size": 31031
+    },
+    "doc/review-evidence/2026-10-19-p1-fixes/independent-stale-read.mjs": {
+      "sha256": "2deb71be2872dc3e8f97c1b7fae13240a42c62da29020c767e4ca92e9737debd",
+      "mtime_ns": 1792400241978430785,
+      "size": 6348
+    },
+    "doc/review-evidence/2026-10-19-p1-fixes/source-sha256.txt": {
+      "sha256": "a6ad3823eaea848c742aaee3502346bf950b9eb18d5ecb0aa3f525da2918910c",
+      "mtime_ns": 1792400543294502132,
+      "size": 1457
+    },
+    "doc/review-evidence/2026-10-19/aimark-adversarial-perf.ts": {
+      "sha256": "66e01987f9ebc83b4eca69e61eee9ee875ba9158bb5457fe278e00e585011ee7",
+      "mtime_ns": 1792398639536398662,
+      "size": 1398
+    },
+    "doc/review-evidence/2026-10-19/aimark-adversarial-perry.ts": {
+      "sha256": "ed7363912d38fe46dae875638f5ec27d453485eee3387c6847c108689ffdfde2",
+      "mtime_ns": 1792398621350481566,
+      "size": 1860
+    },
+    "doc/review-evidence/2026-10-19/aimark-adversarial-races.ts": {
+      "sha256": "cf363ec3492cd5de8cbcc4e045903d78a43ee121d4a7bfcf5c8b9e55c49090e3",
+      "mtime_ns": 1792398667564794007,
+      "size": 2053
+    },
+    "doc/review-evidence/2026-10-19/aimark-backend-adversarial.ts": {
+      "sha256": "9b9035ac0eb0fead2fb80f5203573a3901f3c21b4b01ff42902c98544c293dde",
+      "mtime_ns": 1792398600231229581,
+      "size": 2743
+    },
+    "doc/review-evidence/2026-10-19/aimark-editor-review-harness.ts": {
+      "sha256": "a0b4fa0851ce02f68295e2799b5c24b456d46c50d18603e94088e7b3f9730fba",
+      "mtime_ns": 1792398597909631582,
+      "size": 1878
+    },
+    "doc/review-evidence/2026-10-19/aimark-enrich-overlap.ts": {
+      "sha256": "ebfcd38a9d97addca99a26d9f535a27741cd695e0606b065610a320ea45ad24e",
+      "mtime_ns": 1792398641644159089,
+      "size": 1193
+    },
+    "doc/review-evidence/2026-10-19/aimark-fifo-review.ts": {
+      "sha256": "7a339820655df8efba9e3aba06211089882b92f184d8bd0bad16bb734cc431f8",
+      "mtime_ns": 1792398618790607143,
+      "size": 1159
+    },
+    "doc/review-evidence/2026-10-19/aimark-frontend-review-harness.ts": {
+      "sha256": "56bb98fb2a8da7e1c20e807387773416d1d62d7c4019154c5e5644c4f2c2bb9d",
+      "mtime_ns": 1792398579849236286,
+      "size": 2879
+    },
+    "doc/review-evidence/2026-10-19/aimark-ignore-precedence.ts": {
+      "sha256": "e655675ae97c07d725230eccea94b18be4abad56af03fe4d9eb6e25f5b9ca7ce",
+      "mtime_ns": 1792398665426100423,
+      "size": 681
+    },
+    "doc/review-evidence/2026-10-19/aimark-reconcile-review-harness.ts": {
+      "sha256": "c2af7bd7eac5dd5e2fbf2a305cf8ce21b09ac48d53136ebd04cbde0a4b2bc4e9",
+      "mtime_ns": 1792398658914897625,
+      "size": 809
+    },
+    "doc/review-evidence/2026-10-19/render-fixtures.ts": {
+      "sha256": "ac50c580ae4793b6d352575d7aa1e03af0cf606c7bf977fb39d45e1710f02520",
+      "mtime_ns": 1792398923893419530,
+      "size": 1471
+    },
+    "doc/review-evidence/2026-10-19/source-sha256.txt": {
+      "sha256": "751bcbbf2fb2ab3024bca19876de849ffab53cdf5b09ad3949cf98078d34d548",
+      "mtime_ns": 1792398923884185058,
+      "size": 13321
+    },
+    "package.json": {
+      "sha256": "2e443e49db291353a6c97d2700681ff8083b486cf429ef5897331d9d1734fc02",
+      "mtime_ns": 1792465052216433448,
+      "size": 1675
+    },
+    "scripts/editor-browser-smoke.mjs": {
+      "sha256": "3c30032c832c55956d3ccddc68b450525901df80037991116d9c719e970e0642",
+      "mtime_ns": 1792400414052911881,
+      "size": 11251
+    },
+    "src-tauri/Cargo.lock": {
+      "sha256": "385568a6dd705db5870d7c33c179148a9166be9759cbb6d68b46030dedb51380",
+      "mtime_ns": 1792465052230025697,
+      "size": 120329
+    },
+    "src-tauri/Cargo.toml": {
+      "sha256": "57fae490ff0e59168eec23ab01d83ebb4fd146a5a7f6fe414779ed5ee6398d38",
+      "mtime_ns": 1792465052217646597,
+      "size": 565
+    },
+    "src-tauri/tauri.conf.json": {
+      "sha256": "dd9532cdec519d9367de2ec7e194b665285cc8895cc9375ac2b523ecf03916a7",
+      "mtime_ns": 1792465052217124414,
+      "size": 884
+    },
+    "src/doc-html.test.ts": {
+      "sha256": "b5b4e49d49a0382d09964bb75f405f9b966f2ce109e68d0969a49eb12ad624dd",
+      "mtime_ns": 1792399851181137229,
+      "size": 3471
+    },
+    "src/doc-html.ts": {
+      "sha256": "de05e043ce6d1a43c061c0e14174f285cdd6a39ad71f01dbb18f2f964446892d",
+      "mtime_ns": 1792399754836350562,
+      "size": 4226
+    },
+    "src/doc-link.test.ts": {
+      "sha256": "c608f133e0cb33d861766bb6fff5c0069de2985a45c6a83600ee377e77d01fb8",
+      "mtime_ns": 1792399851180541855,
+      "size": 3805
+    },
+    "src/doc-link.ts": {
+      "sha256": "6e177d18c50d802590063af3d6e5ceed2ba57860bc882696fbaea5ae915708e7",
+      "mtime_ns": 1792399754867773605,
+      "size": 1586
+    },
+    "src/docs-delta.ts": {
+      "sha256": "1824658a17dcec727881af43b34c6836952d5f61d3789f5d7176a9b490a01068",
+      "mtime_ns": 1792308971234403108,
+      "size": 7586
+    },
+    "src/docs-route.test.ts": {
+      "sha256": "ee9da9c68dd36441d250810ca162255768f27bdec21c60173f5b54718fd20972",
+      "mtime_ns": 1792308971234947236,
+      "size": 12265
+    },
+    "src/document-editor.test.ts": {
+      "sha256": "bd9b2483f1fc2109eb7cbd8f81c4aa24285b76ab6df500720b86721f1b0f6b0a",
+      "mtime_ns": 1792400309934564006,
+      "size": 8891
+    },
+    "src/document-editor.ts": {
+      "sha256": "9b3dca26b1cdc899a15b6ee4135c1ff301869161c2230c7d54fcfdb2ddc6b3c0",
+      "mtime_ns": 1792400309933262758,
+      "size": 4614
+    },
+    "src/document-render.tsx": {
+      "sha256": "6e3ce3bd38cdd7c07122f2be363721a9dba32c5ab08722bd251e6b80e80febb5",
+      "mtime_ns": 1792399754836624354,
+      "size": 19281
+    },
+    "src/frontend-editor.test.ts": {
+      "sha256": "fb74b7fc914a4f228ad77071639c17b619b3e43f58f0856f54424da9e46136fa",
+      "mtime_ns": 1792400414052442340,
+      "size": 1208
+    },
+    "src/frontend.tsx": {
+      "sha256": "877440423e8c24955e92f61790ff48a775986b69fe0431287e97ca20adac8930",
+      "mtime_ns": 1792400309934324131,
+      "size": 253096
+    },
+    "src/i18n.ts": {
+      "sha256": "185aed19480d79061320f992330dd5b387096471572a7e9ce2821de55427bd12",
+      "mtime_ns": 1792399754869447144,
+      "size": 107942
+    },
+    "src/index-store.ts": {
+      "sha256": "cbf4b9ae477178f4cfc8c065785f1891941416c2baad5fc422ed26e9e5b6ebc0",
+      "mtime_ns": 1792308971239412183,
+      "size": 39241
+    },
+    "src/preview-tab.test.ts": {
+      "sha256": "65ce63e9294a4fca11b75f2275a6616ff56f09e8b82f0fe6cc3ede1a0f5c8901",
+      "mtime_ns": 1792308971258990271,
+      "size": 1341
+    },
+    "src/preview-tab.ts": {
+      "sha256": "542e5c3ee19fa27a5b9df32fe1bd36fa8a9b5950b07f4a56e5a6c8bcbd4f159d",
+      "mtime_ns": 1792308971259212523,
+      "size": 494
+    },
+    "src/row-window.test.ts": {
+      "sha256": "9c087c87c985970cb67c07e7d3e8e4248b8e0db5828ee8d85b72fe30be7fc8ef",
+      "mtime_ns": 1792397792110182606,
+      "size": 1877
+    },
+    "src/row-window.ts": {
+      "sha256": "a7be2a9bed3fb5828cdb381fad715261e7dc043af345d2a2f68079ebebd6897b",
+      "mtime_ns": 1792397792109733314,
+      "size": 1052
+    },
+    "src/save-file.ts": {
+      "sha256": "85fee610c3431f842bacc54952c7597efcf820bb69e2c398fe447f3f84816f81",
+      "mtime_ns": 1792399851248179557,
+      "size": 3236
+    },
+    "src/server-save.test.ts": {
+      "sha256": "a48055b1c29345c17b3f692f8048c2220adc1839028c0a283267d40e0e038b60",
+      "mtime_ns": 1792399873617167121,
+      "size": 8450
+    },
+    "src/server.ts": {
+      "sha256": "04274bf52e209200f9d4d928f75cfa2bdff8c320d76caff8192d07ab93296610",
+      "mtime_ns": 1792399754810934596,
+      "size": 88718
+    },
+    "src/style-tokens.test.ts": {
+      "sha256": "ad99c58ad58af44163f78aacfdb0751dcb47671bda4dc3c06679f16842f9204c",
+      "mtime_ns": 1792308971240717316,
+      "size": 12747
+    },
+    "src/styles.css": {
+      "sha256": "b3c2d9009449210d8b3c1c82a854d81ae8f0eedbc05a2294bbb68e1170d4a322",
+      "mtime_ns": 1792308971242629663,
+      "size": 253752
+    }
+  },
+  "overlap": [
+    "PERRY-CONTRACTS.md"
+  ],
+  "package_version": "0.19.2"
+}

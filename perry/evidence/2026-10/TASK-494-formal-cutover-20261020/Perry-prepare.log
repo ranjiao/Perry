@@ -1,0 +1,1 @@
+{"project": "/Users/bytedance/proj/Perry", "start_seq": 1200, "before_items": 602, "before_events": 1200, "plan_sha256": "f422a636adbb84304151d6e4cc17241b3622c6c1d7687f93ad99622414042b28", "counts": {"adr": 27, "check": 19, "design": 22, "kr": 101, "objective": 31, "phase": 4}, "effect": "prepared; policy migrated; native store unchanged"}

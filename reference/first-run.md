@@ -6,7 +6,11 @@ Only a genuinely new project may bootstrap. Run `operating-rules.md` first.
 Recovery hazards or interrupted runs stop setup. Existing documents or a missing
 store on a migrated project require reconciliation, never an empty replacement.
 
-1. Resolve the absolute project and code roots. Ask for unresolved single/split
+1. Use `new-projects.md` to agree standalone documents versus native Perry. A
+   standalone scaffold needs no native initialization. For native setup, choose
+   applicable packs and work conventions; explicitly select no packs for a
+   non-software project when appropriate (absence selects software-ops).
+   Resolve the absolute project and code roots. Ask for unresolved single/split
    layout, document root, document/chat languages and high-stakes boundaries.
 2. Enumerate the exact proposed paths by selected lane. Check every existing
    path and parent for collisions, including symlinks. An unowned nonempty path

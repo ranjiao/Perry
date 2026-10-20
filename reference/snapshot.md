@@ -1,7 +1,7 @@
 # Combined snapshot from native queries
 
 This is the root and lane snapshot procedure for DESIGN-023 phase G. Read
-`reference/recovery.md` first. `work/reference/kernel.md` explains the envelope;
+`reference/recovery.md` first. `reference/kernel.md` explains the envelope;
 `bin/perry describe --json` is the live argument contract. `bin/perry` is the native entry point; no legacy state reader is an alternate
 authority.
 
@@ -43,9 +43,9 @@ Show project/root and the capture's `store_seq`, then a short table:
 |---|---|
 | Work | task totals by state; startable open task IDs/titles and blockers |
 | Human input | nonterminal asks, question and blocking relation |
-| Risk | nonterminal risks and their declared severity |
+| Risk | nonterminal risk concerns/reasons; severity only if independently declared in cited narrative, never an invented native field |
 | Goals | current objective/KR version and phase associations from item fields/relations |
-| Progress | actual metric `current`, `target`, `fraction`, `met`; objective/phase `rollup` |
+| Progress | actual metric `current`, `target`, `fraction`, `met` and returned one-level `rollup`; absent aggregate values remain unknown, never recursively inferred phase progress |
 | Checks | declared check and actual measurement state; show unmeasured/obsolete/error |
 | Decisions | designs by state; active ADRs and attachments |
 

@@ -1,0 +1,1341 @@
+$ bun run typecheck && bun run build:check && bun test --parallel --timeout=20000
+$ tsc --noEmit
+$ bun build src/index.html --outdir "${TMPDIR:-/tmp}/aimark-buildcheck" --splitting >/dev/null
+warn: Invalid selector. Unsupported pseudo-class or pseudo-element 'highlight'
+
+warn: Invalid selector. Unsupported pseudo-class or pseudo-element 'highlight'
+bun test v1.3.13 (bf2e2cec) 14x PARALLEL
+
+src/perry-docs.test.ts:
+(pass) a state-root-relative path is resolved against the index, not stored raw [0.08ms]
+(pass) each named document opens as what it is [0.07ms]
+(pass) a file is Perry's for living under the state root, even unnamed by any payload
+(pass) the rest of the repository is not Perry's [0.03ms]
+(pass) with no state prefix the rule narrows instead of claiming the whole tree [0.03ms]
+(pass) a declared path the index does not hold is still claimed, under the name given [0.02ms]
+(pass) resolveDoc prefers the path as given, then the state-root form [0.14ms]
+(pass) resolveDoc opens a unique bare filename but refuses an ambiguous one [0.05ms]
+(pass) design documents are located by the filename rule, id and slug off the path [0.45ms]
+(pass) design ids sort numerically, not lexically [0.11ms]
+(pass) journal days come back newest first, and only from the dated convention [0.09ms]
+(pass) locateLayout separates a missing directory from an empty one [0.12ms]
+(pass) locateLayout counts by re-running the rule, so its two numbers agree [0.11ms]
+(pass) locateLayout on an empty index reports every directory absent [0.02ms]
+(pass) isPerryStore names the JSONL stores in .perry/ and in the state root [0.03ms]
+(pass) isPerryStore leaves the project's own data alone
+(pass) a document's stage comes from its slug, versioned specs included [0.10ms]
+
+src/search-rank.test.ts:
+(pass) a multi-word query ranks the file named after it first [0.84ms]
+(pass) a query typed with its extension still ranks the file named after it first [0.08ms]
+(pass) separators are equivalent, so the query reads as one phrase [0.31ms]
+(pass) a name match outranks a body match no matter how many body hits there are [0.04ms]
+(pass) an exact name beats a name that merely contains the query [0.12ms]
+(pass) all terms in the name beats terms split across name and body [0.11ms]
+(pass) the title carries a name-like weight for docs whose filename is opaque [0.06ms]
+(pass) word order is not required — AND is still AND [0.03ms]
+(pass) CJK ranks by substring, since there are no word boundaries to tokenize [0.09ms]
+(pass) the path is a tiebreaker, not a match — it never outranks a name hit [0.02ms]
+(pass) more body evidence wins among files with no name or title hit [0.03ms]
+(pass) body evidence has a ceiling — a long file cannot buy its way past a name [0.01ms]
+(pass) an empty query scores zero rather than throwing [0.02ms]
+(pass) negated terms don't contribute — they're absent by definition [0.04ms]
+(pass) a field-scoped query still ranks, using the literal the user typed [0.02ms]
+(pass) a dotfile keeps its whole name — the leading dot is not an extension [0.04ms]
+
+src/docs-delta.test.ts:
+(pass) fingerprint > covers every field a client renders [0.23ms]
+(pass) fingerprint > is stable for an unchanged document [0.02ms]
+(pass) fingerprint > does not confuse two documents whose fields run together
+(pass) diffSnapshot > first pass reports everything as changed [0.14ms]
+(pass) diffSnapshot > an untouched snapshot produces nothing
+(pass) diffSnapshot > only what moved is reported [0.04ms]
+
+src/search-rank.test.ts:
+(pass) a file or record id holds a query only when every term lands in it [0.21ms]
+
+src/docs-delta.test.ts:
+(pass) diffSnapshot > a vanished document is a removal [0.05ms]
+(pass) diffSnapshot > a supersession edge that moved reaches the client even though nothing wrote that file
+(pass) the revision log > an empty revision is not recorded [0.11ms]
+(pass) the revision log > a fresh workspace can answer since=0 without a full read [0.08ms]
+(pass) the revision log > nothing has happened since the newest revision [0.01ms]
+(pass) the revision log > revisions collapse in order, newest wins [0.05ms]
+(pass) the revision log > removed-then-rewritten arrives as a change, not as both [0.04ms]
+(pass) the revision log > written-then-deleted arrives as a removal, not as both [0.01ms]
+(pass) the revision log > a client asking from the future is refused rather than answered [0.02ms]
+(pass) the revision log > a nonsense revision is refused rather than coerced [0.02ms]
+(pass) the revision log > the log forgets its oldest revisions and says so [6.59ms]
+
+src/reading-measure.test.ts:
+(pass) the default sits inside the readable band at every density [0.14ms]
+(pass) the band is reachable from the slider at every density [0.11ms]
+(pass) the old default was outside the band at every density [0.08ms]
+(pass) the old range could not reach the band at compact density [0.07ms]
+(pass) wider means more characters, and denser text means more per px
+(pass) an unknown density falls back rather than dividing by undefined
+(pass) a width stored before the bounds moved is pulled into range [0.04ms]
+(pass) the density table still matches styles.css [2.73ms]
+(pass) the default scale is 1, so an untouched reader gets the density preset [0.08ms]
+(pass) bigger text means fewer characters on the same line [0.03ms]
+(pass) the scale is snapped to a declared step, never left where it landed [0.02ms]
+(pass) stepping stops at both ends rather than running off the scale [0.04ms]
+(pass) styles.css multiplies the density base by the reader's scale [0.29ms]
+
+src/docs-delta.test.ts:
+(pass) the revision log > one oversized revision is kept rather than dropping the whole log [7.88ms]
+
+src/smoke-script.test.ts:
+(pass) smoke-ui.sh creates every polled log before the fork that writes it [0.40ms]
+(pass) smoke-ui.sh still runs under the strict flags that make the race fatal [0.01ms]
+
+src/perry-agents.test.ts:
+(pass) display name title-cases a slug and leaves a written name alone [0.27ms]
+(pass) initials take two characters, however many words there are [0.05ms]
+(pass) the slug is what a filename would be [0.05ms]
+(pass) duty is the first paragraph, escalation is lifted out [0.10ms]
+(pass) a document with no prose yields no duty rather than an empty string [0.02ms]
+(pass) fenced code is not mistaken for the duty paragraph [0.01ms]
+(pass) blocked wins over everything, and working beats a parked review [0.08ms]
+(pass) no declaration and no owner means no roster — nothing is invented [0.12ms]
+(pass) declared edges win and keep the linkage file's order [0.22ms]
+(pass) a declared task id the board does not have is dropped, not counted [0.03ms]
+(pass) with no linkage agents the Owner column is the edge, and says so [0.06ms]
+(pass) current task is the most urgent open one; the rest are the queue [0.03ms]
+(pass) closed work leaves an agent idle with an empty queue [0.02ms]
+(pass) the duty document attaches by slug, and its absence leaves no duty [0.04ms]
+(pass) no recorded activity means no elapsed reading at all [0.04ms]
+(pass) the queue is state first, then priority, then KR, then id [0.19ms]
+(pass) the queue order is stable for rows that tie on everything but id [0.28ms]
+
+src/reltime.test.ts:
+(pass) just now for very recent (<45s) [0.12ms]
+(pass) minutes ago [0.02ms]
+(pass) just-under-a-minute rounds to 1m
+(pass) hours ago
+(pass) days ago [0.01ms]
+
+src/session-hook-install.test.ts:
+(pass) addHooks > adds all four events to empty settings [0.32ms]
+(pass) addHooks > passes the right argument per event [0.05ms]
+(pass) addHooks > quotes both paths so a space in either cannot break the command
+(pass) addHooks > keeps every existing hook — Crew's entries survive untouched [0.07ms]
+(pass) addHooks > leaves unrelated settings alone [0.02ms]
+(pass) addHooks > is idempotent — running twice installs one copy [0.02ms]
+(pass) addHooks > does not mutate the settings it was given [0.06ms]
+(pass) removeHooks > removes ours and keeps Crew's [0.12ms]
+(pass) removeHooks > drops an event that only we had [0.03ms]
+(pass) removeHooks > round-trips back to the original settings [0.02ms]
+(pass) removeHooks > is a no-op when we were never installed
+(pass) removeHooks > removing from empty settings is safe [0.02ms]
+
+src/tauri-acl.test.ts:
+(pass) every registered shell command is declared in build.rs and granted to the windows [29.62ms]
+
+src/reltime.test.ts:
+(pass) over 30 days returns a non-empty locale date string [9.03ms]
+(pass) exactly 30 days falls into the date branch [0.11ms]
+(pass) Chinese relative time [0.02ms]
+
+src/perry-cli.test.ts:
+(pass) resolvePerryHome prefers the Claude Code install, then Codex [0.92ms]
+(pass) all four tools are derived from the one home that was found [0.05ms]
+(pass) an explicit $PERRY_HOME wins and is not second-guessed [0.03ms]
+(pass) no install anywhere reports what it tried, for the setup error [0.02ms]
+(pass) a 2.x payload parses [0.52ms]
+(pass) 2.x may add keys — a later minor still parses [0.07ms]
+(pass) 1.x is refused now, because 2.0 bounds the rows a 1.x reader assumed it had [0.02ms]
+(pass) the task read asks for every row, and says so in its argv [0.02ms]
+(pass) bound is parsed, so a truncated payload cannot pass as a whole one [0.05ms]
+(pass) a payload with no bound block degrades to null, not to a false all-clear [0.04ms]
+(pass) semantics names what changed since this build, and a jump does not skip one [0.13ms]
+(pass) an empty semantics list is the normal case and means what it says [0.03ms]
+(pass) a major bump is refused loudly, before tasks are touched [0.02ms]
+(pass) each contract carries its own major, independently [0.11ms]
+(pass) a payload with no contract key is refused rather than guessed at
+(pass) non-JSON output is malformed, not empty [0.11ms]
+(pass) a refusal is an outcome carrying its reason, not an empty list [0.02ms]
+(pass) refusalMessage prefers the tool's own words over anything we could invent [0.11ms]
+(pass) the advisory conformance warning is never mistaken for the refusal [0.02ms]
+(pass) open is read from `open`, never inferred from status [0.07ms]
+(pass) a status outside the enum survives as prose [0.03ms]
+(pass) markdown emphasis is formatting, not a different status [0.03ms]
+(pass) a composite state is never forced into one enum member [0.01ms]
+(pass) an unstated status stays prose rather than defaulting to not_started
+(pass) an id that is not TASK-NNN is still a usable key [0.05ms]
+(pass) wrong types degrade to empty values, never to undefined in the UI [0.03ms]
+(pass) untitled ids are carried through, not swallowed [0.02ms]
+(pass) timeline entries keep their local timestamps verbatim
+(pass) conformance keeps the second field, which is the one that says what to do [0.15ms]
+(pass) a project with no event log says so instead of reporting an error [0.02ms]
+(pass) intake carries the row NUMBER the writers take [0.05ms]
+(pass) a goals payload parses, and target/current stay numbers or null [0.16ms]
+(pass) a KR id is not unique, so a stable key is built from its whole position [0.02ms]
+(pass) answered_by is read rather than inferred from what happens to be present [0.03ms]
+(pass) a null phase is a normal state, not a missing field [0.02ms]
+(pass) a phase carries its day count, computed by Perry and not re-derived [0.03ms]
+(pass) a broken register is reported, never silently downgraded [0.03ms]
+(pass) decisions parse at 2.0, and the deleted index keys are not resurrected [0.09ms]
+(pass) a payload still carrying the 1.x index keys is refused, not read past [0.05ms]
+(pass) semantics is read off every payload that carries one, not just task [0.34ms]
+(pass) add passes Perry's four required fields through untouched [0.13ms]
+(pass) add sends --summary, which perry-task has required since 2026-09-03 [0.03ms]
+(pass) an empty summary is omitted, so Perry's refusal is what the user reads [0.02ms]
+(pass) add sends --unlinked only when the user picked it [0.05ms]
+(pass) empty optional fields are omitted rather than sent as empty flags [0.01ms]
+(pass) --json is always passed, so the advisory gate line stays off stderr
+(pass) a task id that could be read as a flag is refused, not escaped
+(pass) a flag's VALUE cannot inject another flag [0.07ms]
+(pass) what from/to mean is read off the payload, not off a list of event names [0.03ms]
+(pass) a close is the last done or drop in the row's own timeline, not a status read [0.06ms]
+(pass) the timeline carries the field, and wrong types do not become undefined [0.04ms]
+(pass) prioritize is a write, and names where the row goes [0.03ms]
+(pass) add sends the check and the rung as two fields [0.02ms]
+(pass) add carries the role, which Perry REQUIRES once a project declares any [0.01ms]
+(pass) status refuses a value outside the settable set [0.02ms]
+(pass) done and drop carry the argument Perry requires [0.02ms]
+(pass) parseAsksList keeps an ask closed some other way as closed, with no answer invented [0.19ms]
+(pass) ask sends the question and what it blocks, and no id: Perry mints it [0.03ms]
+(pass) answer takes the id as a positional and refuses an answer that repeats Perry's prefix [0.03ms]
+(pass) a write result reports a lost event rather than claiming success [0.04ms]
+(pass) a write with no event_written key is a write that landed whole [0.01ms]
+(pass) a refused write carries Perry's sentence, not a category [0.02ms]
+(pass) the advisory conformance verdict rides along with a write that landed [0.01ms]
+(pass) role cards never fail — the roster reader cannot error [0.09ms]
+(pass) the roster's own version is checked, and a foreign major degrades quietly [0.08ms]
+(pass) a role card carries who accepts, at what rung, and what must escalate [0.03ms]
+(pass) risks, asks and drift arrive on the contract now, with both shapes fixed [0.11ms]
+(pass) drift is null on a tool that did not report it, and null is an answer [0.03ms]
+(pass) a close of a row that was never started says so [0.02ms]
+(pass) dwell counts whole local days [0.44ms]
+(pass) dwell refuses to invent a number [0.05ms]
+(pass) depends_on_unknown carries the ids Perry could not resolve [0.06ms]
+(pass) 1.13's three new conformance keys parse, entries whole [0.07ms]
+(pass) 1.11's summary and 1.12's blocked_stale come off the row [0.06ms]
+(pass) askIndex resolves the second register by membership, not by prefix [0.05ms]
+(pass) the anchor is bumped to the minors that were actually read [0.03ms]
+(pass) goals 2.1's provenance and staleness parse, and current is unchanged [0.08ms]
+(pass) an unasserted current says so, and that is not the same as fresh [0.03ms]
+(pass) depsIndex reads the register, and an answered ask stops being a mystery [0.10ms]
+(pass) depsIndex is empty on a pre-1.15 payload, so callers fall back [0.04ms]
+(pass) evidence_relations is the whole cell, and its file half IS evidence_paths [0.06ms]
+(pass) the drift counts are null when unchecked, and the gate returns null too [0.07ms]
+(pass) a checked drift block reports its count through the same gate [0.04ms]
+(pass) purgedIds names the rows that stopped existing, not the ones that closed [0.11ms]
+(pass) the knowledge payload parses, and its aggregates are over ITS array [0.04ms]
+(pass) the knowledge major is checked before anything is read [0.03ms]
+(pass) the events payload parses, every key present [0.04ms]
+(pass) an event with no task id is kept — the log records some against the queue
+(pass) a major it does not speak is refused; a later minor is not [0.02ms]
+(pass) newestEvents slices the tail and never re-sorts it
+
+src/tour-place.test.ts:
+(pass) a small target near the top gets the card below it [0.19ms]
+(pass) a small target near the bottom gets the card above it
+(pass) the tall file list gets the card beside it, never off the top of the window [0.03ms]
+(pass) a target that fills the window still leaves the card fully on screen
+(pass) a window too small for the card pins it to the top-left of the usable area [0.03ms]
+(pass) a target the old rules would place under the title bar is clamped below it [0.01ms]
+(pass) a hidden surface's element is not a tour target [0.02ms]
+(pass) the spotlight around a corner button keeps off the window's edges
+(pass) the spotlight never cuts into a target that touches the edge [0.06ms]
+(pass) the spotlight keeps clear of the title bar when the target does [0.01ms]
+
+src/perry-cli.test.ts:
+(pass) the flow read is the wide one, and it is a SECOND call rather than a bigger page [0.07ms]
+(pass) the events argv asks for one page, not the whole log [0.02ms]
+(pass) a stderr advisory is never reported as the reason for a refusal [0.04ms]
+(pass) WRITE_FIELDS covers every field writeArgs is able to send [0.12ms]
+(pass) a wrong type degrades one field and never loses the payload [0.04ms]
+(pass) a nested block of the wrong type degrades to empty, not to a throw [0.06ms]
+(pass) an unspoken major is refused, not coerced [0.02ms]
+(pass) changedSince compares the major too, not only the minor [0.03ms]
+(pass) a written linkage edge is recognised, and its path carried
+(pass) an edge that landed nowhere reads as nowhere
+(pass) the churn buckets are read under the stems the tool writes [0.11ms]
+(pass) a two-way churn answer declares itself unsplit [0.02ms]
+(pass) a churn payload with no buckets is an error, not an empty chart [0.03ms]
+(pass) the churn argv names the repository and the span [0.03ms]
+(pass) installed is read off all six payloads, and a build without the key says nothing [0.10ms]
+(pass) the board names the project root explicitly [0.01ms]
+(pass) the board a person reads is `perry-tasks board`, never `render`, `diff` or `verify` [0.04ms]
+
+src/search-match.test.ts:
+(pass) field matching > file: matches the base name, not the ancestors [0.36ms]
+(pass) field matching > path: is how you match ancestors [0.02ms]
+(pass) field matching > title: matches the markdown H1 [0.08ms]
+(pass) field matching > content: needs the body and ignores metadata [0.02ms]
+(pass) field matching > a bare term unions name, title, and body [0.01ms]
+(pass) tags > tag: matches exactly [0.03ms]
+(pass) tags > a parent tag matches its nested children
+(pass) tags > bare # matches any tagged doc [0.06ms]
+(pass) boolean evaluation > AND requires both [0.03ms]
+(pass) boolean evaluation > OR requires either [0.03ms]
+(pass) boolean evaluation > negation excludes [0.03ms]
+(pass) boolean evaluation > a negated body term on an unread file is vacuously true [0.02ms]
+(pass) boolean evaluation > an empty query matches nothing
+(pass) case sensitivity > insensitive by default
+(pass) case sensitivity > match-case: is exact [0.55ms]
+(pass) CJK substring matching > finds 监视 (2 chars) [0.07ms]
+(pass) CJK substring matching > finds 文件监 (3 chars) [0.07ms]
+(pass) CJK substring matching > finds 监视器 (3 chars) [0.02ms]
+(pass) CJK substring matching > finds 文件监视器 (5 chars) [0.04ms]
+(pass) CJK substring matching > finds 死锁 (2 chars)
+(pass) CJK substring matching > still rejects a substring that is not present [0.02ms]
+(pass) CJK substring matching > produces a highlight range at the right offsets [0.26ms]
+(pass) matchLines > reports 1-based line numbers [0.06ms]
+(pass) matchLines > metadata-only queries produce no body lines [0.02ms]
+(pass) matchLines > negated terms are never highlighted [0.03ms]
+(pass) matchLines > multiple terms on one line merge into non-overlapping ranges [0.03ms]
+(pass) matchLines > every occurrence on a line is ranged
+(pass) matchLines > the per-file cap clips and flags [0.12ms]
+(pass) matchLines > a lower cap is honored [0.03ms]
+(pass) snippet clipping > a long line is windowed around the hit and ranges shift with it [0.06ms]
+(pass) snippet clipping > a short line is left alone [0.02ms]
+(pass) trimToCharBoundary > leaves complete ASCII untouched [0.12ms]
+(pass) trimToCharBoundary > drops a split multi-byte character instead of producing U+FFFD [0.04ms]
+(pass) trimToCharBoundary > keeps whole characters that happen to end the buffer
+(pass) trimToCharBoundary > handles an empty buffer
+(pass) trimToCharBoundary > handles 4-byte characters (emoji) [0.02ms]
+(pass) nameRanges > marks a bare term in the base name, extension included, ignoring case [0.04ms]
+(pass) nameRanges > never marks an ancestor, which a bare term does not match on
+(pass) nameRanges > file: terms count; negated and body-scoped terms do not [0.02ms]
+
+src/tree.test.ts:
+(pass) empty input gives empty children [0.12ms]
+(pass) root-level files only [0.34ms]
+(pass) files grouped under nested folders [0.04ms]
+(pass) folders sort before files; alphabetical within group [0.02ms]
+(pass) a file and a folder with the same name do not collide [0.04ms]
+(pass) deep nesting builds the full chain [0.04ms]
+(pass) multiple files share an intermediate folder node [0.34ms]
+(pass) doc payload is attached only to file nodes [0.06ms]
+(pass) dirs param surfaces empty folders (freshly created, no files yet) [0.15ms]
+
+src/session-hook.test.ts:
+(pass) safeSessionId > accepts a uuid [0.08ms]
+(pass) safeSessionId > rejects path separator
+(pass) safeSessionId > rejects forward slash
+(pass) safeSessionId > rejects leading dot
+(pass) safeSessionId > rejects too short
+(pass) safeSessionId > rejects not a string
+(pass) safeSessionId > rejects null
+(pass) safeSessionId > rejects empty
+(pass) buildRecord > records a prompt event [0.06ms]
+(pass) buildRecord > passes a notification message through verbatim [0.02ms]
+(pass) buildRecord > only Notification carries a message [0.01ms]
+(pass) buildRecord > caps an absurdly long message rather than writing it whole [0.02ms]
+(pass) buildRecord > cwd is optional
+(pass) buildRecord > returns null when the session id is unusable [0.01ms]
+(pass) buildRecord > what the hook writes is what session-state parses [0.08ms]
+
+src/search-query.test.ts:
+(pass) terms and fields > a bare term searches every field [0.11ms]
+(pass) terms and fields > several bare terms are implicitly ANDed [0.05ms]
+(pass) terms and fields > field prefixes bind to the following term [0.02ms]
+(pass) terms and fields > an unknown prefix stays a literal [0.03ms]
+(pass) phrases > quotes keep whitespace together [0.01ms]
+(pass) phrases > a field prefix applies to a quoted phrase
+(pass) phrases > an escaped quote is a literal quote [0.01ms]
+(pass) phrases > an unterminated quote runs to the end rather than throwing
+(pass) boolean structure > OR binds looser than the implicit AND [0.01ms]
+(pass) boolean structure > parentheses override precedence [0.02ms]
+(pass) boolean structure > negation applies to one term
+(pass) boolean structure > negation applies to a group [0.02ms]
+(pass) boolean structure > a negated field term keeps its field [0.01ms]
+(pass) boolean structure > lowercase 'or' is a search term, not the operator
+(pass) boolean structure > a quoted OR is a search term [0.01ms]
+(pass) case sensitivity > match-case: marks only its own term [0.01ms]
+(pass) case sensitivity > match-case: composes with a field prefix in either order
+(pass) case sensitivity > ignore-case: undoes it [0.04ms]
+(pass) tag compatibility with the existing filter box > #tag is shorthand for tag: [0.03ms]
+(pass) tag compatibility with the existing filter box > a bare # matches any tagged doc [0.01ms]
+(pass) tag compatibility with the existing filter box > a nested tag keeps its slash for the hierarchical match
+(pass) tag compatibility with the existing filter box > # combines with other terms [0.03ms]
+(pass) malformed input never throws > "" [0.05ms]
+(pass) malformed input never throws > "   "
+(pass) malformed input never throws > "("
+(pass) malformed input never throws > ")"
+(pass) malformed input never throws > "()"
+(pass) malformed input never throws > "-"
+(pass) malformed input never throws > "- "
+(pass) malformed input never throws > "OR"
+(pass) malformed input never throws > "OR OR" [0.01ms]
+(pass) malformed input never throws > "((a)"
+(pass) malformed input never throws > "a \""
+(pass) malformed input never throws > "#"
+(pass) malformed input never throws > "::"
+(pass) malformed input never throws > "-()"
+(pass) malformed input never throws > an empty query yields a null root [0.01ms]
+(pass) malformed input never throws > a lone dash is a literal, not a dangling negation [0.01ms]
+(pass) metadataOnly > name/path/tag queries need no file reads [0.03ms]
+(pass) metadataOnly > a bare or content term needs the body [0.01ms]
+(pass) meetsMinLength > Latin needs three characters [0.05ms]
+(pass) meetsMinLength > CJK needs only two [0.02ms]
+(pass) meetsMinLength > Japanese and Korean count as CJK
+(pass) meetsMinLength > a mixed query takes the CJK floor
+(pass) meetsMinLength > field-scoped and tag queries are intentional enough to be short
+(pass) meetsMinLength > empty and whitespace are rejected [0.02ms]
+(pass) queryTerms > collects literals worth highlighting [0.10ms]
+(pass) queryTerms > skips negated and tag-only terms [0.02ms]
+
+src/perry-config.test.ts:
+(pass) reads settings and tracks out of the canonical store [0.19ms]
+(pass) orders by the record's own `order`, not by line position [0.03ms]
+(pass) a trailing newline is not a finding [0.01ms]
+(pass) names the lines it could not read instead of dropping them [0.06ms]
+(pass) surfaces a record kind this build does not recognise [0.02ms]
+(pass) falls back to the key, never to a prettified key [0.01ms]
+(pass) a missing value reads as empty, not as the string undefined [0.01ms]
+(pass) an empty store is empty, and that is not an error [0.02ms]
+
+src/session-state.test.ts:
+(pass) parseRegistryEntry > reads a real Claude Code session file [0.05ms]
+(pass) parseRegistryEntry > survives unknown extra fields — upstream may add any [0.02ms]
+(pass) parseRegistryEntry > tolerates a missing name, which is decoration [0.02ms]
+(pass) parseRegistryEntry > returns null: missing sessionId
+(pass) parseRegistryEntry > returns null: missing pid
+(pass) parseRegistryEntry > returns null: missing cwd
+(pass) parseRegistryEntry > returns null: empty cwd [0.01ms]
+(pass) parseRegistryEntry > returns null: pid is a string
+(pass) parseRegistryEntry > returns null: not an object
+(pass) parseRegistryEntry > returns null: null
+(pass) parseHookState > reads what session-hook.ts writes [0.01ms]
+(pass) parseHookState > message is optional [0.02ms]
+(pass) parseHookState > returns null: unknown event name
+(pass) parseHookState > returns null: missing at
+(pass) parseHookState > returns null: missing sessionId
+(pass) statusFromHook > no hook file yet means unknown, never working
+(pass) statusFromHook > prompt → working
+(pass) statusFromHook > notification → needs-you
+(pass) statusFromHook > stop → done
+(pass) sessionLabel > prefers the host's own derived name [0.01ms]
+(pass) sessionLabel > falls back to folder + short id rather than a bare uuid [0.04ms]
+(pass) sessionLabel > handles a trailing slash in cwd [0.02ms]
+(pass) inProject > the root itself counts [0.02ms]
+(pass) inProject > a subdirectory counts — agents often run from src/
+(pass) inProject > a sibling with a shared prefix does not
+(pass) inProject > an unrelated project does not
+(pass) mergeSession > carries the host's message through untouched [0.07ms]
+(pass) mergeSession > with neither hook nor transcript, it is unknown and dated from launch [0.03ms]
+(pass) mergeSession > a long-lived session that just did something reads as working, dated NOW
+(pass) mergeSession > a session whose transcript has not moved is idle, not unknown
+(pass) mergeSession > the active window is the boundary between working and idle [0.07ms]
+(pass) mergeSession > a reported status always beats an observed one [0.02ms]
+(pass) mergeSession > the title comes from the transcript, the handle stays available
+(pass) mergeSession > detail prefers the last prompt over the tool name [0.03ms]
+(pass) mergeSession > detail falls back to the tool name when there is no prompt
+(pass) mergeSession > a notification message still outranks both
+(pass) rankSessions > needs-you first, then working, unknown, done, and idle last [0.08ms]
+(pass) rankSessions > idle sorts most-recent first — the pile you might still care about [0.02ms]
+(pass) rankSessions > within a status, the one waiting longest comes first [0.01ms]
+(pass) rankSessions > does not mutate its input [0.02ms]
+(pass) countSessions > counts each status separately [0.03ms]
+(pass) notifiableTransitions > fires when a working session starts asking for you [0.04ms]
+(pass) notifiableTransitions > fires when a working session finishes [0.01ms]
+(pass) notifiableTransitions > does not fire again while it keeps waiting
+(pass) notifiableTransitions > stays silent on first sighting
+(pass) notifiableTransitions > does not fire on needs-you → working (you already handled it)
+(pass) notifiableTransitions > does not fire on unknown → working [0.01ms]
+(pass) transcriptSlug > maps a plain project path [0.03ms]
+(pass) transcriptSlug > maps a dotted worktree path
+(pass) transcriptFacts > pulls title, prompt and tool out of one tail [0.10ms]
+(pass) transcriptFacts > a title you set beats the one Claude Code generated [0.02ms]
+(pass) transcriptFacts > falls back to the generated title when you never set one
+(pass) transcriptFacts > takes the most recent of each repeated record [0.04ms]
+(pass) transcriptFacts > prefers the last tool call when several appear [0.02ms]
+(pass) transcriptFacts > flattens and clips a long multi-line prompt [0.03ms]
+(pass) transcriptFacts > skips a leading fragment from a byte-range read
+(pass) transcriptFacts > skips a truncated trailing write [0.02ms]
+(pass) transcriptFacts > returns empty fields for a tail with none of them — never a stale value [0.05ms]
+(pass) transcriptFacts > returns empty fields for empty input — never a stale value
+(pass) transcriptFacts > returns empty fields for not a transcript at all — never a stale value
+
+src/source-lines.test.ts:
+(pass) source-line tagging > a block's number is the 1-based line it starts on [1.97ms]
+(pass) source-line tagging > a paragraph that wraps in the source keeps ONE number, its first line [0.07ms]
+(pass) source-line tagging > fences and rules carry one too, and count their own opening line [0.79ms]
+(pass) source-line tagging > a code block gets a wrapper, because a scrolling box clips its own number [0.21ms]
+(pass) source-line tagging > a table gets one too, and the wrapper closes around it [0.23ms]
+(pass) source-line tagging > a nested table is left alone — only top-level blocks are wrapped [0.16ms]
+(pass) source-line tagging > only top-level blocks are tagged, not nested list items [0.15ms]
+
+src/version.test.ts:
+(pass) package.json, tauri.conf.json and Cargo.toml agree on the version [7.40ms]
+
+src/source-lines.test.ts:
+(pass) source-line tagging > the numbers only ever increase [0.19ms]
+(pass) source-line tagging > every number names a line the file actually has [0.08ms]
+
+src/math.test.ts:
+(pass) math rendering > inline math renders to katex [4.88ms]
+
+src/version.test.ts:
+(pass) the changelog's newest entry is the version being shipped [4.41ms]
+
+src/math.test.ts:
+(pass) math rendering > display math renders to katex block [2.55ms]
+(pass) math rendering > currency amounts are not treated as math [0.14ms]
+(pass) math rendering > math inside inline code is untouched [0.26ms]
+(pass) math rendering > invalid latex degrades instead of throwing [0.26ms]
+(pass) math rendering > coexists with obsidian syntax [0.53ms]
+(pass) math rendering > subscripts with underscores survive emphasis parsing [0.42ms]
+
+src/style-tokens.test.ts:
+(pass) the UI type scale is defined, and every step is tied to density [0.14ms]
+(pass) no rule sets a font-size below 14px as a literal [2.32ms]
+(pass) display sizes stay literal on purpose, and stay few [3.31ms]
+(pass) every step floors above the size this audit called too small [0.13ms]
+(pass) the spacing scale is defined and stays on its grid [0.12ms]
+
+src/latex-delim-md.test.ts:
+(pass) latex-style math delimiters > \( ... \) renders inline math [4.21ms]
+(pass) latex-style math delimiters > \[ ... \] renders display math [2.00ms]
+
+src/style-tokens.test.ts:
+(pass) no rule sets a single-value gap or padding as a literal [3.62ms]
+
+src/latex-delim-md.test.ts:
+(pass) latex-style math delimiters > \mathrm and \mathbb commands survive [1.13ms]
+(pass) latex-style math delimiters > multiline display math works [0.20ms]
+
+src/style-tokens.test.ts:
+(pass) multi-value padding shorthands stay literal, and stay bounded [2.72ms]
+(pass) caps tracking goes through tokens [0.13ms]
+
+src/latex-delim-md.test.ts:
+(pass) latex-style math delimiters > multiline block with lone = / - lines (setext traps) renders [4.14ms]
+(pass) latex-style math delimiters > plain parens are untouched [0.11ms]
+(pass) latex-style math delimiters > escaped punctuation still works without a closer [0.12ms]
+
+src/style-tokens.test.ts:
+(pass) no uppercase label sets its letter-spacing as a literal [2.04ms]
+(pass) the Chinese locale raises every floor and collapses every tracking step [0.21ms]
+(pass) the mono stacks are tokens, not literals [0.22ms]
+
+src/latex-delim-md.test.ts:
+(pass) latex-style math delimiters > dollar-delimited math still works alongside [0.53ms]
+
+src/style-tokens.test.ts:
+(pass) every monospace run inside a document reads one size [1.35ms]
+(pass) the source view follows the chosen typeface, and code files do not [0.42ms]
+
+src/obsidian-md.test.ts:
+(pass) wikilinks > plain wikilink [4.11ms]
+(pass) wikilinks > alias [0.09ms]
+(pass) wikilinks > heading anchor [0.07ms]
+(pass) wikilinks > same-file anchor [0.04ms]
+(pass) wikilinks > block reference [0.03ms]
+(pass) wikilinks > not greedy across newlines / unclosed [0.19ms]
+(pass) wikilinks > empty [[]] is left alone [0.05ms]
+(pass) wikilinks > regular markdown links untouched [0.30ms]
+(pass) embeds > image embed [0.18ms]
+(pass) embeds > image embed with width [0.02ms]
+(pass) embeds > image embed with width x height [0.07ms]
+(pass) embeds > note embed renders as embed-styled link [0.03ms]
+(pass) embeds > regular markdown image untouched [0.09ms]
+(pass) callouts > basic callout with default title [0.09ms]
+(pass) callouts > custom title [0.06ms]
+(pass) callouts > alias types normalize [0.22ms]
+(pass) callouts > foldable callouts use details/summary [0.60ms]
+(pass) callouts > title-only callout [0.15ms]
+(pass) callouts > nested callouts [0.35ms]
+(pass) callouts > multi-paragraph body stays inside callout-content [0.11ms]
+(pass) callouts > plain blockquote untouched [0.03ms]
+(pass) callouts > unknown type keeps its name [0.03ms]
+(pass) highlight > ==text== renders mark [0.08ms]
+(pass) highlight > single = is not a highlight [0.04ms]
+(pass) highlight > highlight with inner emphasis [0.02ms]
+(pass) comments > inline comment removed [0.08ms]
+(pass) comments > unmatched %% comments out rest of paragraph [0.03ms]
+(pass) comments > %% in code span survives [0.04ms]
+(pass) tags > simple tag is clickable [0.03ms]
+(pass) tags > nested tag [0.01ms]
+(pass) tags > numeric-only is not a tag [0.02ms]
+(pass) tags > number with letters is a tag [0.01ms]
+(pass) tags > unicode tag [0.41ms]
+(pass) tags > mid-word hash is not a tag [0.03ms]
+(pass) tags > heading is not a tag [0.04ms]
+(pass) frontmatter > rendered as properties block, not hr/heading [0.40ms]
+(pass) frontmatter > inline list syntax [0.03ms]
+(pass) frontmatter > --- mid-document is still an hr
+(pass) frontmatter > unclosed frontmatter is not eaten [0.03ms]
+(pass) frontmatter > weird yaml falls back to raw [0.03ms]
+(pass) block ids > trailing ^id stripped and recorded [0.04ms]
+(pass) block ids > standalone ^id paragraph dropped [0.09ms]
+(pass) block ids > caret mid-sentence untouched [0.04ms]
+(pass) frontmatter tags are clickable pills > list form [0.03ms]
+(pass) frontmatter tags are clickable pills > inline and comma-separated forms, # prefix stripped [0.02ms]
+(pass) frontmatter tags are clickable pills > non-tag list keys stay plain pills [0.04ms]
+(pass) extractTags > frontmatter list + inline body tags, deduped case-insensitively [0.26ms]
+(pass) extractTags > inline array and comma separated [0.07ms]
+(pass) extractTags > ignores tags inside fenced code
+(pass) extractTags > ignores headings and numeric-only [0.02ms]
+(pass) extractTags > unicode tags in body [0.07ms]
+(pass) extractTags > no tags
+(pass) parseWikiRef > full form
+(pass) parseWikiRef > size alias only applies to image embeds [0.06ms]
+(pass) resolveWikiTarget > vault-root exact path [0.05ms]
+(pass) resolveWikiTarget > bare filename matches anywhere, shortest path wins [0.04ms]
+(pass) resolveWikiTarget > relative to current file [0.04ms]
+(pass) resolveWikiTarget > case-insensitive, names with spaces [0.02ms]
+(pass) resolveWikiTarget > anchor-only and misses return null [0.06ms]
+(pass) regression: existing pipeline > mermaid fence class still applies after plugin [0.96ms]
+(pass) regression: existing pipeline > gfm-ish basics still work [0.29ms]
+(pass) regression: existing pipeline > wikilink inside table cell with escaped pipe [0.06ms]
+
+src/style-tokens.test.ts:
+(pass) the source gutter's classes are scoped to the source view [13.00ms]
+
+src/markers.test.ts:
+(pass) markerStep > takes every match when they fit under the cap [0.05ms]
+(pass) markerStep > samples when they don't [0.02ms]
+(pass) markerStep > never returns a step that would loop forever [0.03ms]
+(pass) quantize > clamps outside 0..1 [0.01ms]
+(pass) quantize > rounds sub-pixel wobble to a stable value
+(pass) quantize > still distinguishes genuinely different positions [0.01ms]
+(pass) sameMarkers > equal contents compare equal, even as distinct arrays [0.01ms]
+(pass) sameMarkers > the identical reference is equal [0.02ms]
+(pass) sameMarkers > a differing length is not equal
+(pass) sameMarkers > a differing value is not equal
+(pass) sameMarkers > two empty sets are equal — the no-match case must not churn either
+(pass) sameMarkers > quantized measurements of the same layout stay equal across repaints [0.02ms]
+
+src/outline.test.ts:
+(pass) slugifyHeading > lowercases and hyphenates spaces [0.34ms]
+(pass) slugifyHeading > drops punctuation but keeps words [0.01ms]
+(pass) slugifyHeading > collapses runs of separators and trims edges [0.23ms]
+(pass) slugifyHeading > keeps unicode letters (CJK headings slug to themselves) [0.03ms]
+(pass) slugifyHeading > falls back to 'section' when nothing survives
+
+src/supersede.test.ts:
+(pass) normalizeStem strips version tokens to a common stem [0.14ms]
+(pass) a lone generic version word does not collapse to nothing groupable
+(pass) newest in a group is live; the rest are superseded [0.17ms]
+(pass) same stem in different folders is NOT merged [0.03ms]
+(pass) normalizeStem is case-insensitive and trims surrounding separators [0.01ms]
+(pass) a single-member group is never marked superseded [0.01ms]
+(pass) empty input yields empty maps
+(pass) three versions: only the newest survives [0.04ms]
+
+src/paths.test.ts:
+(pass) isInsideRoot: root itself is inside [0.06ms]
+(pass) isInsideRoot: nested paths are inside
+(pass) isInsideRoot: parent traversal is rejected [0.01ms]
+(pass) isInsideRoot: sibling-prefix trick is rejected [0.01ms]
+(pass) isInsideRoot: absolute path outside root is rejected
+(pass) isInsideRoot: resolves dot segments before comparing
+(pass) isInsideRoot: root equal to itself always holds
+
+src/doc-link.test.ts:
+(pass) ./x.md from a file in a subdir [6.43ms]
+(pass) ../x.md climbs one level [0.05ms]
+(pass) nested ../../a/b.md climbs two levels [0.02ms]
+(pass) root-relative /x.md ignores fromRel dir [0.02ms]
+(pass) fragment is stripped [0.01ms]
+(pass) query string is stripped
+(pass) URL-encoded names are decoded [0.01ms]
+(pass) fromRel with no directory uses empty base
+(pass) fromRel null with relative href still resolves [0.01ms]
+(pass) over-climbing past root just pops to empty then continues
+(pass) trailing slash and dot segments are normalized away
+(pass) external web and email links are normalized [0.28ms]
+(pass) relative and unsupported scheme links are not external targets [0.03ms]
+(pass) URL scheme detection includes protocol-relative and unsupported links [0.01ms]
+
+src/doc-meta.test.ts:
+(pass) guessType: plan/roadmap [0.09ms]
+(pass) guessType: spec/design/rfc [0.03ms]
+(pass) guessType: report/summary/result [0.02ms]
+(pass) guessType: todo/task/tasks [0.02ms]
+(pass) guessType: handoff/context/note/notes [0.03ms]
+(pass) guessType: case-insensitive
+(pass) guessType: various separators before keyword
+(pass) guessType: null for unmatched
+(pass) guessType: keyword embedded mid-word without separator does not match
+(pass) guessType: precedence — plan checked before spec [0.02ms]
+(pass) firstH1: first H1 wins [0.05ms]
+(pass) firstH1: ignores ## and deeper
+(pass) firstH1: multiple H1s — first wins [0.01ms]
+(pass) firstH1: no H1 returns null
+(pass) firstH1: trailing spaces trimmed
+(pass) firstH1: requires a space after #
+(pass) firstH1: leading content lines before H1
+(pass) firstH1: only scans first 200 lines [0.03ms]
+
+src/project-listing.test.ts:
+(pass) lists every file, with the mtime the locators need [40.33ms]
+
+src/i18n.test.ts:
+(pass) every manifest status has a label in both locales [0.59ms]
+(pass) translates fixed interface copy
+(pass) interpolates dynamic values [0.01ms]
+(pass) keeps language names recognizable in either locale
+(pass) indexing placeholder is translated in both locales
+(pass) missing interpolation values degrade to the literal placeholder, not 'undefined'
+
+src/task-query.test.ts:
+(pass) the saved view from the design renders the right four tasks [2.63ms]
+(pass) a bare field asks whether the stage exists [0.07ms]
+(pass) the document surface is unaffected — a bare field there still matches nothing [0.11ms]
+(pass) both status vocabularies work — the user should not have to know which project this is [0.06ms]
+(pass) a prose status is matched on its text, including a state named inside it [0.07ms]
+
+src/perry-gateway.test.ts:
+perry: /Users/bytedance/.codex/worktrees/root-kernel-cutover/Perry
+(pass) the asks store is stated by name, so an answer invalidates the history [0.12ms]
+(pass) before a payload has answered, the signals are the log and the files that make a folder Perry's
+(pass) every decision the payload names is stated, and so is the directory [0.06ms]
+(pass) a card's own topic directory is stated, not just the tree's root [0.03ms]
+(pass) a path that would leave the state root is not stated [0.05ms]
+(pass) every store is stated, and BOARD.md is not [0.02ms]
+(pass) no path is stated twice [0.04ms]
+(pass) installed comes off the first payload that states it, and an old build states nothing [0.04ms]
+
+src/file-kind.test.ts:
+(pass) previewTypeForPath detects built-in preview formats case-insensitively [0.12ms]
+
+src/task-query.test.ts:
+(pass) field aliases follow the words on screen [1.14ms]
+(pass) kr filters by the key result a task serves [0.04ms]
+(pass) bare terms search id, title, summary, owner and next action [0.07ms]
+(pass) a bare term finds a task by its summary alone [0.07ms]
+(pass) summary: is a fact about a task, so a key result has no opinion on it [0.07ms]
+(pass) implicit AND, explicit OR, negation and grouping behave as in Docs search [0.08ms]
+(pass) quoted values keep their spaces [0.04ms]
+
+src/file-kind.test.ts:
+(pass) fileIconKindForPath covers common file families [1.16ms]
+(pass) fileIconKindForPath recognizes common extensionless files [0.04ms]
+
+src/task-query.test.ts:
+(pass) matching is case-insensitive unless asked otherwise [1.14ms]
+
+src/file-kind.test.ts:
+(pass) isSafeTextSample accepts ordinary UTF-8 text [0.42ms]
+
+src/task-query.test.ts:
+(pass) a value substring-matches a document path [0.06ms]
+(pass) an empty query matches everything rather than nothing [0.03ms]
+
+src/file-kind.test.ts:
+(pass) isSafeTextSample rejects binary and invalid UTF-8 data [0.08ms]
+
+src/task-query.test.ts:
+(pass) # matches nothing — tasks carry no tags [0.03ms]
+
+src/file-kind.test.ts:
+(pass) isHiddenPath detects hidden files and parent directories [0.07ms]
+(pass) isHiddenPath hides Godot's .uid and .import sidecars [0.01ms]
+(pass) hasIgnoredDirectory only matches configured path segments [0.02ms]
+
+src/task-query.test.ts:
+(pass) facet counts follow whatever list they are given [0.45ms]
+(pass) an absent owner is counted, because that absence is a completeness check [0.04ms]
+(pass) known statuses keep their declared order so the rail does not reshuffle [0.04ms]
+(pass) closed is an existence question, and it is not state:done [0.05ms]
+(pass) a key result answers no to the task fields, rather than yes to all of them [0.08ms]
+(pass) id: is how you ask which objectives the project never gave a handle [0.04ms]
+(pass) a negation over a field the record does not carry does not flip to true [0.20ms]
+(pass) objective is inherited from the tree, and is empty off it [0.05ms]
+
+src/file-kind.test.ts:
+(pass) fileIconKindForPath classifies a Godot project's files [1.09ms]
+(pass) hasIgnoredDirectory skips Godot's import cache [0.04ms]
+
+src/work-attention.test.ts:
+(pass) a risk is coloured by the rank Perry normalized, not by the letter a human typed [2.84ms]
+(pass) a risk row opens the risk's own drawer, addressed by its id or, on a bullet, its statement [0.05ms]
+(pass) expired ADRs and untriaged requests are on the list, and the headline count is the list [0.15ms]
+(pass) the decisions lanes are sized apart, answered asks included, and an unread lane is unknown alone [0.10ms]
+(pass) a risk states its age when Perry dated the row, and states nothing when it did not [0.02ms]
+
+src/task-query.test.ts:
+(pass) a matched task keeps its ancestors [1.12ms]
+(pass) a matched ancestor keeps its subtree [0.06ms]
+(pass) a bare term reaches the ancestors in the tree, and only in the tree [0.08ms]
+(pass) levels compose — an ancestor field ANDed with a task field [0.03ms]
+(pass) a hidden branch is counted, never merely gone [0.08ms]
+(pass) a key result that matched stays visible even holding nothing [0.04ms]
+(pass) the unlinked section has no ancestors to inherit [0.01ms]
+(pass) an empty query shows the whole tree and reports nothing hidden [0.05ms]
+(pass) a taskId the board does not carry is not counted as hidden by the query [0.02ms]
+
+src/work-task-sort.test.ts:
+(pass) a long section heading ranks as the priority it names, not as unknown [6.55ms]
+(pass) the rank reads the field the cell shows — priority first, group as fallback [0.07ms]
+(pass) a row with no readable priority sorts last, below P3 [0.04ms]
+(pass) within one priority the higher verification rung comes first [0.02ms]
+
+src/aimark-spec.test.ts:
+(pass) parses a full manifest [11.44ms]
+(pass) keeps the docs a task produced, separately from the doc it reads [0.66ms]
+(pass) optional fields default to empty, not undefined [0.23ms]
+(pass) a manifest with no body is fine [0.17ms]
+
+src/i18n.test.ts:
+(pass) neither catalog declares a key twice [13.65ms]
+
+src/aimark-spec.test.ts:
+(pass) CRLF line endings and a leading BOM still parse [1.19ms]
+(pass) every project status is accepted [0.53ms]
+
+src/project-listing.test.ts:
+(pass) carries rel and mtime and nothing else [38.99ms]
+
+src/aimark-spec.test.ts:
+(pass) every task status is accepted [1.25ms]
+(pass) a file with no frontmatter fence is not a manifest [0.07ms]
+(pass) broken YAML reports a YAML error, never a crash [1.62ms]
+(pass) frontmatter that isn't a mapping is rejected [0.61ms]
+(pass) an empty fence is a fence with nothing in it, not a manifest [0.21ms]
+(pass) each required field is required [1.12ms]
+(pass) an empty objective is not an objective [0.19ms]
+(pass) a wrong spec version is rejected rather than guessed at [0.17ms]
+
+src/perry-helpers.test.ts:
+(pass) knowledge helper major and invalid provenance fail closed [0.71ms]
+(pass) knowledge data retains its helper contract and explicit unknown installed state [0.04ms]
+(pass) role helper rejects bad counts and does not invent task assignments [0.12ms]
+
+src/aimark-spec.test.ts:
+(pass) bad enum values name the offending path [0.54ms]
+(pass) an unparseable updated is rejected [0.22ms]
+(pass) updated must carry a time, and must not be locale-dependent [0.94ms]
+(pass) duplicate task ids are rejected — counts would be ambiguous [0.23ms]
+(pass) a task without id or title is rejected [0.20ms]
+(pass) unknown fields are kept but warned about — the typo net [0.20ms]
+(pass) a valid manifest warns about nothing [0.29ms]
+
+src/file-record.test.ts:
+(pass) markdown records read text and extract document metadata [0.24ms]
+(pass) non-markdown records collect metadata without reading file contents [0.05ms]
+(pass) html records use the built-in html preview [0.04ms]
+(pass) safe UTF-8 records receive the text preview [0.07ms]
+(pass) binary records retain the system-app fallback
+
+src/aimark-spec.test.ts:
+(pass) a future updated is clamped and flagged, not rejected [0.52ms]
+
+src/file-record.test.ts:
+(pass) meta records are complete without any file I/O [0.01ms]
+(pass) enrichment fills in markdown title and tags [0.07ms]
+(pass) enrichment falls back to the filename when a carried-over title is stale [0.05ms]
+(pass) enrichment sniffs unknown extensions into text previews [0.04ms]
+(pass) enrichment marks binary unknowns done so they are never re-queued [0.03ms]
+(pass) enrichment is a no-I/O pass-through for already-complete records [0.02ms]
+
+src/aimark-spec.test.ts:
+(pass) warnings accumulate — one problem never hides another [0.62ms]
+(pass) task counts cover every status, including the zeros [0.53ms]
+(pass) attention items outrank everything else [0.13ms]
+(pass) blocked projects outrank quiet ones, however old [0.01ms]
+(pass) a project with blockers listed ranks like a blocked one [0.02ms]
+(pass) more blocked tasks ranks higher [0.03ms]
+(pass) among equals, the one quiet longest comes first
+(pass) a broken manifest outranks quiet projects — silence is the dangerous case [0.03ms]
+(pass) the ranking is a total order — sorting is stable and reproducible [0.09ms]
+(pass) rank tuples are all the same width — a short one would sort wrong [0.07ms]
+(pass) the conversion prompt teaches a manifest this parser accepts [0.47ms]
+(pass) the conversion prompt states the no-invention rule [0.03ms]
+
+src/session-watch.test.ts:
+(pass) readRegistry > reads every session file [93.64ms]
+
+src/perry-kernel-goals.test.ts:
+(pass) a work-only template refuses goal and decision projections instead of reporting zero [0.13ms]
+(pass) current version uses stable native IDs and retains old labels without collapsing versions [0.50ms]
+(pass) a down metric without a baseline never becomes an invented increasing progress bar [0.06ms]
+(pass) check measurements use the kernel fraction and keep null measurement distinct from zero [0.11ms]
+(pass) ambiguous current phases and versions fail rather than guessing the latest document [0.03ms]
+(pass) ADR state, attachment and supersession are native; line count remains unknown [0.12ms]
+(pass) a future draft or rejected draft cannot hide the currently approved overall version [0.06ms]
+
+src/i18n.test.ts:
+(pass) every literal t("…") key in the source exists in both catalogs [33.96ms]
+
+src/work-model.test.ts:
+(pass) manifest level: tasks, no objectives, and that is not an error [15.70ms]
+(pass) prose level: objectives and KR titles are real, edges are not [0.47ms]
+(pass) the level comes from Perry's own answered_by, not from what looks present [3.02ms]
+(pass) linkage level: the full chain, with declared metrics and declared drift [1.93ms]
+(pass) a KR keeps a unique key even when two objectives reuse the id [0.16ms]
+(pass) an objective id is never minted from position [0.04ms]
+(pass) Perry's board supplies tasks when it has them; the manifest otherwise [1.51ms]
+(pass) Perry's not_started/in_progress become the app's own vocabulary [0.21ms]
+
+src/kr-measured.test.ts:
+(pass) a measured KR's progress comes from its counts, not from the rounded current [2.80ms]
+
+src/work-model.test.ts:
+(pass) dropped is not done — abandoned work keeps its own word [0.12ms]
+(pass) an off-enum status survives as the prose it is [0.11ms]
+(pass) an empty status is empty — status_text is a copy of it, not a rescue (1.10) [0.05ms]
+
+src/kr-measured.test.ts:
+(pass) current_measurement is read only for a measured KR with a usable denominator [0.55ms]
+
+src/work-model.test.ts:
+(pass) a manifest doc: becomes the task's spec — it is the brief the task reads [0.63ms]
+(pass) check 1 (KR with no tasks) fires only where edges exist [0.53ms]
+(pass) check 5 (serving no KR) is declared, never inferred [1.23ms]
+(pass) check 3 (no spec) fires only where SPECS are tracked, and only on P0/P1 [0.45ms]
+(pass) a P2 is never accused of missing a spec [0.50ms]
+(pass) check 4 (closed with no evidence) fires only where evidence is tracked [0.13ms]
+(pass) evidence documents are sorted into stages by their slug [0.04ms]
+(pass) a row's documents are ordered newest first, so each slot holds the newest of its kind [0.12ms]
+(pass) a dispatch record can be the latest movement — it is not a slot of its own [0.02ms]
+(pass) a row whose only document is its spec has no latest, and no overflow [0.04ms]
+(pass) with no file index, order is left alone and no document is called the latest [0.06ms]
+(pass) the row's own resolved evidence leads, and the filename convention fills in
+(pass) check 2 (no agent) always fires — both sources carry an owner column [0.02ms]
+(pass) closed tasks are not accused of being unassigned or unspecified [1.25ms]
+(pass) warningsFor is the only definition — the model's own list matches it [0.48ms]
+(pass) what the sources could not read reaches the model [0.13ms]
+(pass) KR achieved counts only measurable KRs, so an unmeasured one is not a failure [1.04ms]
+(pass) KR achieved is over the phase's KRs when the phase declares any, not the whole-project OKR [0.95ms]
+(pass) needsYou counts the asks and the blockers; wantsHuman delegates to needsHuman [0.46ms]
+(pass) the user input queue feeds the asks, oldest first [0.05ms]
+(pass) an answered row is not re-filtered here — Perry already did it, by a rule this cannot restate [0.08ms]
+(pass) a risk shows the magnitude a human wrote, not Perry's stance [0.03ms]
+(pass) risks are ordered by the rank Perry normalized, not by the order they were written [0.06ms]
+(pass) a risk carries the age Perry dated it with, and absent stays absent [0.02ms]
+(pass) p0Open counts only open P0 work [0.07ms]
+(pass) a bar needs both numbers, and a zero target is met only at zero [0.03ms]
+(pass) an objective averages only the KRs that stated numbers, and says how many [0.06ms]
+(pass) an objective whose KRs state no targets has no progress, not zero [0.04ms]
+(pass) a declared role holds the rows whose Role cell names it — joined here, on contract [0.20ms]
+(pass) dependencies and startability reach the model, computed by Perry [0.09ms]
+(pass) the roster comes from the owner column, and says so [1.13ms]
+(pass) a project with no events has none, and never a placeholder [1.32ms]
+(pass) the feed is the event log, with the time the log recorded [3.38ms]
+(pass) what from/to MEAN comes from the payload, never from a list of event names [0.16ms]
+(pass) a pre-1.7 tool sends no field, and status is the honest assumption there [0.02ms]
+(pass) decisions join the feed and keep their own document [0.09ms]
+(pass) an empty decisions list is not the same claim as a decide that never ran [0.05ms]
+(pass) the decide payload keeps its supersession chain and its own conformance [0.09ms]
+(pass) 1.12: startable, not status, decides whether a row can be picked up [0.07ms]
+(pass) 1.12: a row with a live blocker is untouched — this is not 'drop the check' [0.03ms]
+(pass) 1.12: blocked_by_closed_rows reaches the surface as its own finding [0.04ms]
+(pass) 1.14: a USER- id in blocked_by is a question, not a missing task [0.09ms]
+(pass) 1.14: an answered ask satisfies the edge and leaves the cell stale [0.03ms]
+(pass) 1.14: an id neither register carries is still unknown and still unsatisfied [0.04ms]
+(pass) 1.11: the description is the author's summary, never a synthesis [0.03ms]
+(pass) 1.13: the cites-closed entry keeps both readings and its sentence [0.03ms]
+(pass) goals 2.1: a stale asserted current reaches the surface [0.07ms]
+(pass) goals 2.1: provenance, staleness and completion reach WorkKR [0.06ms]
+(pass) goals 2.1: an unasserted current is a third answer, not 'fresh' [0.03ms]
+(pass) the phase carries its own scope and ceiling [0.02ms]
+(pass) a phase that states neither leaves both absent rather than zero [0.06ms]
+(pass) facets are counted from the rows in hand, never from a fixed menu [0.28ms]
+(pass) sortKrs: declared order is the file's own and is returned untouched [0.07ms]
+(pass) sortKrs: an unmeasured KR sorts last, never as zero [0.04ms]
+(pass) sortKrs: task count and staleness both break ties on id [0.04ms]
+(pass) sortAsks: raised reverses register order, answered puts the undated last both ways [0.08ms]
+(pass) askHistory is on the model only when the asks read was passed in [0.97ms]
+(pass) sortDecisions: a missing value sorts last in every mode [0.16ms]
+(pass) sortDesignDocs: orders on the three things the lane actually knows [0.12ms]
+(pass) sortDecisions: flipping the direction reverses values and never the unknowns [0.09ms]
+(pass) design documents carry only the edges a payload declared [0.08ms]
+(pass) journal days travel as located files, and are empty when none were found [0.03ms]
+(pass) the reverse dependency edge is carried, not recomputed here [0.04ms]
+(pass) standing queries are Perry's own arrays, counted, never re-derived [0.11ms]
+(pass) the two log-gated queries report unanswerable, not zero, with no event log [0.03ms]
+(pass) objectiveLabel reads the objective number out of its KR ids [0.08ms]
+(pass) objectiveLabel prefers a declared id over anything derived
+(pass) objectiveLabel is silent unless every KR names the same number [0.02ms]
+(pass) objectiveLabel does not read a digit that is not an O segment
+(pass) dailyFlow: a quiet day inside the span is drawn as a real zero [0.17ms]
+(pass) dailyFlow: `closed` is done and drop together, and carries the ids [0.03ms]
+(pass) dailyFlow: the cap counts calendar days and reports what it dropped [0.03ms]
+(pass) dailyFlow: the span never reaches back past the log [0.02ms]
+(pass) dailyFlow: no dated event is null, which is not a span of zeroes [0.01ms]
+(pass) dailyFlow: a month boundary is a day of arithmetic, not of string maths [0.02ms]
+(pass) dailyFlow: an offset-bearing stamp buckets on the day it was written [0.02ms]
+(pass) narrowSpan: a slice of the ceiling equals aggregating at the cap [0.12ms]
+(pass) narrowSpan: a span already inside the cap is returned untouched [0.01ms]
+
+src/session-watch.test.ts:
+(pass) readRegistry > ignores the .key files that share the directory [67.03ms]
+
+src/project-listing.test.ts:
+(pass) obeys .gitignore and the heavy-directory guard, like the index does [81.23ms]
+(pass) a dotfile is listed — hiding one is the client's choice, not this layer's [10.30ms]
+(pass) an empty project is a complete listing of nothing, not a failure [4.78ms]
+(pass) a root that is not there makes no claim [0.49ms]
+
+src/search-route.test.ts:
+(pass) streams NDJSON frames and terminates with done [320.70ms]
+
+src/session-watch.test.ts:
+(pass) readRegistry > skips a corrupt file instead of failing the whole read [17.15ms]
+
+src/work-rail.test.ts:
+(pass) the Work rail surfaces findings without turning an unrun check into a clean zero [0.10ms]
+
+src/platform.test.ts:
+(pass) the macOS implementation > reports a missing binary rather than throwing [39.16ms]
+(pass) the macOS implementation > a path with a quote cannot break out of the AppleScript string [0.06ms]
+(pass) swapping it > setPlatform returns the previous one, so a test can put it back [0.04ms]
+
+src/session-watch.test.ts:
+(pass) readRegistry > a missing directory is empty, not an error [23.96ms]
+
+src/event-feed.test.ts:
+(pass) a page is the newest matches, in log order, with the count of ALL matches beside it [1.33ms]
+(pass) `cursor` walks backwards by seq, and the last page says there is nothing older [0.19ms]
+(pass) paging is by seq and not by offset, so a log that grows does not re-serve a row [1.38ms]
+(pass) the search reads the whole log, not the newest page of it [3.32ms]
+(pass) search is case-insensitive and covers the fields the feed renders [0.07ms]
+(pass) facets count over the whole log, each axis under the OTHER axis's narrowing [0.13ms]
+(pass) an empty log answers with zero, not with a page of nothing that claims more [0.02ms]
+(pass) reading oldest-first starts at the log's head and walks forwards [0.10ms]
+(pass) the matched count and the facets do not depend on which page was asked for [0.54ms]
+(pass) an absent cursor is absent, not seq 0 — the whole feed depended on it [0.17ms]
+(pass) a page size is clamped to the route's own ceiling, and a missing one is the default [0.03ms]
+(pass) kinds and actors arrive as repeated params, so a name may contain a comma [0.02ms]
+(pass) order defaults to newest and only the one other value is honoured [0.01ms]
+
+src/project-listing.test.ts:
+(pass) a subtree that cannot be read costs `complete`, not silence [59.01ms]
+(pass) NO_LISTING claims nothing [0.06ms]
+
+src/docs-route.test.ts:
+(pass) a first read is full and carries a revision to continue from [367.58ms]
+
+src/architecture.test.ts:
+(pass) runtime source imports are acyclic [126.80ms]
+(pass) every server route path is declared exactly once [1.16ms]
+
+src/project-listing.test.ts:
+(pass) a second read inside the TTL does not walk again [19.54ms]
+
+src/kr-checks.test.ts:
+(pass) one increase check, measured: the bar is Perry's fraction, though current is null [0.90ms]
+(pass) an at_most check, met: met with no bar, and no ratio worked out here [0.07ms]
+(pass) unmeasured: no reading, never false, and declared rather than target-less [0.21ms]
+(pass) due: the stale measurement still reads, and says it is due [0.04ms]
+(pass) undeclared: the 3.4 reading, current over target, is kept [0.09ms]
+(pass) a KR with checks is never read off its record's current/target [0.03ms]
+(pass) the headline: three different situations, and only one says no target was written [0.14ms]
+(pass) a withdrawn KR is listed but leaves every count (3.6) [0.05ms]
+(pass) 3.5 and 3.6 are read, so neither surfaces as an unread change [0.02ms]
+(pass) a payload from before 3.5 reads every KR as undeclared [0.04ms]
+
+src/gitignore.test.ts:
+(pass) root .gitignore ignores a directory and everything under it [40.77ms]
+
+src/session-watch.test.ts:
+(pass) listSessions > scopes to the project root [67.03ms]
+
+src/highlight.test.ts:
+(pass) languageForPath > maps by extension, case-insensitively [0.14ms]
+(pass) languageForPath > maps well-known filenames by name, not extension
+(pass) languageForPath > maps Godot scripts, shaders and text resources [0.03ms]
+(pass) languageForPath > returns null for unknown or extension-less files
+
+src/project-listing.test.ts:
+(pass) forgetting a project re-walks it [28.63ms]
+
+src/highlight.test.ts:
+(pass) highlightCode > highlights javascript [3.95ms]
+(pass) highlightCode > highlights python [3.51ms]
+(pass) highlightCode > shell aliases resolve to bash [0.65ms]
+(pass) highlightCode > highlights gdscript [0.91ms]
+(pass) highlightCode > html alias resolves to xml [3.14ms]
+(pass) highlightCode > highlights svelte: markup, script, and mustache logic blocks [1.98ms]
+
+src/gitignore.test.ts:
+(pass) a file sharing a dir-only rule's name is not ignored [31.34ms]
+
+src/highlight.test.ts:
+(pass) highlightCode > newly added languages resolve and highlight [6.71ms]
+(pass) highlightCode > common aliases resolve (cs, rb, kt, toml, gql) [0.40ms]
+(pass) highlightCode > unknown language returns empty string (markdown-it fallback) [0.04ms]
+(pass) highlightCode > language name is case-insensitive and trimmed [0.06ms]
+(pass) markdown-it integration > fenced block gets highlighted spans and language class [0.23ms]
+(pass) markdown-it integration > with no highlight option the class and the escaped source both survive [0.58ms]
+(pass) markdown-it integration > unknown language falls back to escaped plain text [0.04ms]
+(pass) markdown-it integration > no injection through code content [0.19ms]
+(pass) splitHighlightedLines > one entry per source line, including the trailing empty one [0.06ms]
+(pass) splitHighlightedLines > a span that crosses a newline is closed and reopened [0.03ms]
+(pass) splitHighlightedLines > nested spans keep their nesting on the next line [0.01ms]
+(pass) splitHighlightedLines > entities survive, and every line is balanced [0.19ms]
+(pass) splitHighlightedLines > the line count matches the source's own [0.18ms]
+
+src/project-listing.test.ts:
+(pass) two callers at once share one walk [28.10ms]
+
+src/html-img.test.ts:
+(pass) renders a relative <img> embed instead of escaping it [1.35ms]
+(pass) keeps width/height/title, drops everything else [0.46ms]
+(pass) strips event handlers and style — no script vector survives [0.22ms]
+(pass) drops a javascript: src entirely (no img emitted) [0.16ms]
+(pass) self-closing and svg data-URI both render [0.17ms]
+(pass) a srcless <img> is left untouched [0.22ms]
+(pass) svg data-URI markdown image survives the widened validateLink [0.73ms]
+
+src/perry-contracts.test.ts:
+(pass) PERRY-CONTRACTS.md is what the constants render [13.70ms]
+(pass) every reader in the manifest names a major and what it is the only source of [0.05ms]
+(pass) the manifest is CONTRACT_TESTED, not a second copy of it [0.03ms]
+(pass) the manifest states the majors the parsers actually enforce [0.02ms]
+(pass) the roles block is the only reader that degrades instead of refusing [0.02ms]
+(pass) the kernel is the only task reader in the manifest [0.03ms]
+
+src/perry-time.test.ts:
+(pass) both stamp shapes parse, and an unreadable one is null rather than 1970 [3.54ms]
+(pass) a zoneless stamp is LOCAL, which is what ts_moment reads it as [0.03ms]
+(pass) the two shapes compare as instants, and comparing them as TEXT is wrong [0.05ms]
+(pass) an unreadable stamp sorts LAST in both directions, never first [0.04ms]
+(pass) a tie returns 0, so a stable sort keeps log order [0.02ms]
+(pass) tsDay is the day the WRITER stamped, on either shape [0.04ms]
+(pass) the display readers take the stamp as written and never convert [0.05ms]
+(pass) tsLocalDay converts, because the register's stamps are not the reader's [0.07ms]
+(pass) ageHours is null on an unreadable stamp, not a number [0.02ms]
+
+src/project-listing.test.ts:
+(pass) listings for roots that left the registry are dropped [36.65ms]
+
+src/session-watch.test.ts:
+(pass) listSessions > a null root lists every project's sessions [80.54ms]
+
+src/gitignore.test.ts:
+(pass) nested .gitignore is scoped to its directory and can re-include via negation [70.75ms]
+(pass) the .git directory is always ignored [7.33ms]
+(pass) no .gitignore → nothing is ignored (except .git) [11.67ms]
+
+src/session-watch.test.ts:
+(pass) listSessions > joins hook state onto the roster and ranks needs-you first [42.27ms]
+
+src/project-listing.test.ts:
+(pass) only four projects are held at once [45.26ms]
+(pass) the cap is a documented ceiling, not a number to discover at runtime [0.03ms]
+
+src/session-watch.test.ts:
+(pass) listSessions > a live session with no hook file reads as unknown [29.96ms]
+(pass) listSessions > hook state for a dead session is ignored [35.85ms]
+
+src/prose.test.ts:
+(pass) tokenizing is lossless — every input reassembles byte for byte [0.38ms]
+(pass) backticks are the author's own markup and become code [0.03ms]
+(pass) a backtick that never closes is not markup [0.01ms]
+(pass) code wins over the shapes inside it [0.03ms]
+(pass) an id is a shape, never a list of prefixes [0.04ms]
+(pass) a path is a candidate, and the caller decides whether it resolves [0.05ms]
+(pass) a long timeline value is prose and a short one is a status name [0.04ms]
+
+src/session-watch.test.ts:
+(pass) listSessions > readable is false when Claude Code has never run here [23.36ms]
+(pass) listSessions > readable is true when the directory exists but is empty [76.03ms]
+
+src/server-recovery.test.ts:
+(pass) /api/health answers 200 without depending on workspace state [296.38ms]
+
+src/session-watch.test.ts:
+(pass) listSessions detail > labels a working session with its current tool [55.96ms]
+
+src/search-route.test.ts:
+(pass) finds a two-character CJK substring [463.70ms]
+
+src/session-watch.test.ts:
+(pass) listSessions detail > the host's own notification message outranks the tool name [32.26ms]
+(pass) listSessions detail > a missing transcript costs nothing and yields no label [15.64ms]
+
+src/workspace-switch.test.ts:
+(pass) switching projects swaps the index, and both stay in recents [571.06ms]
+
+src/i18n.test.ts:
+(pass) every key in the catalog still has a caller [566.50ms]
+(pass) the Chinese catalogue follows the copy conventions [4.00ms]
+
+src/server-portfolio.test.ts:
+(pass) mixed roots: valid manifest, invalid manifest, and none at all [335.92ms]
+
+src/i18n.test.ts:
+(pass) both catalogues interpolate the same placeholders [3.78ms]
+
+src/platform.test.ts:
+(pass) trashing a folder prunes the whole subtree from the index [496.69ms]
+
+src/session-watch.test.ts:
+(pass) listSessions detail > detail is skipped entirely when not requested [42.09ms]
+(pass) listSessions detail > surfaces the session's real title [38.21ms]
+(pass) listSessions activity > a long-open session that just moved is working, dated from the move [13.76ms]
+(pass) listSessions activity > a session whose transcript is stale reads as idle [12.48ms]
+
+src/server-recovery.test.ts:
+(pass) /api/health stays fast and repeatable — the shell polls it on a timer [273.85ms]
+
+src/session-watch.test.ts:
+(pass) listSessions activity > last activity is read even without detail — it is never optional [79.63ms]
+(pass) listSessions activity > no transcript at all still reads as unknown [5.26ms]
+
+src/server-portfolio.test.ts:
+(pass) a project whose folder vanishes stays on the board as unavailable [184.74ms]
+
+src/session-watch.test.ts:
+(pass) listSessions activity > reads only the tail of a large transcript [27.20ms]
+
+src/workspace-switch.test.ts:
+(pass) a project's id survives switching away and back [225.01ms]
+
+src/search-route.test.ts:
+(pass) scope=markdown excludes text files, scope=text includes them [264.10ms]
+
+src/session-watch.test.ts:
+(pass) orphan pruning > removes a week-old hook file for a session that is gone [72.39ms]
+
+src/platform.test.ts:
+(pass) a path outside the project root is refused before anything is moved [272.84ms]
+
+src/session-watch.test.ts:
+(pass) orphan pruning > keeps a fresh orphan — a session may still be starting up [74.52ms]
+
+src/server-portfolio.test.ts:
+(pass) deleting AIMARK.md downgrades the card instead of losing the project [170.79ms]
+
+src/server-recovery.test.ts:
+(pass) rescan re-finds a directory that was deleted and recreated under the same name [203.43ms]
+
+src/platform.test.ts:
+(pass) the project root itself cannot be trashed [119.45ms]
+
+src/search-route.test.ts:
+(pass) hidden=1 reveals dotfile paths [189.60ms]
+
+src/docs-route.test.ts:
+(pass) a write arrives as a delta holding only what moved [858.21ms]
+
+src/session-watch.test.ts:
+(pass) orphan pruning > prunes nothing when the registry cannot be read [80.82ms]
+
+src/perry-kernel.test.ts:
+(pass) native kernel rows, asks, events and dependency state reach the existing views [1264.90ms]
+
+src/server-portfolio.test.ts:
+(pass) an AIMARK.md that exists but cannot be read is a broken card, not a crash [202.44ms]
+
+src/search-route.test.ts:
+(pass) metadata-only queries match without emitting body lines [199.66ms]
+
+src/server-progress.test.ts:
+(pass) progress clears once a project finishes loading [1204.93ms]
+
+src/platform.test.ts:
+(pass) mkdir and save reach /api/docs without waiting for the watcher [267.51ms]
+
+src/workspace-switch.test.ts:
+(pass) switching back to a project that closed re-walks it from disk, picking up edits made while away [508.70ms]
+
+src/docs-route.test.ts:
+(pass) a deletion arrives as a removal, not as a silently shorter list [417.05ms]
+
+src/perry-kernel.test.ts:
+(pass) closing cannot lower a rung or pretend the application is a human signer [441.73ms]
+(pass) unsupported majors and malformed pages refuse rather than becoming an empty project [0.31ms]
+(pass) a snapshot reads all query pages and retries when another writer moves its seq [0.35ms]
+
+src/search-route.test.ts:
+(pass) an empty or too-short query returns done with no hits rather than erroring [309.70ms]
+
+src/workspace-switch.test.ts:
+(pass) re-selecting the live project does not reopen it [272.95ms]
+
+src/perry-conformance.test.ts:
+perry: /Users/bytedance/.codex/worktrees/root-kernel-cutover/Perry
+(pass) all active domain views share one native snapshot and custom state root [1693.94ms]
+
+src/docs-route.test.ts:
+(pass) a revision from another workspace is answered in full, not with a delta [280.72ms]
+
+src/perry-conformance.test.ts:
+(pass) a legacy config and task register never replace a missing native store [89.02ms]
+
+src/server-portfolio.test.ts:
+(pass) a project whose folder is missing survives a restart — the registry is not self-pruning [660.94ms]
+
+src/docs-route.test.ts:
+(pass) naming a project that is not registered is refused, not answered with another [143.36ms]
+
+src/platform.test.ts:
+(pass) a copied file arrives, by the watcher, and the snapshot is not stale when it does [588.30ms]
+
+src/session-watch.test.ts:
+(pass) watchSessions > fires when a session appears and stops after close [1030.05ms]
+(pass) watchSessions > close is safe to call when the watcher never attached [21.41ms]
+
+src/docs-route.test.ts:
+(pass) a revision the server has never reached is answered in full [242.79ms]
+
+src/server-portfolio.test.ts:
+(pass) availability learned by the portfolio is reported to the switcher too [296.66ms]
+
+src/search-route.test.ts:
+(pass) results are capped and the cap is flagged (approximate by construction) [864.55ms]
+
+src/perry-conformance.test.ts:
+(pass) closing evidence and structured blockers are enforced by actual native calls [1071.50ms]
+
+src/server-portfolio.test.ts:
+(pass) at the cap, eviction sacrifices a project with no AIMARK.md over an older one that has it [821.02ms]
+(pass) editing AIMARK.md is picked up — the mtime cache never serves a stale manifest [214.70ms]
+
+src/server-progress.test.ts:
+(pass) progress reports a real denominator and never exceeds it [2251.30ms]
+
+src/server-portfolio.test.ts:
+(pass) cards arrive sorted: attention, then blocked, then quiet longest [333.81ms]
+
+src/search-route.test.ts:
+(pass) hits stream out before the scan finishes [1110.16ms]
+
+src/server-portfolio.test.ts:
+(pass) manifest-less projects sink below every project that has one [171.48ms]
+
+src/server-recovery.test.ts:
+(pass) the index self-heals after the watcher has gone deaf [2716.81ms]
+
+src/server-portfolio.test.ts:
+(pass) a broken manifest ranks above quiet and unconverted projects [185.49ms]
+(pass) unknown fields surface as a warning the card can show [143.46ms]
+
+src/workspace-switch.test.ts:
+(pass) re-opening a project whose previous attach is still running still indexes it [2400.10ms]
+
+src/frontend-symbols.test.ts:
+(pass) the browser entry graph has no unresolved identifiers [4282.25ms]
+
+src/server-portfolio.test.ts:
+(pass) the live project is flagged, and /api/workspaces reports availability [227.96ms]
+
+src/workspace-switch.test.ts:
+(pass) removing the live project falls back to the most recent survivor [311.58ms]
+
+src/server-portfolio.test.ts:
+(pass) an empty portfolio is an empty list, not an error [101.37ms]
+
+src/workspace-switch.test.ts:
+(pass) removing the last project leaves no folder open [89.48ms]
+(pass) two projects are open at once, each answering with its own index [185.84ms]
+(pass) an edit is announced for the project it happened in, and no other [1889.39ms]
+(pass) a project no window holds closes after the grace period; one a window holds does not [1788.09ms]
+(pass) a window coming back within the grace period keeps the project open [2921.21ms]
+(pass) a connection counted twice by its own teardown does not close a project another window holds [1360.37ms]
+(pass) a request that arrives while a project is closing opens it again, and it ends up indexed [660.37ms]
+(pass) removing a project a window holds tells that window, then closes it [137.95ms]
+(pass) a window cannot be opened from another origin [199.52ms]
+(pass) a file is served under the project its path names [125.00ms]
+(pass) a setting that moved is announced to every window, and one written back unchanged is not [670.42ms]
+(pass) a project that would cross the watch budget is indexed but not watched, and the sweep keeps it current [615.40ms]
+(pass) after a restart, last run's windows are offered for restoring and not reported as open [686.68ms]
+(pass) a window's frame is kept per project and refused when it is garbage [86.45ms]
+
+src/search-route.test.ts:
+(pass) aborting the request actually stops the scan [17891.43ms]
+(pass) the server stays responsive during and after a scan [146.79ms]
+
+ 979 pass
+ 0 fail
+ 3118 expect() calls
+Ran 979 tests across 63 files. [22.07s]

@@ -1,6 +1,6 @@
 # Native phases, KRs and measurements
 
-Read the applied template and `work/reference/kernel.md` for exact fields,
+Read the applied template and `$PERRY_HOME/reference/kernel.md` for exact fields,
 states, relations and CLI shapes. These are procedures, not a second schema.
 Use current item seqs in `expect`; stale expectations require reconciliation.
 
@@ -53,7 +53,7 @@ Old historical snapshots remain attachments; never rewrite a frozen snapshot.
 
 ## check and measure
 
-Declare checks per Objective for explicit user approval. One `check` item per
+Declare checks per KR for explicit user approval. One `check` item per
 condition, with `parent` to its KR and optional `in_phase`. Store the executable
 measurement as command_text, target, direction and optional baseline as a metric
 `check_metric`. Native up/down maps increase/decrease with baseline; at-least/at-most

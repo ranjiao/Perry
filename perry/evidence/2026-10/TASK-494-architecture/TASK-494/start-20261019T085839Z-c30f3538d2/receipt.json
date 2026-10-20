@@ -1,0 +1,23 @@
+{
+  "stage": "start",
+  "task": "TASK-494",
+  "snapshot": "0792be7db67463f8b18caab035566ea079d078dd5816029ac38331b427add0d5",
+  "status": "limited",
+  "open_report": false,
+  "reasons": [],
+  "target_changes": [],
+  "review": {
+    "snapshot": "0792be7db67463f8b18caab035566ea079d078dd5816029ac38331b427add0d5",
+    "summary": "Actual pre-edit tree; file responsibilities inferred from 48 Python units. Governing docs pinned without invented machine constraints. Legacy state readers and method coupling are the known DESIGN-023 retirement target. Static lexical coverage excludes shell, browser JS, dynamic imports, document meaning and runtime correctness. This is author interpretation, not semantic PASS or independent review.",
+    "target_change_requested": false,
+    "findings": []
+  },
+  "new_blind_spots": [],
+  "baseline": null,
+  "baseline_sha256": null,
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-architecture/TASK-494/start-20261019T085839Z-c30f3538d2/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-architecture/TASK-494/start-20261019T085839Z-c30f3538d2",
+  "summary": "\u67b6\u6784\u68c0\u67e5\uff1a\u672a\u53d1\u73b0\u5df2\u786e\u8ba4\u504f\u79bb\uff0c\u5b58\u5728\u9759\u6001\u5206\u6790\u76f2\u533a\uff1b\u8bc1\u636e\u5df2\u4fdd\u5b58\u3002",
+  "bundle_sha256": "50915c542aa28c9b16be3f902c16ae383efd5ae9e476977fd68f903719acc3af",
+  "html_sha256": "b5b06dbbb79227eb68ef4b27808647e71743e31941a1ac6bca9aabdde9e34bfb"
+}

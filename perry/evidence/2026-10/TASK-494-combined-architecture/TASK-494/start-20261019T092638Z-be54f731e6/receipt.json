@@ -1,0 +1,23 @@
+{
+  "stage": "start",
+  "task": "TASK-494",
+  "snapshot": "0aef60789e2d6d71b7c1a7e1316611cf4b7525dc1a3a9f9dcf8c5972c38342c4",
+  "status": "limited",
+  "open_report": false,
+  "reasons": [],
+  "target_changes": [],
+  "review": {
+    "snapshot": "0aef60789e2d6d71b7c1a7e1316611cf4b7525dc1a3a9f9dcf8c5972c38342c4",
+    "summary": "Python AST only. Legacy readers/writers remain until H. Template semantics, shell, narrative approval and migration parity require separate checks. No target change by this coding agent.",
+    "target_change_requested": false,
+    "findings": []
+  },
+  "new_blind_spots": [],
+  "baseline": null,
+  "baseline_sha256": null,
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-combined-architecture/TASK-494/start-20261019T092638Z-be54f731e6/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-combined-architecture/TASK-494/start-20261019T092638Z-be54f731e6",
+  "summary": "\u67b6\u6784\u68c0\u67e5\uff1a\u672a\u53d1\u73b0\u5df2\u786e\u8ba4\u504f\u79bb\uff0c\u5b58\u5728\u9759\u6001\u5206\u6790\u76f2\u533a\uff1b\u8bc1\u636e\u5df2\u4fdd\u5b58\u3002",
+  "bundle_sha256": "cafcf9ee7e8743b764b3ae0f437a6aa67789fef1693cadd0196b62767cabd3a2",
+  "html_sha256": "b6119f1eb0e4d4bd635e9eba67a4c0ef40c741362e273d518fee18075617f757"
+}

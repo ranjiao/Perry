@@ -11,10 +11,14 @@ Read their documents freely. Ask before a write outside this lane's ownership.
 Work is the only writer of `evidence/`, `weekly/` and `handoff/`.
 Never write to OKR files or `decisions/` from work; goals and decide own them.
 
-## Mandatory first move: the Standup
+## Startup by route
 
 Apply `$PERRY_HOME/SKILL.md § Mandatory first move: combined snapshot` recovery and
 interrupted-run gates before this lane reads project state.
+
+Explain/help reads shipped instructions only. A narrow Query reads only its
+requested native projection after safety. The steps below describe execution
+and an explicitly requested overview; they do not force a full standup on help.
 
 **Set `$PERRY_HOME`** from the parent of this lane: it contains `bin/`, `reference/`, `goals/`, `work/`, `decide/` and `SKILL.md`.
 
@@ -22,7 +26,7 @@ interrupted-run gates before this lane reads project state.
    A blocking recovery or interrupted pipeline stops work before other state reads.
    Do not resume a pipeline without the user's choice.
 2. Read the project's `.perry/hook.md` and `reference/conversational.md`.
-3. **Compute the state**: Read `reference/kernel.md`, then query the kernel for this project's task, ask
+3. **Compute the state**: Read `$PERRY_HOME/reference/kernel.md`, then query the kernel for this project's task, ask
    and risk items. Do not reconstruct current work state from old JSONL registers,
    a board or a journal. `store_missing` is a migration/setup condition, not an
    empty project. Do not fall back to the frozen legacy writer.
@@ -46,7 +50,7 @@ Existing plan-before-produce and consequential-ambiguity rules remain in
 fields, transitions, relations, events and attachments; the process template supplies
 Perry's names. Every call names `--root <absolute project>`; test/rehearsal calls also
 name `--store <isolated database>`. JSON input and result envelopes are specified
-in `reference/kernel.md`. `describe` is the versioned argument contract.
+in `$PERRY_HOME/reference/kernel.md`. `describe` is the versioned argument contract.
 
 - Types: `task`, `ask`, `risk`; tracks: `main`, `intake`.
 - Task states: `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped`.
@@ -86,14 +90,15 @@ and the structured project policy/role union plus user instructions govern push/
 iteration; repository completion requires its full gate and `git diff --check`.
 
 Additional references loaded on demand: `reference/bootstrap.md`,
-`reference/kernel.md`, `reference/review-constraints.md`, `reference/state-files.md`,
+`$PERRY_HOME/reference/kernel.md`, `reference/review-constraints.md`, `reference/state-files.md`,
 `reference/dispatch-preflight.md`, `reference/budget-boundary.md`,
 `reference/git-boundaries.md`,
-`reference/reporting-format.md`, `reference/promotion-format.md`,
+`reference/reporting-format.md`,
 `reference/task-close.md`, `reference/conversational.md`,
-`reference/add-task-notes.md`, `reference/dispatch-notes.md`,
-`reference/extending.md`, `reference/lane-notes.md`,
+`reference/add-task-notes.md`, `reference/extending.md`,
 `reference/promotion.md`, `reference/time-estimation.md`.
+`dispatch-notes.md` and `lane-notes.md` are historical rationale only; their old
+commands, schema and rung descriptions are not operational instructions.
 
 ## Subcommand index
 

@@ -1,0 +1,50 @@
+[
+  {
+    "path": "perry/evidence/2026-10/TASK-492-prefix-floor/approval.json",
+    "equal": true,
+    "sha256": "93c6c51899af2bbe6c6d678aac976d04b1340a42e3f7313300fe44562a47dcbd",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-492-prefix-floor/approval.md",
+    "equal": true,
+    "sha256": "9a9bdd141645cfa806020eca9a02f8de54c892fef0bf8a391b747018f45e1dbb",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-492-prefix-floor/proposal.md",
+    "equal": true,
+    "sha256": "d5fc453574b19c55b0e0e1181b17b593ca7d2e05ae6407b23e06aaa4d4639b84",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-494-review-candidate/approval.json",
+    "equal": true,
+    "sha256": "e7e956a259d5b4e5b7fa133ef6deb58b8e9db8c6e9fafe6e39da81384d81bb3d",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-494-review-candidate/candidate.json",
+    "equal": true,
+    "sha256": "436d197654d4a3cb67218eb18cc659080a4e4e07ab5bd157d831441db1b59b3a",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-494-review-candidate/combined-corrections.json",
+    "equal": true,
+    "sha256": "6b15d5053303b92d478e06bb3dd9134ba4d12ac7597c227b4f40403b5e2d7b4f",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-494-review-candidate/disposition.json",
+    "equal": true,
+    "sha256": "63dce53c247cd4f695c516ccf641f633db5aae302df8f79ad12520fe230f1a2b",
+    "tracked": false
+  },
+  {
+    "path": "perry/evidence/2026-10/TASK-494-review-candidate/dropped-checks.tsv",
+    "equal": true,
+    "sha256": "3ea76f3255f9de03c6457293cc2cceda14464c181168ae4d8c8b9061d4ed4f4c",
+    "tracked": false
+  }
+]

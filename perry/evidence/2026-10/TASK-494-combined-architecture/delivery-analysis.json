@@ -1,0 +1,512 @@
+{
+  "version": 1,
+  "producer": "host-agent",
+  "snapshot": "9549580973dbc898f592c336ad6bcbd8ed8bfdb28afd23a489f19fee7df932c7",
+  "title": "TASK-494 observed file responsibilities",
+  "components": [
+    {
+      "id": "unit-0",
+      "label": "bin/perry",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry"
+      ],
+      "evidence": [
+        "call:bin/perry:12:13",
+        "call:bin/perry:12:4"
+      ]
+    },
+    {
+      "id": "unit-1",
+      "label": "kernel/perry_kernel/__init__.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/__init__.py"
+      ],
+      "evidence": [
+        "import:3",
+        "import:4"
+      ]
+    },
+    {
+      "id": "unit-2",
+      "label": "kernel/perry_kernel/__main__.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/__main__.py"
+      ],
+      "evidence": [
+        "call:kernel/perry_kernel/__main__.py:5:0",
+        "call:kernel/perry_kernel/__main__.py:5:9"
+      ]
+    },
+    {
+      "id": "unit-3",
+      "label": "kernel/perry_kernel/cli.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The non-flag tokens, skipping the values of flags that take one. / `(command name, flags)`, or raises Help / a usage KernelError.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/cli.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/cli.py::Help.__init__@30",
+        "kernel/perry_kernel/cli.py::Help@29"
+      ]
+    },
+    {
+      "id": "unit-4",
+      "label": "kernel/perry_kernel/commands.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: One invocation: its flags, input, environment and working directory. / `{field: new value or None}` for every field named in `given`.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/commands.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/commands.py::Ctx.__init__@60",
+        "kernel/perry_kernel/commands.py::Ctx.anchor@71"
+      ]
+    },
+    {
+      "id": "unit-5",
+      "label": "kernel/perry_kernel/errors.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: A refusal. Raised anywhere, caught once at the top (NN-K6).",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/errors.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/errors.py::KernelError.__init__@85",
+        "kernel/perry_kernel/errors.py::KernelError.exit@94"
+      ]
+    },
+    {
+      "id": "unit-6",
+      "label": "kernel/perry_kernel/guards.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The item's type, state and effective field values. / Guards run after the command's changes are applied, so this item\nalready sits in `target_state` and `items_in` returns it: it counts\nitself once, in the loop.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/guards.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/guards.py::_actor@57",
+        "kernel/perry_kernel/guards.py::_effective@25"
+      ]
+    },
+    {
+      "id": "unit-7",
+      "label": "kernel/perry_kernel/paths.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: An absolute, resolved path, or a typed refusal. `~user` that names no\none, a symlink loop and an unreadable component are `io_error`, never an\nexception (NN-K6). / An environment variable's value, or None when it is unset.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/paths.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/paths.py::_abs@57",
+        "kernel/perry_kernel/paths.py::_holds_anchor@93"
+      ]
+    },
+    {
+      "id": "unit-8",
+      "label": "kernel/perry_kernel/store.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: `(prefix, number)`, or None when `item_id` is not an id's shape. / `fn()`, run again while sqlite answers busy or locked and `deadline`\nhas not passed. sqlite's busy handler waits out a lock another connection\nholds, but it is not called where waiting could deadlock (two\nconnections upgrading one file's lock at once, as two first inits do):\nSQLITE_BUSY then comes back at once. `store_busy` means the lock was not\nacquired within 5 s, so the kernel waits the rest o",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/store.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/store.py::Store.__enter__@308",
+        "kernel/perry_kernel/store.py::Store.__exit__@311"
+      ]
+    },
+    {
+      "id": "unit-9",
+      "label": "kernel/perry_kernel/surface.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The whole surface. Deterministic: no store, no path, no clock.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/surface.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/surface.py::_spec_line@255",
+        "kernel/perry_kernel/surface.py::arr@38"
+      ]
+    },
+    {
+      "id": "unit-10",
+      "label": "kernel/perry_kernel/template.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: Membership that a list or an object in the caller's template cannot\nturn into a TypeError: only a string can name something. / Only the declared keys, and every required one. False if `obj` is not\nan object at all.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/template.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/template.py::Problems.__bool__@71",
+        "kernel/perry_kernel/template.py::Problems.__init__@65"
+      ]
+    },
+    {
+      "id": "unit-11",
+      "label": "kernel/perry_kernel/values.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The one serialisation: sorted keys, compact, UTF-8 (\u00a7 5.8). / `(path, message)` for the first part of `value` that cannot be kernel\ninput, or None. Walks iteratively, so depth cannot overflow the stack.\nA message never quotes the offending value.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/values.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/values.py::ValueProblem.__init__@138",
+        "kernel/perry_kernel/values.py::ValueProblem@134"
+      ]
+    },
+    {
+      "id": "unit-12",
+      "label": "release/manage.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/manage.py"
+      ],
+      "evidence": [
+        "release/manage.py::Refused@36",
+        "release/manage.py::allocate@221"
+      ]
+    },
+    {
+      "id": "unit-13",
+      "label": "release/publish.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/publish.py"
+      ],
+      "evidence": [
+        "release/publish.py::NoRedirect.redirect_request@20",
+        "release/publish.py::NoRedirect@19"
+      ]
+    },
+    {
+      "id": "unit-14",
+      "label": "release/update.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Local tag/cache association is a candidate, never remote verification.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/update.py"
+      ],
+      "evidence": [
+        "release/update.py::NoRedirect.redirect_request@46",
+        "release/update.py::NoRedirect@45"
+      ]
+    },
+    {
+      "id": "unit-15",
+      "label": "templates/knowledge-base/bin/kb-lint",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Link targets in a page, wiki-style and markdown-style alike. / A wikilink resolves by page name; a markdown link resolves by path.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "templates/knowledge-base/bin/kb-lint"
+      ],
+      "evidence": [
+        "templates/knowledge-base/bin/kb-lint::main.add@104",
+        "templates/knowledge-base/bin/kb-lint::main@82"
+      ]
+    },
+    {
+      "id": "unit-16",
+      "label": "templates/ops/bin/deliverable-lint",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "templates/ops/bin/deliverable-lint"
+      ],
+      "evidence": [
+        "templates/ops/bin/deliverable-lint::check@75",
+        "templates/ops/bin/deliverable-lint::main@128"
+      ]
+    },
+    {
+      "id": "unit-17",
+      "label": "tools/architecture/analysis.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/analysis.py"
+      ],
+      "evidence": [
+        "tools/architecture/analysis.py::attach.edge@97",
+        "tools/architecture/analysis.py::attach.unit_at@92"
+      ]
+    },
+    {
+      "id": "unit-18",
+      "label": "tools/architecture/audit.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/audit.py"
+      ],
+      "evidence": [
+        "tools/architecture/audit.py::compare.matches@39",
+        "tools/architecture/audit.py::compare.patterns@33"
+      ]
+    },
+    {
+      "id": "unit-19",
+      "label": "tools/architecture/checkpoint.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/checkpoint.py"
+      ],
+      "evidence": [
+        "tools/architecture/checkpoint.py::digest@19",
+        "tools/architecture/checkpoint.py::load_checkpoint@130"
+      ]
+    },
+    {
+      "id": "unit-20",
+      "label": "tools/architecture/facts.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: Small inventory; exact source remains accessible in the full snapshot.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/facts.py"
+      ],
+      "evidence": [
+        "tools/architecture/facts.py::brief@211",
+        "tools/architecture/facts.py::enrich.Collect.definition@44"
+      ]
+    },
+    {
+      "id": "unit-21",
+      "label": "tools/architecture/model.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/model.py"
+      ],
+      "evidence": [
+        "tools/architecture/model.py::bind.visit@19",
+        "tools/architecture/model.py::bind@12"
+      ]
+    },
+    {
+      "id": "unit-22",
+      "label": "tools/architecture/report.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/report.py"
+      ],
+      "evidence": [
+        "tools/architecture/report.py::render@6",
+        "call:tools/architecture/report.py:10:37"
+      ]
+    },
+    {
+      "id": "unit-23",
+      "label": "tools/architecture/scan.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: Return JSON-compatible facts; roots are explicit, not runtime sys.path.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture/scan.py"
+      ],
+      "evidence": [
+        "tools/architecture/scan.py::scan.excluded@38",
+        "tools/architecture/scan.py::scan.inspect_node@157"
+      ]
+    },
+    {
+      "id": "unit-24",
+      "label": "tools/architecture_cli.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/architecture_cli.py"
+      ],
+      "evidence": [
+        "tools/architecture_cli.py::main@24",
+        "call:tools/architecture_cli.py:101:13"
+      ]
+    },
+    {
+      "id": "unit-25",
+      "label": "tools/churn.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: First day of a --days N window: today counts as day 1. / `git <args>` stdout stripped, or None if git said no.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/churn.py"
+      ],
+      "evidence": [
+        "tools/churn.py::bucket_key@400",
+        "tools/churn.py::cell@492"
+      ]
+    },
+    {
+      "id": "unit-26",
+      "label": "tools/context_budget.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: `200k` and `200000` are the same number. `--ceiling 200` is not 200k. / The host `perry-detect-host` names, and the session id that host exports\nfor THIS session. Claude Code hands its subagents the main session's\n`CLAUDE_CODE_SESSION_ID`, and no verified signal tells them apart, so a\nClaude session has none (`reference/host-capabilities.md`).",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/context_budget.py"
+      ],
+      "evidence": [
+        "tools/context_budget.py::bind@367",
+        "tools/context_budget.py::children@190"
+      ]
+    },
+    {
+      "id": "unit-27",
+      "label": "tools/document_checks.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: Fail closed before any normal state read; never repair a legacy marker.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/document_checks.py"
+      ],
+      "evidence": [
+        "tools/document_checks.py::dispatch@122",
+        "tools/document_checks.py::frontmatter@39"
+      ]
+    },
+    {
+      "id": "unit-28",
+      "label": "tools/goals_decide_migrate.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: Read serialized facts only; recheck bytes and bounded source inventory. / Let the native CLI validate values and guards in a disposable store.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/goals_decide_migrate.py"
+      ],
+      "evidence": [
+        "tools/goals_decide_migrate.py::Kernel.__init__@216",
+        "tools/goals_decide_migrate.py::Kernel.call@221"
+      ]
+    },
+    {
+      "id": "unit-29",
+      "label": "tools/host_common.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: UTC timestamp retained for architecture evidence: YYYY-MM-DDTHH:MM:SSZ. / Do not let glob's suppressed directory errors hide a restore point.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/host_common.py"
+      ],
+      "evidence": [
+        "tools/host_common.py::bullets@35",
+        "tools/host_common.py::explicit_directory@12"
+      ]
+    },
+    {
+      "id": "unit-30",
+      "label": "tools/knowledge.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: Resolve local file citations only; IDs and URLs need a separate review.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/knowledge.py"
+      ],
+      "evidence": [
+        "tools/knowledge.py::main@80",
+        "tools/knowledge.py::report@33"
+      ]
+    },
+    {
+      "id": "unit-31",
+      "label": "tools/restore_check.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: The git work tree containing `start`, or None. / The committed bytes of `rel` at `ref`. None if the ref has no such path.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/restore_check.py"
+      ],
+      "evidence": [
+        "tools/restore_check.py::_git@78",
+        "tools/restore_check.py::_root_refusal@175"
+      ]
+    },
+    {
+      "id": "unit-32",
+      "label": "tools/retirement_audit.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/retirement_audit.py"
+      ],
+      "evidence": [
+        "tools/retirement_audit.py::audit.error@85",
+        "tools/retirement_audit.py::audit@81"
+      ]
+    },
+    {
+      "id": "unit-33",
+      "label": "tools/roles.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/roles.py"
+      ],
+      "evidence": [
+        "tools/roles.py::escalation@24",
+        "tools/roles.py::line_fragments@17"
+      ]
+    },
+    {
+      "id": "unit-34",
+      "label": "tools/safety_policy.py",
+      "description": "One-shot skill-side migration adapter",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/safety_policy.py"
+      ],
+      "evidence": [
+        "tools/safety_policy.py::_unique@7",
+        "tools/safety_policy.py::read@39"
+      ]
+    },
+    {
+      "id": "unit-35",
+      "label": "tools/state_cost.py",
+      "description": "One-shot skill-side migration adapter. Observed entry responsibilities: The requested git measurement cannot be made. / The git repository `start` sits in, or a refusal.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "tools/state_cost.py"
+      ],
+      "evidence": [
+        "tools/state_cost.py::Refused@76",
+        "tools/state_cost.py::breakdown@319"
+      ]
+    }
+  ]
+}

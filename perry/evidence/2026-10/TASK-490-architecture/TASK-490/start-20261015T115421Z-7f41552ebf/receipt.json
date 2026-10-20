@@ -1,0 +1,23 @@
+{
+  "stage": "start",
+  "task": "TASK-490",
+  "snapshot": "25dec3c480080e23eab1fc6490399166ca197acab5d203d53e8aa5080fa2a7c0",
+  "status": "limited",
+  "open_report": false,
+  "reasons": [],
+  "target_changes": [],
+  "review": {
+    "snapshot": "25dec3c480080e23eab1fc6490399166ca197acab5d203d53e8aa5080fa2a7c0",
+    "summary": "New target revision baseline after explicit user approval of TASK-490-target-proposal.patch. Original pre-edit baseline start-20261015T110335Z-9f43813978 remains preserved for the implementation comparison. This checkpoint does not reconstruct that historical source. Current Python units/imports. Read root/bin/kernel target boundaries and inspected legacy writer main/recovery path and kernel CLI. No semantic completeness or non-Python compliance claim; target documents pinned without inventing machine rules.",
+    "target_change_requested": false,
+    "findings": []
+  },
+  "new_blind_spots": [],
+  "baseline": null,
+  "baseline_sha256": null,
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/start-20261015T115421Z-7f41552ebf/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/start-20261015T115421Z-7f41552ebf",
+  "summary": "\u67b6\u6784\u68c0\u67e5\uff1a\u672a\u53d1\u73b0\u5df2\u786e\u8ba4\u504f\u79bb\uff0c\u5b58\u5728\u9759\u6001\u5206\u6790\u76f2\u533a\uff1b\u8bc1\u636e\u5df2\u4fdd\u5b58\u3002",
+  "bundle_sha256": "38dc40685456acff4e5df83fa4da192e33c83e22bce95f4f99ac49ff8f724cc0",
+  "html_sha256": "60745b225fc7a2fb79d70055b06c0e8ee9ad68551f83f613267a91ac18e2ae4d"
+}

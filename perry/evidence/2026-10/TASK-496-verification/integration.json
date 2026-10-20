@@ -1,0 +1,12 @@
+{
+  "task": "TASK-496",
+  "base": "534aa4acd87f14c47791ab75debb90e55447c8cd",
+  "candidate": "2cbb432187bdd990ce14257a9e8f8ba8d7fc5b86",
+  "merge": "92728b33b3077fbd02d18d223f87ada9e72c5099",
+  "tree": "deede7df996c0a2743ea03c9be7769a460bc8501",
+  "version": "0.1.26",
+  "primary_dirty_files_preserved": 160,
+  "native_store_sha256_unchanged": "edd7c5c18e5facea2088d3bd2af0823b54460cdc7f04b89bfbd0d5e6349ca76e",
+  "diff_check": "PASS",
+  "publication": "integrated, unpublished; no remote actions"
+}

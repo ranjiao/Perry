@@ -1,0 +1,2681 @@
+{
+  "stage": "delivery",
+  "task": "TASK-492",
+  "snapshot": "131446a60b013553ef83ce1498ee075a1cad59bfa3f30f68ceaf24fe79001835",
+  "status": "attention",
+  "open_report": true,
+  "reasons": [
+    "new_unresolved_checks"
+  ],
+  "target_changes": [],
+  "review": {
+    "snapshot": "131446a60b013553ef83ce1498ee075a1cad59bfa3f30f68ceaf24fe79001835",
+    "summary": "Python AST only. Legacy readers/writers remain until H. Template semantics, shell, narrative approval and migration parity require separate checks. No target change by this coding agent.",
+    "target_change_requested": false,
+    "findings": []
+  },
+  "new_blind_spots": [
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"print(__doc__.strip())\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:535:12",
+        "call:bin/perry-decide:590:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"__doc__.strip()\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:535:18",
+        "call:bin/perry-decide:590:14"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"any(flag in argv for flag in ('-h', '--help'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:588:7"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"print('Historical reader: legacy writes are read-only; use native perry-kernel.')\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:589:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"print(json.dumps({'refused': message, 'written': False}))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:595:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"print(message, file=sys.stderr)\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:597:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-decide\", \"print(json.dumps({'refused': 'legacy goals/decide writes are read-only; use native perry-kernel procedures', 'written': False}))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-decide:601:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"print(__doc__.strip())\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5059:8",
+        "call:bin/perry-goals:5086:8",
+        "call:bin/perry-goals:5187:12",
+        "call:bin/perry-goals:5287:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"__doc__.strip()\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5059:14",
+        "call:bin/perry-goals:5086:14",
+        "call:bin/perry-goals:5187:18",
+        "call:bin/perry-goals:5287:14"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"any(flag in argv for flag in ('-h', '--help'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5285:7"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"print('Historical reader: legacy writes are read-only; use native perry-kernel.')\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5286:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"print(json.dumps({'refused': message, 'written': False}))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5292:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"print(message, file=sys.stderr)\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5294:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-goals\", \"print(json.dumps({'refused': 'legacy goals/decide writes are read-only; use native perry-kernel procedures', 'written': False}))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-goals:5315:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"Path(__file__).resolve()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(HOME / 'viewer')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:23:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(HOME / 'bin')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:23:38"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"hashlib.sha256(value).hexdigest()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"m.group()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:47:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"source.resolve()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:66:22"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.state.is_dir()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:68:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.state.is_relative_to(self.source)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:68:42"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"set()\"]",
+      "count": 5,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:74:21",
+        "call:tools/goals_decide_migrate.py:81:26",
+        "call:tools/goals_decide_migrate.py:297:50",
+        "call:tools/goals_decide_migrate.py:344:19",
+        "call:tools/goals_decide_migrate.py:422:36"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.source_hashes()\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:75:22",
+        "call:tools/goals_decide_migrate.py:102:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"paths.update((self.state/directory).rglob('*'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:91:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state/directory).rglob('*')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:91:25"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"paths.update(self.source/'.perry'/n for n in ('config.jsonl','hook.md'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:92:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"isinstance(r,dict)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:94:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('kind')\"]",
+      "count": 3,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:94:38",
+        "call:tools/goals_decide_migrate.py:202:67",
+        "call:tools/goals_decide_migrate.py:209:66"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"isinstance(r.get('evidence'),str)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:94:73"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('evidence')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:94:84"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"path.is_relative_to(self.state)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:96:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"paths.add(path)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:97:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(p.relative_to(self.source))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:98:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.relative_to(self.source)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:98:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.read_bytes()\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:98:55",
+        "call:tools/goals_decide_migrate.py:119:56"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted(paths)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:98:80"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.is_file()\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:99:19",
+        "call:tools/goals_decide_migrate.py:117:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.is_relative_to(self.source)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:99:35"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"loader(self.state)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:107:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.exists()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:108:28"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"all(isinstance(r, dict) for r in (rows or []))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:110:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"isinstance(r, dict)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:110:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(title=title or label or key, legacy_id=label, legacy_scope=scope,\\n                      source_key=key, source_hash=digest(encoded(raw).encode()), legacy_record=encoded(raw))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:124:17"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"encoded(raw).encode()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"fields.update(extra or {})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:126:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"fields.get('reason')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:127:144"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.attachment(path)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:129:45"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edges.add((kind, src, dst))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:137:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"label.startswith('P')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:143:27",
+        "call:tools/goals_decide_migrate.py:397:90"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.phases.get(phase, {}).get('version')\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.phases.get(phase, {})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:143:53"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(candidates)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:145:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.build_phases()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:152:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.build_overall()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:153:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.build_linkage()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:154:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.build_decide()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:155:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.unchanged()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:156:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted((self.state / 'phase').glob('*.md'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:161:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state / 'phase').glob('*.md')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:161:27"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"path.read_text()\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:164:23",
+        "call:tools/goals_decide_migrate.py:189:35"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"headers.get('source', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:167:21"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"headers.get('status', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:169:21"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add(key, 'phase', {'headers': headers}, path.stem, path.stem, '', 'phase_' + status,\\n                     str(path.relative_to(self.state)), {'phase_slug': path.stem, 'started_on': headers.get('started', ''),\\n                        'source_version': vm.group() if vm else '', 'approval_ref': 'historical source: ' + str(path.relative_to(self.state)),\\n                        'close_evidence': 'historical scored header' if status == 'scored' else '',\\n                        'retro_ref': str(pa\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:175:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(path.relative_to(self.state))\"]",
+      "count": 4,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:176:21",
+        "call:tools/goals_decide_migrate.py:177:108",
+        "call:tools/goals_decide_migrate.py:179:37",
+        "call:tools/goals_decide_migrate.py:200:37"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"path.relative_to(self.state)\"]",
+      "count": 4,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:176:25",
+        "call:tools/goals_decide_migrate.py:177:112",
+        "call:tools/goals_decide_migrate.py:179:41",
+        "call:tools/goals_decide_migrate.py:200:41"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"headers.get('started', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:176:96"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"vm.group()\"]",
+      "count": 4,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:177:42",
+        "call:tools/goals_decide_migrate.py:180:59",
+        "call:tools/goals_decide_migrate.py:351:29",
+        "call:tools/goals_decide_migrate.py:397:65"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(key=key, version=vm.group() if vm else '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:180:37"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.read('okr.jsonl', P.load_okr_store)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:185:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"list(rows)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:186:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted((self.state / 'phase' / 'snapshots').glob('okr-v*.md'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:188:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state / 'phase' / 'snapshots').glob('okr-v*.md')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:188:27"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"ordinal.group()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:199:39"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"archive.append(rec)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:201:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('version')\"]",
+      "count": 5,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:202:32",
+        "call:tools/goals_decide_migrate.py:203:51",
+        "call:tools/goals_decide_migrate.py:209:31",
+        "call:tools/goals_decide_migrate.py:221:185",
+        "call:tools/goals_decide_migrate.py:221:291"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"max((version(r.get('version')) for r in rows if r.get('kind') == 'objective'), key=lambda s: int(s[1:]) if re.fullmatch(r'v\\\\d+', s) else -1, default='')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:209:18"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"int(s[1:])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:209:111"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('version', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:214:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get(\\\"id\\\", \\\"\\\")\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:217:48"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"views.get(lib.kr_revision_key(r, 'okr.jsonl'), {})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:218:23"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"view.get('status')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:219:26",
+        "call:tools/goals_decide_migrate.py:273:26"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"view.get('revisions', [])\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:49",
+        "call:tools/goals_decide_migrate.py:277:63"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"x.get('kind')\"]",
+      "count": 5,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:114",
+        "call:tools/goals_decide_migrate.py:221:207",
+        "call:tools/goals_decide_migrate.py:277:128",
+        "call:tools/goals_decide_migrate.py:277:168",
+        "call:tools/goals_decide_migrate.py:277:244"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"x.get('id')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:138",
+        "call:tools/goals_decide_migrate.py:277:192"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('id')\"]",
+      "count": 3,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:151",
+        "call:tools/goals_decide_migrate.py:221:253",
+        "call:tools/goals_decide_migrate.py:320:118"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"x.get('version')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:167"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"x.get('kr')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:240",
+        "call:tools/goals_decide_migrate.py:277:277"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"x.get('okr_version')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:221:269"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(okr_version=scope, goal_level='overall', approval_ref='historical source: ' + r.get('_attachment', 'OKR.md'),\\n                             reason=view.get('withdrawn_reason', '') if retired else '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:222:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('_attachment', 'OKR.md')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:222:107",
+        "call:tools/goals_decide_migrate.py:226:113"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"view.get('withdrawn_reason', '')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:223:36",
+        "call:tools/goals_decide_migrate.py:274:105"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"extra.update(metric_text=r.get('metric', ''), due_text=r.get('deadline', ''), stretch=str(r.get('stretch', '')).lower() in ('yes', 'true', 'stretch'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:225:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('metric', '')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:225:45",
+        "call:tools/goals_decide_migrate.py:276:45"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('deadline', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:225:75"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(r.get('stretch', '')).lower()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(r.get('stretch', ''))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:225:106"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('stretch', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:225:110"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add(key, kind, raw, r.get('title', r.get('text', '')), r.get('id', ''), scope, state, r.get('_attachment', 'OKR.md'), extra)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:226:22"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('title', r.get('text', ''))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:226:47"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('text', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:226:62"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('id', '')\"]",
+      "count": 5,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:226:82",
+        "call:tools/goals_decide_migrate.py:227:26",
+        "call:tools/goals_decide_migrate.py:228:55",
+        "call:tools/goals_decide_migrate.py:232:31",
+        "call:tools/goals_decide_migrate.py:248:131"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"labels.append(f'O{km[1]}-KR{km[2]}')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:230:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('id', '').replace('-', '')\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.goal_index.append(dict(key=key, labels=labels, scope=scope))\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:233:20",
+        "call:tools/goals_decide_migrate.py:235:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(key=key, labels=labels, scope=scope)\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:233:43",
+        "call:tools/goals_decide_migrate.py:235:43"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('objective_id')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:236:26"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"o.get('version')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:238:85"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"o.get('heading')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:238:115"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('objective')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:238:135"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(matches)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:239:27"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('retired_from' if retired else 'parent', key, self.resolve(obj, scope, context=key))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:242:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(obj, scope, context=key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:242:76"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.warnings.append(key + ': historical version retained, not automatically retired')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:244:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"enumerate(raw_rows)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:246:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add('commitment:' + str(r.get('id', n)), 'objective', r, r.get('promise', r.get('commitment', 'Commitment')), r.get('id', ''), 'commitments', 'goal_active', 'OKR.md', {'goal_level': 'commitment', 'due_text': str(r.get('due', '')), 'approval_ref': 'historical commitment source'})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(r.get('id', n))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:41"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('id', n)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:45"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('promise', r.get('commitment', 'Commitment'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:78"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('commitment', 'Commitment')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:95"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(r.get('due', ''))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:229"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('due', '')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:248:233",
+        "call:tools/goals_decide_migrate.py:276:75"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.records.values()\"]",
+      "count": 5,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:252:33",
+        "call:tools/goals_decide_migrate.py:382:42",
+        "call:tools/goals_decide_migrate.py:398:22",
+        "call:tools/goals_decide_migrate.py:429:48",
+        "call:tools/goals_decide_migrate.py:430:154"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.fields.get('goal_level')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:252:82"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.fields.get('okr_version')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:252:132"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"record.get('version')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:252:170"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.read('linkage.jsonl', P.load_linkage_store)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:258:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('phase', '')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:267:24",
+        "call:tools/goals_decide_migrate.py:299:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"views.get(lib.kr_revision_key(r, 'linkage.jsonl'), {})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:272:23"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(goal_level='phase', approval_ref='historical source: linkage.jsonl', reason=view.get('withdrawn_reason', '') if retired else '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:274:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"extra.update(metric_text=r.get('metric', ''), due_text=r.get('due', ''), stretch=bool(r.get('stretch', False)))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:276:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"bool(r.get('stretch', False))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:276:101"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('stretch', False)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:276:106"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add(key, kind, {'record': r, 'revisions': view.get('revisions', []), 'source_records':[x for x in rows if (x.get('kind') in ('objective','kr') and x.get('kind')==kind and x.get('id')==r['id'] and x.get('phase')==phase) or (x.get('kind')=='kr_revision' and x.get('kr')==r['id'])]}, r.get('title', ''), r['id'], scope, 'goal_retired' if retired else 'goal_active', 'phase/' + phase + '.md', extra)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:277:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"x.get('phase')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:277:217"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('title', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:277:302"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.goal_index.append(dict(key=key, labels=[r['id']], scope=scope))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:278:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(key=key, labels=[r['id']], scope=scope)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:278:39"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('in_phase', key, self.phases[phase]['key'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:279:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('parent', key, self.phases[phase]['key'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:281:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('retired_from' if retired else 'parent', key, self.resolve(r['objective'], scope, context=key))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:283:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(r['objective'], scope, context=key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:283:76"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('linked')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:284:34"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('aligned_to', key, self.resolve(r['linked'], phase=phase, context=key))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:285:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(r['linked'], phase=phase, context=key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:285:53"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any(r.get(k) is not None for k in ('target', 'current'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:286:23"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get(k)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:286:27"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.warnings.append(key + ': scalar target/current retained as legacy facts; no direction or measurement inferred')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:289:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('okr_version', '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:294:22"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge_version(r)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:294:50"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(r['kr'], ver, context=encoded(r))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:295:25"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.require_task(r['task'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:296:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.work_refs.setdefault(target, set()).add(r['task'])\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.work_refs.setdefault(target, set())\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:297:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.records[self.phases[phase]['key']].fields.setdefault(f, []).append(encoded(r))\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.records[self.phases[phase]['key']].fields.setdefault(f, [])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:303:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('kr')\"]",
+      "count": 3,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:304:52",
+        "call:tools/goals_decide_migrate.py:320:82",
+        "call:tools/goals_decide_migrate.py:321:88"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(r['kr'], context=encoded(r))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:305:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.work_refs.items()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:308:23"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted(refs)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:309:51"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"declared.items()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:311:33"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(kr, ver, context='check owner')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:312:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"{'increase':'up','at_least':'up','decrease':'down','at_most':'down','done':'up'}.get(c.get('direction'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:315:28"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"c.get('direction')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:315:113"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"c.get('target')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:318:60"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"c.get('baseline')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:319:27"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('okr_version','')\"]",
+      "count": 3,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:320:94",
+        "call:tools/goals_decide_migrate.py:321:100",
+        "call:tools/goals_decide_migrate.py:335:116"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('check')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:321:124"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(check_metric={'target':target,'direction':direction,'baseline':baseline,'current':measurement['value'] if measurement else None},\\n                             measured_at=measurement.get('asserted_at','') if measurement else '', evidence_ref=measurement.get('evidence','') if measurement else '',\\n                             command_text=c.get('command',''), measurement_origin='legacy assertion' if measurement else 'unmeasured')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:322:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"measurement.get('asserted_at','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:323:41"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"measurement.get('evidence','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:323:112"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"c.get('command','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:324:42"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add(key, 'check', raw, c.get('label',''), c['id'], owner, 'check_declared', 'linkage.jsonl', extra)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:326:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"c.get('label','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:326:44"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('parent', key, owner)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:327:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"measurement.get('evidence')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:328:46"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state/ref).is_file()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:331:23"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state/ref).read_bytes()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:332:53"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.records[key].attachments.append(att)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:333:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any(c['check']['id'] == r['check'] for c in declared.get((r['kr'],r.get('okr_version','')), []))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:335:50"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"declared.get((r['kr'],r.get('okr_version','')), [])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:335:94"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"edge['kr'].startswith('P')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:340:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"next((r.get('design_refs', []) for r in tasks if r['id'] == edge['task']), [])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:343:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.get('design_refs', [])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:343:21"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"versions.add(vm.group())\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:351:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(versions)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:352:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.warnings.append('Version resolved by declared task design_refs and design Linked OKR: ' + edge['task'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:353:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"versions.pop()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:354:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"docs.sort(key=lambda x: x.id)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:363:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state / doc.rel).read_text()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:365:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add(key, 'design', headers, doc.title, doc.id, '', 'design_' + doc.status, doc.rel,\\n                     dict(decided_on=doc.date, locked_on=doc.locked, linked_okr_text=doc.linked_okr,\\n                          author_text=headers.get('author',''), implementation_owner=headers.get('implementation owner',''),\\n                          approval_ref='historical source: ' + doc.rel), expected_id=doc.id)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:368:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(decided_on=doc.date, locked_on=doc.locked, linked_okr_text=doc.linked_okr,\\n                          author_text=headers.get('author',''), implementation_owner=headers.get('implementation owner',''),\\n                          approval_ref='historical source: ' + doc.rel)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:369:21"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"headers.get('author','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:370:38"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"headers.get('implementation owner','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:370:85"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state/adr['path']).read_text()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:374:42"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"headers.get('status')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:375:30"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.add(key, 'adr', {**adr,'headers':headers}, adr['title'], adr['id'], '', 'adr_' + adr['status'], adr['path'],\\n                     dict(decided_on=adr['date'], decision_type=adr['type'], deciders_text=adr['deciders'], sunset_text=adr['sunset'],\\n                          approval_ref='historical source: ' + adr['path']), expected_id=adr['id'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:377:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(decided_on=adr['date'], decision_type=adr['type'], deciders_text=adr['deciders'], sunset_text=adr['sunset'],\\n                          approval_ref='historical source: ' + adr['path'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:378:21"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"range(1,len(ids)+1)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:383:52"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(ids)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:383:60"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.requirements.append(f'{prefix}: sparse filenames need approved prefix-floor primitive; see tools/TASK-492-kernel-proposal.md')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:384:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"next((p for p in self.phases if any(k.startswith('P'+p[:3]+'-') for k in phase_ids)), '')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:390:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any(k.startswith('P'+p[:3]+'-') for k in phase_ids)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:390:52"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"k.startswith('P'+p[:3]+'-')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:390:56"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"int(match[4])\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:393:48",
+        "call:tools/goals_decide_migrate.py:395:76"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"int(match[2])\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:393:62",
+        "call:tools/goals_decide_migrate.py:395:62"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"range(int(match[2]),int(match[4])+1)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:395:56"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict.fromkeys(labels)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:396:25"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge('aligned_to', key, self.resolve(label, vm.group() if vm and not label.startswith('P') else '', phase, key))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:397:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.resolve(label, vm.group() if vm and not label.startswith('P') else '', phase, key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:397:45"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"list(self.records.values())\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:398:17"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"raw.get(name,'')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:403:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"ident.startswith('DESIGN')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:409:47"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"label.strip()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:410:82"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.edge(kind, r.key if name=='supersedes' else target, target if name=='supersedes' else r.key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:411:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(self.state/'tasks.jsonl').exists()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:413:29"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"task.get('design_refs', [])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:417:25"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"label.startswith('ADR')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:418:33"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.require_task(task['id'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:421:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"refs.setdefault(key,set()).add(task['id'])\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"refs.setdefault(key,set())\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:422:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"refs.items()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:423:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted(ids)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:424:57"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(format=1, source=str(self.source), state_root=str(self.state.relative_to(self.source)),\\n                    source_hashes=self.hashes, counts=dict(self.coverage), warnings=self.warnings,\\n                    records=[asdict(r) for r in self.records.values()], relations=sorted(self.edges),\\n                    legacy_records=self.source_records, requirements=self.requirements, prefix_ceilings={p:max([int(r.expected_id.split('-')[1]) for r in self.records.values() if r.type==t],default=0) for t\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:427:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(self.source)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:427:37"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(self.state.relative_to(self.source))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:427:66"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.state.relative_to(self.source)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:427:70"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(self.coverage)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:428:54"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted(self.edges)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:429:82"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"max([int(r.expected_id.split('-')[1]) for r in self.records.values() if r.type==t],default=0)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:430:107"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"int(r.expected_id.split('-')[1])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:430:112"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.expected_id.split('-')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:430:116"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"Path(root).resolve()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"Path(store).resolve()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(HOME/'bin/perry-kernel')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:439:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"command.split()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:439:47"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(self.root)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:439:73"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(self.store)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:439:98"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(HOME)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:444:41"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"env.pop('PERRY_STORE',None)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:445:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"env.pop('PERRY_PROJECT',None)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:445:36"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"result.get('ok')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:451:31"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(result.get('surface','')).split('.')\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(result.get('surface',''))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:451:51"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"result.get('surface','')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:451:55"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.commands.append({'command':command,'input':body,'store_seq':result['store_seq']})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:454:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"self.call('query',body)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:460:16"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"{\\n        'objective':{'goal_active':['approve'],'goal_retired':['withdraw']},\\n        'kr':{'goal_active':['approve'],'goal_retired':['withdraw']},\\n        'phase':{'phase_active':['activate'],'phase_scored':['activate','score'],'phase_dropped':['drop']},\\n        'design':{'design_review':['review'],'design_locked':['lock'],'design_superseded':['lock','supersede'],'design_dropped':['drop']},\\n        'adr':{'adr_active':['accept'],'adr_superseded':['accept','supersede'],'adr_expired':['accept','\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:467:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(item['fields'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:477:13"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"template['types'][item['type']]['fields'].items()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:478:21"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"fields.get(key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:479:40"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"fields[key].items()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:480:42"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('describe')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:485:18"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any(c['name']=='template apply' and 'ceilings' in c.get('input',{}) for c in declaration['commands'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:486:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"c.get('input',{})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:486:70"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"'; '.join(plan.requirements)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:488:22"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.items()\"]",
+      "count": 6,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:489:13",
+        "call:tools/goals_decide_migrate.py:498:57",
+        "call:tools/goals_decide_migrate.py:499:100",
+        "call:tools/goals_decide_migrate.py:538:33",
+        "call:tools/goals_decide_migrate.py:545:32",
+        "call:tools/goals_decide_migrate.py:583:28"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"i['fields'].get('source_key')\"]",
+      "count": 4,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:490:71",
+        "call:tools/goals_decide_migrate.py:498:16",
+        "call:tools/goals_decide_migrate.py:498:102",
+        "call:tools/goals_decide_migrate.py:499:60"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('events',{'limit':100000})\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:493:17",
+        "call:tools/goals_decide_migrate.py:549:17"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(HOME/'templates/process/perry.json').read_text()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:496:26"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('template apply',{'actor':ACTOR,'template':template})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:497:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(existing)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:499:7"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sum(i['type'] in NEW_TYPES and bool(i['fields'].get('source_key')) for i in kernel.items())\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:499:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"bool(i['fields'].get('source_key'))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:499:55"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"plan.records.values()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:502:13"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"existing.get(r.key)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:503:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.fields.get(k)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:505:77"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('item create',body,dry=True)\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:511:22",
+        "call:tools/goals_decide_migrate.py:517:30"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"r.expected_id.rsplit('-',1)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:513:33"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"preview['id'].rsplit('-',1)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:514:47"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"int(actual_number)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:515:63"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"int(number)\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:515:82",
+        "call:tools/goals_decide_migrate.py:516:103"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('template apply',{'actor':ACTOR,'template':template,'ceilings':{prefix:int(number)-1},'note':'Reserve actually issued legacy filename floor before '+r.expected_id})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:516:20"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('item create',body)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:520:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(actor=ACTOR,id=item['id'],transition=move,expect={item['id']:item['seq']},set={})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:529:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"item['fields'].get('reason')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:530:82"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('item move',body)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:532:19"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"a.get('hash')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:535:32",
+        "call:tools/goals_decide_migrate.py:536:26"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"sorted(plan.edges)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:539:24"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any(e['kind']==kind and e['from']==sid and e['to']==tid for e in actual[sid]['relations'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:541:15"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('rel add',dict(actor=ACTOR,kind=kind,**{'from':sid,'to':tid},expect={sid:actual[sid]['seq'],tid:actual[tid]['seq']}))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:542:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(actor=ACTOR,kind=kind,**{'from':sid,'to':tid},expect={sid:actual[sid]['seq'],tid:actual[tid]['seq']})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:542:34"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('item get',{'id':sid})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:543:26"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('item get',{'id':tid})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:544:26"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any(after[i['id']] != i for i in protected)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:547:7"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(old_events['events'])\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:550:29",
+        "call:tools/goals_decide_migrate.py:554:82"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"plan.unchanged()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:552:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('export')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:553:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(mapping=mapping, protected_items=len(protected), protected_events=len(old_events['events']),\\n                counts=dict(Counter(i['type'] for i in after.values())), store_seq=kernel.call('query',{'limit':0})['store_seq'])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:554:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"len(protected)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:554:49"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(Counter(i['type'] for i in after.values()))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:555:23"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"after.values()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:555:55"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"kernel.call('query',{'limit':0})\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:555:83"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(work/f'commands-{n}.json').exists()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:562:10"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"path.write_text(encoded(kernel.commands)+'\\\\n')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:565:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(path)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:566:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.add_argument('--source',type=Path,required=True,help='read-only legacy project anchor, copied filesystem preferred')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:571:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.add_argument('--root',type=Path,required=True,help='explicit scratch project anchor')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:572:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.add_argument('--store',type=Path,required=True,help='explicit copied native scratch store')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:573:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.add_argument('--work',type=Path,required=True,help='external output directory containing scratch root and store')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:574:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.add_mutually_exclusive_group()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:575:9"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"mode.add_argument('--apply',action='store_true',help='apply to scratch only; default plan/dry-run never writes store')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:576:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"mode.add_argument('--dry-run',action='store_true',help='emit plan and source hashes without any store write')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:577:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"p.parse_args(argv)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:578:9"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"getattr(args,k).resolve()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"getattr(args,k)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:579:28"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"root.is_relative_to(work)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:580:11"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"store.is_relative_to(work)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:580:44"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"work.is_relative_to(source)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:580:90"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"any((a/'.git').exists() for a in [work,*work.parents])\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:580:121"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(a/'.git').exists()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:580:125"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"Plan(source).build(kernel.items())\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"work.mkdir(parents=True,exist_ok=True)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:584:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(work/'plan.json').write_text(encoded(plan.document())+'\\\\n')\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:585:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"plan.document()\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:585:42"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"dict(plan.coverage)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:586:37"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"str(exc)\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:591:47",
+        "call:tools/goals_decide_migrate.py:606:45"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"bool(kernel.commands)\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:592:30"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"(work/'result.json').write_text(encoded(result)+'\\\\n')\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:593:12",
+        "call:tools/goals_decide_migrate.py:597:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"print(json.dumps(result,ensure_ascii=False,indent=2))\"]",
+      "count": 2,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:594:12",
+        "call:tools/goals_decide_migrate.py:598:4"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"tools/goals_decide_migrate.py\", \"print(json.dumps({'ok':False,'error':str(exc)},ensure_ascii=False))\"]",
+      "count": 1,
+      "evidence": [
+        "call:tools/goals_decide_migrate.py:606:8"
+      ]
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"bin/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"bin/lib/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"kernel/perry_kernel/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"tools/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"viewer/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "rule",
+      "detail": "[\"kernel-no-process\", \"excluded path overlaps rule scope: kernel/perry_kernel/__pycache__/\", []]",
+      "count": 1,
+      "evidence": []
+    }
+  ],
+  "baseline": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-architecture/TASK-492/start-20261019T085244Z-e4dba888a1",
+  "baseline_sha256": "b67e13333b1f50a0bd74ed9a97fb5f19a43c3a745d1d3d5d59f2963a852832f3",
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-architecture/TASK-492/delivery-20261019T091834Z-053a0e4d6e/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-architecture/TASK-492/delivery-20261019T091834Z-053a0e4d6e",
+  "summary": "\u9700\u8981\u8ba8\u8bba\u67b6\u6784\u68c0\u67e5\u7ed3\u679c",
+  "bundle_sha256": "ad3ee9dbb8493ed06f6cf2cd85583363f6607723c3857f66204993fa6e08b857",
+  "html_sha256": "027fb96c0c18d86a17ae0c80395a521340d7a697d4d02b7b83121f101ed091fb"
+}

@@ -92,14 +92,14 @@ is published, the consumer update channel refuses; it never substitutes main.
 Consumers use [installation/update instructions](../INSTALL.md); developers retain
 report-only automatic checks and their local changes/branches are protected.
 
-## DESIGN-023 H source retirement candidate
+## DESIGN-023 H source retirement
 
-The candidate retains this release policy. `bash tests/run --tier full` now
+The integrated native architecture retains this release policy. `bash tests/run --tier full` now
 means the native kernel plus retained helper/release tests; `--tier slow` adds
 the offline integration harness self-tests. This is a new suite, not a passing
 result for the deleted typed-state corpus. `tests/merge-check` takes explicit
 local `--base` and repeatable `--candidate` refs and binds its external receipt
 to the exact merged tree and transcript. No PR discovery or network is required.
 The independent integrator still allocates the version and checks the actual
-merged candidate; this source branch does not allocate or publish a release.
+merged candidate. Source checks alone allocate no version and publish nothing.
 See [the finite candidate ledger](retirement/README.md).

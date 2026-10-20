@@ -1,0 +1,23 @@
+{
+  "stage": "start",
+  "task": "TASK-492",
+  "snapshot": "480f07362838bd1fc5a96f97858f9cb9887588d093140cd1d39f643f5a9f7563",
+  "status": "limited",
+  "open_report": false,
+  "reasons": [],
+  "target_changes": [],
+  "review": {
+    "snapshot": "480f07362838bd1fc5a96f97858f9cb9887588d093140cd1d39f643f5a9f7563",
+    "summary": "Python AST only. Legacy readers/writers remain until H. Template semantics, shell, narrative approval and migration parity require separate checks. No target change by this coding agent.",
+    "target_change_requested": false,
+    "findings": []
+  },
+  "new_blind_spots": [],
+  "baseline": null,
+  "baseline_sha256": null,
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-prefix-floor-architecture/TASK-492/start-20261019T091806Z-65f0bdeb21/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-prefix-floor-architecture/TASK-492/start-20261019T091806Z-65f0bdeb21",
+  "summary": "\u67b6\u6784\u68c0\u67e5\uff1a\u672a\u53d1\u73b0\u5df2\u786e\u8ba4\u504f\u79bb\uff0c\u5b58\u5728\u9759\u6001\u5206\u6790\u76f2\u533a\uff1b\u8bc1\u636e\u5df2\u4fdd\u5b58\u3002",
+  "bundle_sha256": "9c5b99d0c326f6efd5e0102f20dbb02e7ab6294b5bed565b849ce1a7a261150b",
+  "html_sha256": "4a03ad2b437454b6f2760f87f01da870d79eb72cb776dcb8e95b1c1bb944328e"
+}

@@ -1,0 +1,71 @@
+{
+  "base": "0500f3542845ff445cd756489f9a204b3554a5d9",
+  "helper_sha256": "00099ff994abfc30d062960b3181a7004ade653795ff38c58bc54f55ebb01165",
+  "focused_tests": 18,
+  "focused_log_sha256": "44e90a5caed41c77d3fb019a4e544972fa1506eddf4cf3c5c3d5535bd4e1f7a5",
+  "projects": {
+    "Perry": {
+      "plan_sha256": "44bc8416205ae68151ab02ee98dd895bfa6794330a884ab3241c55b920ff9039",
+      "starting_items": 602,
+      "starting_events": 1196,
+      "counts": {
+        "adr": 27,
+        "check": 19,
+        "design": 22,
+        "kr": 101,
+        "objective": 31,
+        "phase": 4
+      },
+      "original_items_exact": true,
+      "original_event_prefix_exact": true,
+      "idempotent": true,
+      "replay_byte_identical": true,
+      "export_hashes": {
+        "items.jsonl": "c78d34bf65084e2957edb77879e5c55f705cdb33438625f3c5b5898ba7297fb7",
+        "events.jsonl": "6f894a8b0cea253ee19077467f7262c99da596a59254d5e8d32d4122eca129ef"
+      }
+    },
+    "SkyTonight": {
+      "plan_sha256": "dbfc36fa05b65fbfa78a5bcdbb7cd5c8c558a02b310c3fa9f58d00071047f02b",
+      "starting_items": 34,
+      "starting_events": 68,
+      "counts": {
+        "check": 24,
+        "design": 1,
+        "kr": 24,
+        "objective": 8,
+        "phase": 3
+      },
+      "original_items_exact": true,
+      "original_event_prefix_exact": true,
+      "idempotent": true,
+      "replay_byte_identical": true,
+      "export_hashes": {
+        "items.jsonl": "b16555214aa49058cdfa4cbfccdbb30c93a5f428a92c210785c66c1e8de87a72",
+        "events.jsonl": "68c7736303eaddaeffb5b767c9a708364c98889b21bae5d4a2bef6c839f63ac7"
+      }
+    }
+  },
+  "architecture": {
+    "fresh": true,
+    "status": "attention",
+    "reasons": [
+      "new_unresolved_checks"
+    ],
+    "baseline": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-plan-apply-architecture/TASK-492/start-20261019T093250Z-f40b2e96a8",
+    "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-plan-apply-architecture/TASK-492/delivery-20261019T094440Z-99bcf0e8b8",
+    "bundle_sha256": "27c1bfacbc11d546a9f755d0888eec3a5ea20bf6e53bc3ef58013edcfcdaf227",
+    "html_sha256": "582c55b988b9cc380c157b03f8b7b5b4d37b15e71fe5f50e461f3444d249f36d",
+    "commit_fresh": true
+  },
+  "head": "df4c30c45da4547c9265ac71e7371ef97c47514a",
+  "branch": "codex/task-492-reviewed-plan",
+  "files": {
+    "tools/goals_decide_migrate.py": "00099ff994abfc30d062960b3181a7004ade653795ff38c58bc54f55ebb01165",
+    "tests/test_goals_decide_native.py": "07ba746080f35f5bbf57fc24f45243d63eef8a5d4341aff7f59523281344372d",
+    "tools/reviewed-plan-migration.md": "3d2c1398a0929deda7646e23ae13aa915afc10f036f608b68fb1b0aec91a65ab"
+  },
+  "preparer": "1c5ccd851aec14d6d2e524b8237f508b1efde4f0",
+  "preparer_tests": "18 passing in prior independent source-preparation handoff; not rerun or counted in native suite",
+  "full_suite": "not run, focused-only boundary"
+}

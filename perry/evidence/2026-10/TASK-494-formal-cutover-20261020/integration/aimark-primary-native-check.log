@@ -1,0 +1,137 @@
+bun test v1.3.13 (bf2e2cec)
+
+src/perry-helpers.test.ts:
+(pass) knowledge helper major and invalid provenance fail closed [2.41ms]
+(pass) knowledge data retains its helper contract and explicit unknown installed state [0.09ms]
+(pass) role helper rejects bad counts and does not invent task assignments [0.23ms]
+
+src/perry-contracts.test.ts:
+(pass) PERRY-CONTRACTS.md is what the constants render [5.13ms]
+(pass) every reader in the manifest names a major and what it is the only source of [0.41ms]
+(pass) the manifest is CONTRACT_TESTED, not a second copy of it
+(pass) the manifest states the majors the parsers actually enforce
+(pass) the roles block is the only reader that degrades instead of refusing [0.10ms]
+(pass) the kernel is the only task reader in the manifest
+
+src/perry-cli.test.ts:
+(pass) resolvePerryHome prefers the Claude Code install, then Codex
+(pass) all four tools are derived from the one home that was found
+(pass) an explicit $PERRY_HOME wins and is not second-guessed
+(pass) no install anywhere reports what it tried, for the setup error
+(pass) a 2.x payload parses [0.67ms]
+(pass) 2.x may add keys — a later minor still parses [0.04ms]
+(pass) 1.x is refused now, because 2.0 bounds the rows a 1.x reader assumed it had
+(pass) the task read asks for every row, and says so in its argv
+(pass) bound is parsed, so a truncated payload cannot pass as a whole one
+(pass) a payload with no bound block degrades to null, not to a false all-clear
+(pass) semantics names what changed since this build, and a jump does not skip one [0.20ms]
+(pass) an empty semantics list is the normal case and means what it says [0.06ms]
+(pass) a major bump is refused loudly, before tasks are touched
+(pass) each contract carries its own major, independently [0.15ms]
+(pass) a payload with no contract key is refused rather than guessed at [0.02ms]
+(pass) non-JSON output is malformed, not empty
+(pass) a refusal is an outcome carrying its reason, not an empty list
+(pass) refusalMessage prefers the tool's own words over anything we could invent [0.68ms]
+(pass) the advisory conformance warning is never mistaken for the refusal
+(pass) open is read from `open`, never inferred from status [0.13ms]
+(pass) a status outside the enum survives as prose
+(pass) markdown emphasis is formatting, not a different status
+(pass) a composite state is never forced into one enum member
+(pass) an unstated status stays prose rather than defaulting to not_started
+(pass) an id that is not TASK-NNN is still a usable key [0.61ms]
+(pass) wrong types degrade to empty values, never to undefined in the UI [0.04ms]
+(pass) untitled ids are carried through, not swallowed
+(pass) timeline entries keep their local timestamps verbatim
+(pass) conformance keeps the second field, which is the one that says what to do [0.17ms]
+(pass) a project with no event log says so instead of reporting an error
+(pass) intake carries the row NUMBER the writers take [0.02ms]
+(pass) a goals payload parses, and target/current stay numbers or null [0.13ms]
+(pass) a KR id is not unique, so a stable key is built from its whole position [0.09ms]
+(pass) answered_by is read rather than inferred from what happens to be present [0.02ms]
+(pass) a null phase is a normal state, not a missing field [0.02ms]
+(pass) a phase carries its day count, computed by Perry and not re-derived [0.02ms]
+(pass) a broken register is reported, never silently downgraded
+(pass) decisions parse at 2.0, and the deleted index keys are not resurrected [0.06ms]
+(pass) a payload still carrying the 1.x index keys is refused, not read past
+(pass) semantics is read off every payload that carries one, not just task [0.11ms]
+(pass) add passes Perry's four required fields through untouched [0.08ms]
+(pass) add sends --summary, which perry-task has required since 2026-09-03
+(pass) an empty summary is omitted, so Perry's refusal is what the user reads [0.09ms]
+(pass) add sends --unlinked only when the user picked it [0.06ms]
+(pass) empty optional fields are omitted rather than sent as empty flags [0.01ms]
+(pass) --json is always passed, so the advisory gate line stays off stderr [0.02ms]
+(pass) a task id that could be read as a flag is refused, not escaped
+(pass) a flag's VALUE cannot inject another flag [0.05ms]
+(pass) what from/to mean is read off the payload, not off a list of event names [0.02ms]
+(pass) a close is the last done or drop in the row's own timeline, not a status read [0.05ms]
+(pass) the timeline carries the field, and wrong types do not become undefined [0.03ms]
+(pass) prioritize is a write, and names where the row goes [0.03ms]
+(pass) add sends the check and the rung as two fields [0.01ms]
+(pass) add carries the role, which Perry REQUIRES once a project declares any
+(pass) status refuses a value outside the settable set [0.01ms]
+(pass) done and drop carry the argument Perry requires [0.02ms]
+(pass) parseAsksList keeps an ask closed some other way as closed, with no answer invented [0.29ms]
+(pass) ask sends the question and what it blocks, and no id: Perry mints it [0.04ms]
+(pass) answer takes the id as a positional and refuses an answer that repeats Perry's prefix [0.02ms]
+(pass) a write result reports a lost event rather than claiming success
+(pass) a write with no event_written key is a write that landed whole
+(pass) a refused write carries Perry's sentence, not a category
+(pass) the advisory conformance verdict rides along with a write that landed
+(pass) role cards never fail — the roster reader cannot error [0.13ms]
+(pass) the roster's own version is checked, and a foreign major degrades quietly [0.10ms]
+(pass) a role card carries who accepts, at what rung, and what must escalate
+(pass) risks, asks and drift arrive on the contract now, with both shapes fixed [0.10ms]
+(pass) drift is null on a tool that did not report it, and null is an answer
+(pass) a close of a row that was never started says so
+(pass) dwell counts whole local days [1.02ms]
+(pass) dwell refuses to invent a number
+(pass) depends_on_unknown carries the ids Perry could not resolve [0.16ms]
+(pass) 1.13's three new conformance keys parse, entries whole [0.12ms]
+(pass) 1.11's summary and 1.12's blocked_stale come off the row [0.08ms]
+(pass) askIndex resolves the second register by membership, not by prefix [0.07ms]
+(pass) the anchor is bumped to the minors that were actually read
+(pass) goals 2.1's provenance and staleness parse, and current is unchanged [0.12ms]
+(pass) an unasserted current says so, and that is not the same as fresh [0.05ms]
+(pass) depsIndex reads the register, and an answered ask stops being a mystery [0.14ms]
+(pass) depsIndex is empty on a pre-1.15 payload, so callers fall back [0.12ms]
+(pass) evidence_relations is the whole cell, and its file half IS evidence_paths [0.30ms]
+(pass) the drift counts are null when unchecked, and the gate returns null too
+(pass) a checked drift block reports its count through the same gate [0.14ms]
+(pass) purgedIds names the rows that stopped existing, not the ones that closed [0.09ms]
+(pass) the knowledge payload parses, and its aggregates are over ITS array [0.06ms]
+(pass) the knowledge major is checked before anything is read
+(pass) the events payload parses, every key present
+(pass) an event with no task id is kept — the log records some against the queue
+(pass) a major it does not speak is refused; a later minor is not
+(pass) newestEvents slices the tail and never re-sorts it [0.13ms]
+(pass) the flow read is the wide one, and it is a SECOND call rather than a bigger page
+(pass) the events argv asks for one page, not the whole log
+(pass) a stderr advisory is never reported as the reason for a refusal
+(pass) WRITE_FIELDS covers every field writeArgs is able to send [0.15ms]
+(pass) a wrong type degrades one field and never loses the payload [0.03ms]
+(pass) a nested block of the wrong type degrades to empty, not to a throw [0.03ms]
+(pass) an unspoken major is refused, not coerced
+(pass) changedSince compares the major too, not only the minor [0.05ms]
+(pass) a written linkage edge is recognised, and its path carried
+(pass) an edge that landed nowhere reads as nowhere
+(pass) the churn buckets are read under the stems the tool writes [0.10ms]
+(pass) a two-way churn answer declares itself unsplit
+(pass) a churn payload with no buckets is an error, not an empty chart [0.08ms]
+(pass) the churn argv names the repository and the span [0.02ms]
+(pass) installed is read off all six payloads, and a build without the key says nothing [0.05ms]
+(pass) the board names the project root explicitly
+(pass) the board a person reads is `perry-tasks board`, never `render`, `diff` or `verify`
+
+src/perry-kernel-goals.test.ts:
+(pass) a work-only template refuses goal and decision projections instead of reporting zero [0.14ms]
+(pass) current version uses stable native IDs and retains old labels without collapsing versions [0.37ms]
+(pass) a down metric without a baseline never becomes an invented increasing progress bar [0.03ms]
+(pass) check measurements use the kernel fraction and keep null measurement distinct from zero [0.12ms]
+(pass) ambiguous current phases and versions fail rather than guessing the latest document
+(pass) ADR state, attachment and supersession are native; line count remains unknown [0.05ms]
+(pass) a future draft or rejected draft cannot hide the currently approved overall version [0.08ms]
+
+ 123 pass
+ 0 fail
+ 458 expect() calls
+Ran 123 tests across 4 files. [241.00ms]

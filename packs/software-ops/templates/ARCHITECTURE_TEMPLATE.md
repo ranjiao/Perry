@@ -1,0 +1,111 @@
+# Architecture — {{Project Name}}
+
+> Owner: user (confirmed target changes require actual approval)
+> Version: v1
+> Last reviewed: {{YYYY-MM-DD}}
+> Status: draft
+> Tier 1 hard cap: ≤ 500 lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes §-section TOC + 1-paragraph summaries.
+
+<!--
+This is the single source of truth for the system's design. Edit freely.
+Agents may prepare authorized drafts; they cannot approve changes to confirmed
+mission, Forbidden rules, contracts or hard targets. Missing governing context
+is a reported blocker, never an empty successful injection.
+
+When ready, flip Status to `active`. That enables the dispatch compliance
+gate: every code-changing task touching a section here must pass an
+independent review-agent check.
+
+Section structure is fixed (§1 through §8). Subsections within each are free.
+Keep the declared 500-line root cap; split long sections with explicit links.
+-->
+
+## §1. Mission & scope
+
+What this system does, in 3 sentences. Who uses it. Where it runs. What it explicitly does NOT do.
+
+<!-- example:
+This project is a release-automation system for a small SaaS engineering
+team (~10 engineers). It runs as a set of daemons on a managed VPS;
+engineers trigger deploys via Slack canned ops or a CLI. It deliberately
+does NOT attempt full unattended production deploys; any change touching
+production requires explicit user confirmation.
+-->
+
+## §2. Components
+
+For each named component:
+
+### {{component-A-name}}
+- **Purpose**: one line.
+- **Owns**: state / files / external integrations this component is responsible for.
+- **Doesn't own**: explicit non-responsibilities, especially things readers might assume.
+- **Linked runbook**: `runbook/<slug>.md` (if deployed; otherwise `(not deployed)`).
+
+### {{component-B-name}}
+- ...
+
+## §3. Boundaries & dependencies
+
+Allowed call/import directions. Forbidden cross-cuts. Layer rules. Include an ASCII or mermaid diagram showing dependency direction.
+
+```
+{{example:
+  ui  ─→  app  ─→  domain  ─→  infra
+                              ↑
+                            (allowed; downstream)
+
+  Forbidden:
+    - infra → domain         (no upstream call)
+    - ui    → infra          (no layer skip)
+}}
+```
+
+## §4. Data flow
+
+State origins → canonical points → sinks. Transformation paths. Transaction boundaries. What is sync vs async. Eventual-consistency rules.
+
+<!-- example:
+- Vendor status: vendor-api → ingest job → state/builds.db (canonical)
+- Deploys: user via Slack → deploy-daemon → staging API; ack writes
+  state/queue.db (canonical for deploy history).
+- Reports: state/builds.db + state/queue.db → daily-report → email out.
+  Read-only path; reports never write state.
+-->
+
+## §5. Contracts
+
+Cross-component interfaces. One subsection per contract.
+
+### Contract: {{producer}} → {{consumer}}
+- **Input shape**: what's passed.
+- **Output shape**: what's returned (or written, for async).
+- **Error modes**: how failures are signalled.
+- **Invariants on producer**: what producer guarantees.
+- **Invariants on consumer**: what consumer guarantees.
+
+## §6. Non-negotiables
+
+Hard rules the system must obey. Numbered NN-1, NN-2, ... `hard` = dispatch refuses unless user explicitly waives. `soft` = dispatch warns and asks.
+
+### NN-1 — {{one-line rule title}}
+- **Severity**: hard | soft
+- **Rule**: one paragraph, precise enough that a stranger reading this section can tell whether code complies.
+- **Rationale**: why this rule is non-negotiable, not just preferable. Often references a past incident or structural risk.
+- **Check** (optional): `<runnable command — grep / lint / find — non-zero exit on violation>`
+- **Known exceptions**: (none) | <list with date and reason>
+
+### NN-2 — ...
+
+## §7. Open questions
+
+Things the user hasn't decided yet. PMO surfaces these in standup if idle ≥30 days. Each tagged with USER-id if in PMO's input queue.
+
+- **{{Q1 title}}** — (USER-NNN) — one paragraph of what's undecided and what the options look like.
+- **{{Q2 title}}** — ...
+
+## §8. Change log
+
+Append-only. Each entry: `YYYY-MM-DD · v<N> · what changed · driver (ADR-NNN / incident-slug / scheduled-review)`.
+
+- {{YYYY-MM-DD}} · v1 · Initial architecture draft.

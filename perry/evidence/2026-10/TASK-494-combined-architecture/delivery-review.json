@@ -1,0 +1,6 @@
+{
+  "snapshot": "9549580973dbc898f592c336ad6bcbd8ed8bfdb28afd23a489f19fee7df932c7",
+  "summary": "Python AST only. Source retirement and optional prefix floors are proposals pending actual user acceptance. Original scan roots omit new tools: retained helpers have separate focused review/tests; this checkpoint cannot establish their full architecture coverage. Template semantics, shell, narratives, migration parity and dropped-row acceptance require separate checks.",
+  "target_change_requested": true,
+  "findings": []
+}

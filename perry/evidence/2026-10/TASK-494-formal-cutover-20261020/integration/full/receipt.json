@@ -1,0 +1,26 @@
+{
+  "command": [
+    "bash",
+    "tests/run",
+    "--tier",
+    "full"
+  ],
+  "exit_code": 0,
+  "inputs": [
+    {
+      "ref": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+      "role": "base",
+      "sha": "b9be4d39f52ce1266534215b999c9db408b03bc5"
+    },
+    {
+      "ref": "12c2dea761b1a3429b2b058e5fd82918ab7ff8f5",
+      "role": "candidate",
+      "sha": "12c2dea761b1a3429b2b058e5fd82918ab7ff8f5"
+    }
+  ],
+  "source_clean": true,
+  "tier": "full",
+  "transcript_sha256": "9ecaaa2a33aade9ab1701fcbea39ca678c9c0b58a8da6e8a90c11b30190aa58d",
+  "tree": "361aea27a4acf5bc649e5d972e247790d8e1f377",
+  "version": 1
+}

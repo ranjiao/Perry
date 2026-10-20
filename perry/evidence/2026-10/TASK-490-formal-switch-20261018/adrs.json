@@ -1,0 +1,18 @@
+[
+  {
+    "id": "ADR-026",
+    "path": "decisions/ADR-026-kernel-work-store.md",
+    "supersedes": "ADR-006",
+    "note": "the ADR body is a skeleton \u2014 fill Context / Options / Chosen / Consequences by hand; this tool writes structure, never reasoning"
+  },
+  {
+    "id": "ADR-027",
+    "path": "decisions/ADR-027-skill-selects-rung-kernel-checks-structure.md",
+    "supersedes": "ADR-020",
+    "note": "the ADR body is a skeleton \u2014 fill Context / Options / Chosen / Consequences by hand; this tool writes structure, never reasoning"
+  },
+  {
+    "archived": "ADR-010",
+    "path": "/Users/bytedance/proj/Perry/perry/decisions/ADR-010-the-board-is-a-render-not-a-file.md"
+  }
+]

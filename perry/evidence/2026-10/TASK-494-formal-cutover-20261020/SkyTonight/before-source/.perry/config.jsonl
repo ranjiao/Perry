@@ -1,0 +1,4 @@
+{"kind": "setting", "key": "document_language", "label": "Document language", "value": "中文", "order": 0}
+{"kind": "setting", "key": "chat_language", "label": "Chat language", "value": "follow user", "order": 1}
+{"kind": "setting", "key": "repo_layout", "label": "Repo layout", "value": "single", "order": 2}
+{"kind": "setting", "key": "state_root", "label": "State root", "value": "doc/perry", "order": 3}

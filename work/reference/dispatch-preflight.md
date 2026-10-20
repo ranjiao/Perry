@@ -120,7 +120,8 @@ is not.
 
    ### 4.5 — Standing entry: this round does not rewrite the gate that constrains it
 
-   **Not from the hook's bullets, and stated here rather than added there.** `.perry/hook.md`'s content is the user's, and this file does not edit it. But a round whose `Files in scope` names `.perry/hook.md`, `work/state/hook_TEMPLATE.md`, or this step of this file is a round that changes what Perry refuses to do unsupervised — in this project, and for `hook_TEMPLATE.md` in every project Perry adopts afterwards. **Escalate it and say why.** An agent that may widen its own gate has no gate.
+   **Source safety boundary, independent of hook prose.** `.perry/hook.md`'s content is the user's, and this file does not edit it. But a round whose `Files in scope` names `.perry/hook.md`, `.perry/safety.json`, `templates/internal/hook_TEMPLATE.md`,
+   `templates/internal/safety_POLICY_TEMPLATE.json`, or this step of this file is a round that changes what Perry refuses to do unsupervised — in this project, and for `hook_TEMPLATE.md` in every project Perry adopts afterwards. **Escalate it and say why.** An agent that may widen its own gate has no gate.
 
    The worked case (`TASK-107`): `dispatch-notes.md § 4.5 applied`.
 

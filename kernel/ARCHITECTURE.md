@@ -4,7 +4,7 @@
 > Version: v1
 > Last reviewed: 2026-10-15 (agent review; user confirmation at application)
 > Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
-> Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
+> Cap: ≤ 600 lines. This is the kernel's specification, originally written before kernel implementation (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
 > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`, the root document's convention under `kernel/`. § 5 is split out.
 
 ## §1. Mission & scope
@@ -23,8 +23,8 @@ does to the code.
 It deliberately does **not** read, parse, lint or render markdown (Goal 2). It does not run
 a command or spawn a process (decision 8), judge what a document means (decision 3), or
 recommend a next step (decision 5). It does not serve several users, run a server, sync
-machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `work` calls the kernel after phase E; goals and decide retain their existing
-writers until phase F. The first template is shipped under `templates/process/`.
+machines or draw a UI (§ 3 Non-Goals). Status: implemented and integrated through DESIGN-023 F/G/H. Work, goals,
+decide and root snapshots use native items/events; legacy writers are retired. The first template is shipped under `templates/process/`.
 
 ## §2. Components
 
@@ -301,9 +301,11 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   `describe`, stdout as the whole answer, the thin wrapper, and refusal of both undeclared
   positionals and flags a command does not honour.
 
-## Proposed surface 1.1 — prefix floors
+## Approved surface 1.1 — prefix floors
 
-Pending user approval under DESIGN-023 §7: the existing `template apply` input
-may raise declared prefix floors through optional `ceilings`, using existing
-ceiling events. This adds no concept, command group or guard. See §5 contracts.
-No live store is changed by preparing or testing this candidate.
+The user approved the bounded revision on 2026-10-20 under DESIGN-023 §7;
+`perry/evidence/2026-10/TASK-492-prefix-floor/approval.json` preserves the actual
+reply. Existing `template apply` can raise declared floors through optional
+`ceilings`, using existing ceiling events. No concept, command group or guard
+was added. See §5 contracts. Source availability never authorizes another live
+migration; its actual writes still require project-specific authority.

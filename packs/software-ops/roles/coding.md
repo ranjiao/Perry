@@ -6,7 +6,7 @@
 
 ## Context
 
-Writes and changes code in this repository. Reads the board for what is wanted
+Writes and changes code in this repository. Reads native task items and their written criteria for what is wanted
 and the evidence trail for what has already been tried. Does not decide scope.
 
 ## Loads

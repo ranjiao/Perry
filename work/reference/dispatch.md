@@ -2,7 +2,7 @@
 
 ## `dispatch`
 
-Read `kernel.md`, `dispatch-preflight.md`, `budget-boundary.md` and
+Read `$PERRY_HOME/reference/kernel.md`, `dispatch-preflight.md`, `budget-boundary.md` and
 `git-boundaries.md`. Apply the host/executor matrix in
 `reference/host-capabilities.md`; a pinned foreign executor is a refusal, not
 permission to reroute. Manual mode uses `delegate.md`. An already authorized
@@ -93,74 +93,26 @@ independent integrator handles the verified branch in the primary checkout.
 
 ### Where the agent puts a scratch file
 
-> **A dispatched agent's scratch directory is DERIVED FROM ITS WORKTREE and
-> lives OUTSIDE the repository. It is never a shared directory the agent is
-> asked to namespace inside.**
-
-Every dispatched prompt carries this block verbatim, and the agent re-derives it
-in each command rather than remembering a name:
+Scratch stays outside the checkout. Derive the project bucket, then allocate a
+fresh run directory once for each dispatch/review and retain its absolute path:
 
 ```sh
-# perry-scratch-derivation — do not edit without re-reading TASK-421
-PERRY_SCRATCH="${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"
-mkdir -p "$PERRY_SCRATCH"
+PERRY_SCRATCH_BASE="${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"
+mkdir -p "$PERRY_SCRATCH_BASE"
+PERRY_SCRATCH=$(mktemp -d "$PERRY_SCRATCH_BASE/run-XXXXXXXX")
 ```
 
-**The agent contributes nothing to the uniqueness, and that is the whole
-mechanism.** The distinguishing component is the worktree directory name, which
-the dispatching tool minted when it honoured `isolation: "worktree"` — the agent
-reads it, it does not choose it. So an agent that writes the dumbest possible
-filename, `$PERRY_SCRATCH/baseline.txt` — the exact name that collided four
-times — still cannot collide with a concurrent agent, because the parent differs
-by construction. **"Pick a unique name" is what failed; this asks for no name at
-all.**
+Carry that actual PERRY_SCRATCH path in the prompt, logs and RESULT. Reuse it
+for dependent commands in that run; a new shell does not preserve variables.
+Another run receives a different mktemp directory. Never use shared task-ID-only
+filenames. The basename is a project bucket, not a uniqueness guarantee: managed
+worktrees may all end in the same project name. This corrects the old derivation's
+assumption while preserving external scratch and isolated worktree requirements.
 
-**Outside the repository is the other half, and it is load-bearing.** An in-repo
-scratch directory reddens two tree-walkers that scan by name at any depth:
-`tests/header_rule.py` admits any Python-parseable file it finds as a real
-reader, and `tests/tree_guard.py` reports the tree as moved. A round that put
-copies of Perry source in an in-repo `.scratch/` turned a named test red while
-obeying its brief. `${TMPDIR:-/tmp}` is invisible to both, so the isolation
-costs no test its coverage.
-
-**What this inherits, and what it therefore does not promise.** The scratch
-isolation is exactly as strong as the worktree isolation above it and no
-stronger: an agent dispatched **without** `isolation: "worktree"` resolves
-`--show-toplevel` to the shared checkout, and two such agents get the same
-scratch root. That is not a second hole to close but the same one — which is why
-the flag is mandatory rather than recommended.
-
-**Where the normative part of this section ends.** Everything above this
-paragraph, plus the whole of § `Executor: claude-subagent` below, is pinned
-byte-for-byte by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`:
-a sentence added, removed or reworded anywhere in it reddens a named test, and
-re-pinning is a deliberate second edit in the same commit. Everything from the
-next heading to the end of this section is **rationale, and deliberately not
-pinned**, so the two observed failures and the argument can be improved without
-touching a test. Nothing there grants an exception — a sentence in it that reads
-like one is a defect, not a rule. Normative text goes above this paragraph.
-
-### Why it is a rule and not a preference
-
-This file used to say "work on a feature branch" and nothing about the tree, and
-a branch instruction with no isolation instruction is an instruction to run
-`git checkout -b` *in the shared working tree*. Observed live, twice, in one
-day:
-
-- **2026-09-02** — TASK-247 was dispatched as a `claude-subagent` told to create
-  `coding/task-247-config-predicate`. It did, in the shared tree, so the PMO's
-  own checkout moved onto that branch. Every PMO write afterwards — journal,
-  evidence, board — committed there. A `git add -A` in the agent's commit would
-  have swept two lanes into one code commit.
-- **2026-09-03** — the bill arrived: four V4 review documents and 91 journal
-  lines were on that branch and not on `main`, while a merge commit bearing the
-  branch's name sat in `main`'s history and a commit message asserted the work
-  was live on `main`. True of the code, false of the records.
-
-The failure is also **invisible from inside**: TASK-247's own agent reported that
-every `bash tests/run` step 0 failed naming only PMO-lane paths, and that this
-"cannot be distinguished from a real tree-guard failure by the guard's own
-output".
+The current tests/run.py source guard detects source writes, and the native
+suite protects the live store. Old header/tree-guard and spec-byte-pin test names
+are historical rationale, not current executable checks. Uniqueness of a scratch
+path does not isolate a reviewed tree or authorize mutation of it.
 
 ### `Executor: claude-subagent` (Claude Code only)
 
@@ -169,7 +121,7 @@ output".
 - Build prompt = **bounded architecture context + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + standard RESULT format. The author reports implementation facts, not an architecture verdict.
 - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
 - **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
-- **Include the `perry-scratch-derivation` block verbatim** — see § Where the agent puts a scratch file. A prompt that hands out a shared directory and asks the agent to namespace inside it is the defect that section exists to remove; it has been observed five times.
+- **Provide the exact allocated scratch run path** from § Where the agent puts a scratch file; do not hand out a shared bucket or ask another agent to guess a unique name.
 - Sub-agent shares parent cwd, and that is a fact about the *process*, not a licence for the *tree*: without `isolation`, the agent's `git checkout -b` moves the shared working tree, and every other lane's writes land on its branch. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
 
 ### `Executor: opencode-subagent` (OpenCode only)
@@ -187,9 +139,9 @@ output".
   bash "$PERRY_HOME/tools/codex-preflight.sh"
   ```
   The script: (a) `codex --version` ≥ `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) smoke test (`codex exec "Reply with just: PERRY_OK"`, 60s timeout if `timeout` / `gtimeout` is installed). Cached 6h at `~/.cache/perry/codex-smoke-pass`. Exit non-0 → **refuse + surface stderr verbatim + fall back to delegate**. Catches stuck CLI / broken auth / version-rejected-by-API BEFORE we fire async dispatch that would silently hang.
-- Then: Bash → `cd <code-repo-path> && codex exec "<prompt>"`.
+- Then invoke codex exec in the explicit isolated executor working directory using the host working-directory control. Pass the self-contained prompt as a structured argument or safely quoted file input, never interpolated shell code.
 - Always async (codex is its own session). On Claude Code, pass `run_in_background: true`. On OpenCode or Codex CLI, use shell backgrounding with log + PID; see `../../reference/host-capabilities.md § No-background-shell-tool fallback`.
-- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **bounded architecture context + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + standard RESULT format (no author compliance block) + the explicit list of files codex can read for context + **the `perry-scratch-derivation` block verbatim** (§ Where the agent puts a scratch file). Self-contained means this one too: a codex session reads no startup page, so the scratch rule reaches it only if the prompt carries it.
+- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **bounded architecture context + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + standard RESULT format (no author compliance block) + the explicit list of files codex can read for context + **the exact allocated scratch run path** (§ Where the agent puts a scratch file). Self-contained means this one too: a codex session reads no startup page, so the scratch rule reaches it only if the prompt carries it.
 - Capture stdout to a temp file; on completion, parse for the RESULT block.
 - If the long-running codex call fails (non-0 exit / no RESULT block / timeout), per the failure handling below, mark task `review` and surface raw output. Pre-flight is the cheap pre-check; this is the post-check.
 
@@ -210,7 +162,7 @@ checkout with identical scan settings. Return both checkpoint paths. `normal` an
 requires discussion of findings. Target changes require the user's explicit decision.
 These checks do not replace tests, human acceptance or a fresh V4 reviewer.
 
-Executors: claude-subagent | opencode-subagent | codex | manual.
+Executors: claude-subagent | opencode-subagent | codex | manual. Actual tool availability and environment/user delegation restrictions still govern whether a dispatch is authorized.
 
 ## Architecture review
 
@@ -276,10 +228,7 @@ Notes: <anything unusual>
 === END RESULT ===
 ```
 
-**On `Tests:` when the round ran a tier.** Write the command as it was typed —
-`bash tests/run --tier affected --base <sha>` — and put the printed selection
-block in `Notes:` or in the result document. The count on that line is then the
-count of what ran, which for `affected` is a subset: name it as
-`green for --tier affected (N of M modules)`, not as a green suite. A result
-that says "the suite is green" over a 29-module run is the sentence this whole
-tier arrangement has to avoid producing (`DESIGN-021 § 5.5`).
+**On Tests when a round runs a tier:** report the exact command, exit and
+receipt/log path. Current Perry tiers are `bash tests/run --tier full` and
+`bash tests/run --tier slow`; there is no affected tier or duration-based selection facade.
+A targeted command proves only its selected checks, never repository-wide green.

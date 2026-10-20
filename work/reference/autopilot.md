@@ -2,7 +2,7 @@
 
 ## `autopilot`
 
-The first invocation is a dry run. Read `kernel.md` and `dispatch.md`; ask for the
+The first invocation is a dry run. Read `$PERRY_HOME/reference/kernel.md` and `dispatch.md`; ask for the
 allowed dispatch count, duration and failure budget when not already provided.
 Never begin automation on ambiguous scope or an unarmed structured `.perry/safety.json` policy. An
 unanswered boundary is not permission to continue because time elapsed.

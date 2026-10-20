@@ -1,0 +1,6 @@
+{
+  "snapshot": "480f07362838bd1fc5a96f97858f9cb9887588d093140cd1d39f643f5a9f7563",
+  "summary": "Python AST only. Legacy readers/writers remain until H. Template semantics, shell, narrative approval and migration parity require separate checks. No target change by this coding agent.",
+  "target_change_requested": false,
+  "findings": []
+}

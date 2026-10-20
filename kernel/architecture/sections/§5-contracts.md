@@ -14,7 +14,7 @@ in it. On a refusal, stderr also carries one line, `kernel: <code>: <message>`, 
 repeats `error` for a human. Every key is always present.
 
 ```json
-{"ok": true, "surface": "1.0", "command": "item move", "effect": "written",
+{"ok": true, "surface": "1.1", "command": "item move", "effect": "written",
  "events": [57], "store_seq": 57, "warnings": [], "result": {"item": {"…": "…"}},
  "error": null}
 ```
@@ -49,7 +49,7 @@ and `error` is `{"code", "message", "details"}`. Exit codes: `0` success · `1` 
 | `template_version` | 1 | `version` is not above the applied one, or equals it with different content |
 | `template_incompatible` | 1 | the new version would strand stored data (§ 5.2). The affected items are named |
 | `item_not_found` | 1 | an id in the input, a `ref` value or a relation end does not exist |
-| `id_exhausted` | 1 | `item create` would mint an id above 2⁵³, the highest number an id may carry and the highest `import` accepts, so a store never holds an id its own export could not import. `details` names the `type`, `prefix` and `ceiling`; other types go on minting. It is part of the unreleased `surface` 1.0, not a minor bump (the user accepted it on 2026-09-26) |
+| `id_exhausted` | 1 | `item create` would mint an id above 2⁵³, the highest number an id may carry and the highest `import` accepts, so a store never holds an id its own export could not import. `details` names the `type`, `prefix` and `ceiling`; other types go on minting. It was accepted on 2026-09-26 as part of the then-unreleased `surface` 1.0 and remains in the current surface 1.1 |
 | `unknown_type` · `unknown_field` · `unknown_transition` · `unknown_relation` | 1 | the applied template does not declare that name |
 | `field_invalid` | 1 | a value does not fit its field's kind (§ 5.3) |
 | `metric_invalid` | 1 | a metric value breaks § 5.5 |
@@ -323,7 +323,7 @@ becomes the event's seq.
   - **Detection.** The harness reads the live store's highest event seq read-only before
     and after the run. A new event whose actor carries the run's own session fails the
     suite; one from any other session is reported, not failed (OQ-K4). This is the
-    kernel's `tests/tree_guard.py`, which cannot see inside `.git/` (DESIGN-023 § 5.3).
+    source-tree guard, which cannot inspect `.git/`; the kernel suite's live-store detector covers its own session's writes (DESIGN-023 § 5.3).
 
 ### 5.8 Export and import
 
@@ -417,7 +417,7 @@ becomes the event's seq.
 Neither native path belongs to the legacy claims register. H retires that schema;
 the kernel path rules remain authoritative.
 
-### Proposed surface 1.1: prefix floors (pending user approval)
+### Approved surface 1.1: prefix floors
 
 `template apply` accepts optional `ceilings: {"PREFIX": integer}` outside the
 template object. Each key must be a prefix declared by the submitted compatible
@@ -429,4 +429,4 @@ unchanged. Dry-run rolls back both template and floors. No item is fabricated,
 no ID is reused, and the eight concepts, twelve command groups and four guards
 stay unchanged. Existing 1.0 invocations retain their behavior. The result shape
 is unchanged; ordinary events/export/replay carry actual `ceiling:` changes.
-This candidate contract needs the explicit DESIGN-023 §7 approval before release.
+The explicit DESIGN-023 §7 approval was recorded on 2026-10-20 in the prefix-floor approval evidence. This does not authorize a new live activation or publication.

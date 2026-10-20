@@ -8,6 +8,9 @@ resolves current identities; historical document IDs resolve to the cited file.
 |---|---|
 | kernel | Generic state engine: items, types, fields, transitions, guards, relations, events and attachments. `bin/perry describe` declares its surface. |
 | template | Process data applied through the kernel; `templates/process/perry.json` names Perry's method. |
+| scaffold | Files selected and adapted as a project's starting artifacts; `templates/scaffolds/` does not initialize native state. |
+| mode | Agent procedure for how a workstream progresses: project, queue, pipeline or inquiry. |
+| pack | Optional domain guidance interpreted by the Agent; selection is not a kernel extension or authorization. |
 | lane | Goals, work or decide: a skill procedure with an ownership boundary, not a separately installed skill. |
 | verification rung | Evidence level V1–V6 declared by the template and interpreted by the work skill. A label does not prove evidence. |
 | V4 | Fresh-context reviewer against written criteria; implementation cannot self-award it. |

@@ -6,9 +6,8 @@ same way when they forget who they are writing for.
 
 ## The premise
 
-An agent has broad competence and perfect recall. It can reason about
-cryptography, tax law, and CSS in the same session, and it remembers every ID
-it ever minted. The user has neither. They are expert in a few areas, hazy in
+An agent can read across disciplines and retrieve exact records, but its context
+and recall are finite. It must look up IDs and evidence rather than rely on memory. The user has neither. They are expert in a few areas, hazy in
 the rest, and they cannot hold forty identifiers in their head.
 
 **The project is theirs, and they are the only irreplaceable part of it.** So
@@ -80,9 +79,9 @@ mechanism" — will they be able to tell the outcomes apart.
 
 Asking less means deciding more on the user's behalf, which is only acceptable
 if those decisions stay **visible and reversible**. So every decision an agent
-takes on the user's behalf is logged like any other — in `decisions/` or the
-project's equivalent — and marked as agent-decided, with what would trigger a
-revisit. The user must be able to find, later, every call that was made without
+takes on the user's behalf is logged like any other — in its owned evidence/event note or the project's agreed equivalent, marked as
+agent-decided with a revisit condition. Formal ADRs remain decide-owned; a work
+Agent does not write another lane's records merely to log a reversible choice. The user must be able to find, later, every call that was made without
 them. Silent autonomy is a worse failure than over-asking.
 
 ## Failure 2 · Identifiers the user cannot resolve

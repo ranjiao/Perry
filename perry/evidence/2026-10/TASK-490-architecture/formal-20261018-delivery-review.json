@@ -1,0 +1,6 @@
+{
+  "snapshot": "237b73c95e017cc579ea869045207bc9c0fbebeea25529e4c56b58489a36838a",
+  "summary": "Formal switch candidate 428e0ea2 (one blank line removed to satisfy the linter cap). Independent review found and repaired active pack journal writers and native runbook discovery. Two guarded mutants are killed. User explicitly approved the exact root section-4 descriptive reconciliation on 2026-10-18: current kernel/SQLite work and aiMark, legacy graphs labelled historical, goals/decide/root dashboard migration deferred. No decided rule changed. Original start and previously approved targets remain preserved. Static coverage limits and changed-target notices remain explicit; independent semantic review and final integration tests are separate evidence. No live import was performed when this checkpoint was generated.",
+  "target_change_requested": false,
+  "findings": []
+}

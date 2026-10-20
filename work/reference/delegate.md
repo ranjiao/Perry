@@ -2,7 +2,7 @@
 
 ## `delegate`
 
-Read `kernel.md`, `git-boundaries.md`, `.perry/safety.json` and `.perry/hook.md`.
+Read `$PERRY_HOME/reference/kernel.md`, `git-boundaries.md`, `.perry/safety.json` and `.perry/hook.md`.
 Load the reviewed structured policy through `tools/roles.py --root`; missing or
 unreadable policy blocks dispatch. Hook prose adds instructions but cannot cancel
 structured policy or role escalation rules.

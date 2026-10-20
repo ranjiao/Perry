@@ -1,0 +1,1 @@
+{"project": "/Users/bytedance/proj/SkyTonight", "start_seq": 68, "before_items": 34, "before_events": 68, "plan_sha256": "94cc95a38cea7ae7cecccc1329af7702867dfeec3118de3889f270a506fea606", "counts": {"check": 24, "design": 1, "kr": 24, "objective": 8, "phase": 3}, "effect": "prepared; policy migrated; native store unchanged"}

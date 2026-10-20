@@ -1,0 +1,12 @@
+error: The following untracked working tree files would be overwritten by merge:
+	perry/evidence/2026-10/TASK-492-prefix-floor/approval.json
+	perry/evidence/2026-10/TASK-492-prefix-floor/approval.md
+	perry/evidence/2026-10/TASK-492-prefix-floor/proposal.md
+	perry/evidence/2026-10/TASK-494-review-candidate/approval.json
+	perry/evidence/2026-10/TASK-494-review-candidate/candidate.json
+	perry/evidence/2026-10/TASK-494-review-candidate/combined-corrections.json
+	perry/evidence/2026-10/TASK-494-review-candidate/disposition.json
+	perry/evidence/2026-10/TASK-494-review-candidate/dropped-checks.tsv
+Please move or remove them before you merge.
+Aborting
+Merge with strategy ort failed.

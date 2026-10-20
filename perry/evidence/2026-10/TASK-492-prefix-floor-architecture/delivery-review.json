@@ -1,0 +1,6 @@
+{
+  "snapshot": "c73f8b9d1cf5bdc7c8aa6a0103f586bb2d8444de7707403ab11c64084a68ffe6",
+  "summary": "Python AST only. Legacy readers/writers remain until H. Template semantics, shell, narrative approval and migration parity require separate checks. Baseline target is unchanged; delivery contains a pending, explicit prefix-floor contract proposal requiring user approval.",
+  "target_change_requested": true,
+  "findings": []
+}

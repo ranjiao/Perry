@@ -1,0 +1,120 @@
+{
+  "positive_without_Context_Loads": {
+    "contract": "perry-roles/read/2.0",
+    "semantics": [],
+    "project_root": "/private/tmp/perry-scratch/Perry/doc-audit-20261020-4womvloa/role-example-49xevfxg",
+    "declared": 1,
+    "cards": [
+      {
+        "name": "fixture",
+        "path": ".perry/roles/fixture.md",
+        "accepted_by": "fixture",
+        "default_rung": "V3",
+        "executors": "fixture",
+        "context": "",
+        "may_touch": "- write: fixture\n- run: fixture",
+        "loads": {
+          "knowledge": [],
+          "pack": []
+        },
+        "must_escalate": {
+          "lines": [
+            "any `fixture` requires fixture"
+          ],
+          "fragments": [
+            "fixture"
+          ],
+          "unextractable": []
+        }
+      }
+    ],
+    "policy_source": {
+      "path": "/private/tmp/perry-scratch/Perry/doc-audit-20261020-4womvloa/role-example-49xevfxg/.perry/safety.json",
+      "sha256": "ca904a37de4b528b153f6831c926bfd12cb861da5a04562cd49e3fdd8bea9d61"
+    },
+    "escalation_union": [
+      "setup",
+      "ln -s",
+      "ln -sf",
+      "ln -snf",
+      "ln -sfn",
+      "brew install",
+      "npm install -g",
+      "adopt",
+      "diagnose",
+      "relocate",
+      "git mv",
+      "git push",
+      "gh release",
+      "publish",
+      "push --force",
+      "--force-with-lease",
+      "tag deletion",
+      "rm -rf",
+      "rm -fr",
+      "rm -f",
+      "bulk delete",
+      "sqlite3",
+      "DROP TABLE",
+      "DELETE FROM",
+      ".git/perry",
+      "root.db",
+      "perry.db",
+      "migrate --down",
+      ".perry/safety.json",
+      "git pull",
+      "fixture"
+    ],
+    "errors": []
+  },
+  "missing_safety_section_rejected": {
+    "contract": "perry-roles/read/2.0",
+    "semantics": [],
+    "project_root": "/private/tmp/perry-scratch/Perry/doc-audit-20261020-4womvloa/role-example-49xevfxg",
+    "declared": 0,
+    "cards": [],
+    "policy_source": {
+      "path": "/private/tmp/perry-scratch/Perry/doc-audit-20261020-4womvloa/role-example-49xevfxg/.perry/safety.json",
+      "sha256": "ca904a37de4b528b153f6831c926bfd12cb861da5a04562cd49e3fdd8bea9d61"
+    },
+    "escalation_union": [
+      "setup",
+      "ln -s",
+      "ln -sf",
+      "ln -snf",
+      "ln -sfn",
+      "brew install",
+      "npm install -g",
+      "adopt",
+      "diagnose",
+      "relocate",
+      "git mv",
+      "git push",
+      "gh release",
+      "publish",
+      "push --force",
+      "--force-with-lease",
+      "tag deletion",
+      "rm -rf",
+      "rm -fr",
+      "rm -f",
+      "bulk delete",
+      "sqlite3",
+      "DROP TABLE",
+      "DELETE FROM",
+      ".git/perry",
+      "root.db",
+      "perry.db",
+      "migrate --down",
+      ".perry/safety.json",
+      "git pull"
+    ],
+    "errors": [
+      {
+        "path": "/private/tmp/perry-scratch/Perry/doc-audit-20261020-4womvloa/role-example-49xevfxg/.perry/roles/fixture.md",
+        "code": "role_unreadable",
+        "error": "one nonempty role safety section required: Must escalate"
+      }
+    ]
+  }
+}

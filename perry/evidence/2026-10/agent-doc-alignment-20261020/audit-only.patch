@@ -1,0 +1,1771 @@
+--- before/AGENTS.md
++++ after/AGENTS.md
+@@ -22,7 +22,7 @@
+    is non-empty, ask; never resume automatically. Native query failure is a
+    setup/migration condition, never an empty board or legacy fallback.
+ 4. Use `bin/perry query` for task counts/status and `bin/perry events` for
+-   history. Read `work/reference/kernel.md`; never infer state from historical files.
++   history. Read `reference/kernel.md`; never infer state from historical files.
+ 5. Read only the current phase and the selected task's spec, evidence, and
+    relevant locked design. Do not preload all designs, ADRs, or journal files.
+ 
+@@ -56,6 +56,6 @@
+   authority. Never merge your own implementation.
+ - Before starting a Perry phase or integrating product work, read [release rules](release/README.md).
+ - Green on your own base is not green merged — `tests/merge-check --help`.
+-- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `python3 tools/context_budget.py`. That file goes under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"` — derived, never a shared directory you namespace inside; five clobbers in two days, one across two sessions. `work/reference/dispatch.md § Where the agent puts a scratch file`.
++- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `python3 tools/context_budget.py`. Derive the project bucket under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"`, then allocate one unique external run directory with `mktemp -d` and retain its exact path; basename alone is not unique. `work/reference/dispatch.md § Where the agent puts a scratch file`.
+ 
+ Keep this startup protocol under roughly 60 lines; do not duplicate skill or state records.
+--- before/SKILL.md
++++ after/SKILL.md
+@@ -32,7 +32,7 @@
+ | Lane | Reached as | Loaded from | Subject |
+ |---|---|---|---|
+ | **`goals`** | `/perry goals …` (alias `okr`) | `$PERRY_HOME/goals/SKILL.md` | objectives, phases, KRs, weekly proposals |
+-| **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | board, journal, cadence, dispatch, status |
++| **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | task/ask/risk items, execution, reviews, dispatch and handoffs |
+ | **`decide`** | `/perry decide …` (alias `design`) | `$PERRY_HOME/decide/SKILL.md` | RFCs, design docs, locked decisions, ADRs |
+ 
+ Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and root-owned preferences and `.perry/safety.json`.
+@@ -69,7 +69,7 @@
+ | Lane | Only writer of | Proposes, never writes |
+ |---|---|---|
+ | **`goals`** (`goals/`) | objective, KR, check and phase items; OKR/phase narrative attachments; drafts in `plans/` | weekly tasks, handed to `work` |
+-| **`work`** (`work/`) | task, ask and risk items; `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
++| **`work`** (`work/`) | task, ask and risk items; `evidence/`, `weekly/`, `handoff/`, **`.perry/roles/`** | KR attribution edges, handed to `goals` |
+ | **`decide`** (`decide/`) | design and ADR items; `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
+ 
+ **Two changes from the previous contract, and why neither needed a second signature; why the sign-off is recorded at this precision**: `reference/hand-off-contract.md`.
+@@ -106,13 +106,16 @@
+    For an explicit action load the owning lane in full and proceed with its
+    gates. Do not ask the user to select work they already named.
+ 
+-Host detection and language reads run once per operation. Refresh safety after
++Host detection is cached once per session; language/preferences reads follow the operation route. Refresh safety after
+ an external change, and refresh affected native projections after every write or
+ failed write. Never present an earlier capture as current.
+ 
+ ## First-time setup
+ 
+-When `/perry` runs in a project with no Perry state files at all **and step 2 found neither a recovery hazard nor an interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
++Only bootstrap a genuinely new project after safety has cleared and the root
++procedure has established there is no prior native state or unresolved migration.
++Missing documents alone do not prove that a native store is absent. A nonterminal
++dossier/diagnosis requires its recorded resume choice before setup.
+ 
+ Read `reference/first-run.md § The procedure` and follow its six steps in order: the namespace check runs before writes, preferences go to the root-owned hook prose and reviewed safety policy, then native init records the agreed document root.
+ 
+@@ -150,7 +153,7 @@
+ ## User-prompt convention, per-project hooks, auto-update
+ 
+ - **Host-native choice UI** over free text whenever a choice has **2-4 distinct options** (`reference/host-capabilities.md § Prompt rendering`). Cap open decisions at three. It is **not** a permission grant. `reference/style.md § User-prompt convention (AskUserQuestion)`.
+-- **Per-project hooks** live at `<project_root>/.perry/hook.md`; hook blocks go in the *children's* SKILL.md files, so this router stays project-agnostic. `reference/style.md § Per-project hooks (optional)`
++- **Per-project hooks** live only in the project's `.perry/hook.md`; root and lanes read them. Never add project-specific blocks to shipped SKILL.md files. `reference/style.md § Per-project hooks (optional)`
+ - **Auto-update** is step 0: `reference/style.md § Auto-update`.
+ 
+ ## See also
+--- before/decide/SKILL.md
++++ after/decide/SKILL.md
+@@ -37,7 +37,7 @@
+ execution status. Native state is the only status/title/date/successor record.
+ Attach exact state-root-relative paths and SHA256 after owned narrative writes.
+ The kernel treats attachments as opaque; a hash/shape pass is not semantic proof.
+-Goals owns goal/phase narratives; work owns tasks/evidence/handoffs/journal.
++Goals owns goal/phase narratives; work owns tasks/evidence/handoffs. Journal history is frozen.
+ Decide proposes implementation tasks in chat and never writes work's files.
+ History is native events; no procedure appends a journal or legacy event.
+ 
+--- before/decide/reference/decisions.md
++++ after/decide/reference/decisions.md
+@@ -51,18 +51,22 @@
+ 
+ ## Migration and refusal boundary
+ 
+-The one-shot `tools/goals_decide_migrate.py` reads copied actual filesystem data,
+-including uncommitted ADRs and superseded/archived headers. Source hashes,
+-version-scoped label maps and attachments are review evidence. It never reads
+-metadata from git HEAD as a substitute for the actual files.
++The shipped `tools/goals_decide_migrate.py` applies a reviewed, SHA256-pinned
++format-1 plan. It does not parse legacy Markdown/JSONL or discover ADR metadata.
++Read `$PERRY_HOME/tools/reviewed-plan-migration.md` for the actual --plan and
++--plan-sha256 interface, isolation checks and pinned historical preparation.
++Legacy preparation reads bounded copies of actual files, including uncommitted
++sources; current apply only verifies those reviewed hashes and native operations.
++Do not reinstall a retired reader or pretend HEAD substitutes for actual source.
+ 
+-Use its plan before any write. Every rehearsal names --root and --store under
+-its external --work directory with PERRY_KERNEL_TESTING=1. Existing native work
+-items/events/IDs must remain exactly unchanged. Replay/export parity, a no-write
+-idempotent rerun and current-source reconciliation are required independently.
+-A sparse filename floor requires the reviewed generic `template apply.ceilings`
+-contract. The approved extension can only raise a floor; it never permits a fake
+-item, direct event/SQLite edit, or import over a nonempty native store. The
+-original proposal is historical material under `release/retirement/pre-cutover-notes/`.
+-Live activation follows fresh backups, independent review and root/user authority;
+-never copy a rehearsal database into the live store. Root owns legacy H disposal.
++Every CLI rehearsal names an external --work, isolated --root and --store, with
++PERRY_KERNEL_TESTING=1; only the copied work baseline is changed. Check original
++items/events, exact source/attachment hashes, no-write repeat and export/replay
++parity independently. Source drift needs a new reviewed plan. The CLI has no live
++mode or JSON consent flag; an explicit live API seam supplies no authorization.
++
++The approved `template apply.ceilings` surface can only raise an issued-number
++floor. No fake item, direct event/SQLite edit or import over a populated store is
++allowed. Actual activation follows fresh backups, reviewed source/consumer
++receipts and actual scoped user authority. Never copy a rehearsal database into
++a live store. Prior cutover approval does not migrate another project.
+--- before/decide/templates/design_TEMPLATE.md
++++ after/decide/templates/design_TEMPLATE.md
+@@ -27,7 +27,7 @@
+ 
+ All blocking choices need actual user decisions before the native design item can move to `design_locked`.
+ 
+-The **Options** column uses pipe-separated short labels (≤ 5 words each, 2–4 options) so `/perry decide resolve` can map each cell directly to `AskUserQuestion` button options without rephrasing. If you need longer explanations, add them as bullets below the table — keep the cell terse.
++The **Options** column uses slash-separated short labels (≤ 5 words each, 2–4 options) so `/perry decide resolve` can map each cell directly to `AskUserQuestion` button options without rephrasing. If you need longer explanations, add them as bullets below the table — keep the cell terse.
+ 
+ | # | Decision | Options | Chosen | Date |
+ |---|---|---|---|---|
+--- before/goals/SKILL.md
++++ after/goals/SKILL.md
+@@ -66,7 +66,7 @@
+ | `kr add/restate/withdraw`, `krs` | `reference/phases.md` | native fields/transitions, preserved history |
+ | `check`, `measure` | `reference/phases.md` | declared conditions; actual measured current only |
+ | `link`, alias, unlinked | `reference/linkage.md`, `../reference/okr-linkage.md` | explicit attribution or visible unknown |
+-| `score-phase`, `snapshot` | `reference/phases.md` | work retro → goals scoring/final snapshot → work close |
++| `score-phase`, `snapshot` | `reference/phases.md` | work retro → goals scoring/final snapshot → optional work rollover |
+ | `plan-week` | `reference/weekly.md` | approved proposals handed to work |
+ | `pivot`, `dashboard` | `reference/pivots.md` | explicit scope revision / native goal read |
+ | `help` | this table; selected reference if named | navigation only, no startup/write |
+--- before/goals/reference/hooks.md
++++ after/goals/reference/hooks.md
+@@ -1,6 +1,8 @@
+ # OKR per-project hooks
+ 
+-Loaded when configuring `.perry/hook.md` for a project, or when `init` /
++The root procedure owns agreed hook edits; goals proposes its preferences and
++reads the actual hook. Do not edit shipped skill pages or write the root hook
++from this lane. Load this page when `init` /
+ `plan-phase` needs to know whether the project declares OKR-specific defaults.
+ 
+ Generic by default; hooks are pure additions, not overrides. Most solo projects
+@@ -28,8 +30,7 @@
+ - Canonical Objective tracks: <2–3 named tracks with one-line descriptions
+   that fit your domain; e.g., "Learn / Build / Validate" or any other set>.
+ - Roadmap source-of-truth: <file that anchors phase/week mapping, if any>.
+-- Operating Principles to seed (drop these into `OKR.md` Operating Principles
+-  on `okr init`):
++- Operating Principles to retain in the approved goal narrative attachment:
+   - <invariant the system must hold>
+   - <invariant the system must hold>
+ - Anti-Goals to seed:
+@@ -43,9 +44,10 @@
+   - <metric + target + deadline>
+ ```
+ 
+-## The one hook section that is not optional
++## Safety source
+ 
+-`.perry/hook.md § High-stakes operations` is a **safety gate**, not
+-configuration — `/pmo dispatch` refuses specs that match it and `/pmo autopilot`
+-refuses to run without it. PMO bootstrap writes a conservative default list. See
+-`work/reference/extending.md`. OKR only reads the hook; it never writes it.
++The root-owned `.perry/safety.json` supplies the reviewed policy, with role
++additions forming an additive union. Hook prose is context, not the machine
++list. Goals preserves existing restrictions and follows the root procedure for
++changes; native goal approval never authorizes a high-stakes external action.
++Read `$PERRY_HOME/reference/safety-policy.md` and `config.md`.
+--- before/goals/reference/phases.md
++++ after/goals/reference/phases.md
+@@ -53,7 +53,7 @@
+ 
+ ## check and measure
+ 
+-Declare checks per Objective for explicit user approval. One `check` item per
++Declare checks per KR for explicit user approval. One `check` item per
+ condition, with `parent` to its KR and optional `in_phase`. Store the executable
+ measurement as command_text, target, direction and optional baseline as a metric
+ `check_metric`. Native up/down maps increase/decrease with baseline; at-least/at-most
+--- before/kernel/ARCHITECTURE.md
++++ after/kernel/ARCHITECTURE.md
+@@ -4,7 +4,7 @@
+ > Version: v1
+ > Last reviewed: 2026-10-15 (agent review; user confirmation at application)
+ > Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
+-> Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
++> Cap: ≤ 600 lines. This is the kernel's specification, originally written before kernel implementation (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
+ > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`, the root document's convention under `kernel/`. § 5 is split out.
+ 
+ ## §1. Mission & scope
+@@ -23,8 +23,8 @@
+ It deliberately does **not** read, parse, lint or render markdown (Goal 2). It does not run
+ a command or spawn a process (decision 8), judge what a document means (decision 3), or
+ recommend a next step (decision 5). It does not serve several users, run a server, sync
+-machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `work` calls the kernel after phase E; goals and decide retain their existing
+-writers until phase F. The first template is shipped under `templates/process/`.
++machines or draw a UI (§ 3 Non-Goals). Status: implemented and integrated through DESIGN-023 F/G/H. Work, goals,
++decide and root snapshots use native items/events; legacy writers are retired. The first template is shipped under `templates/process/`.
+ 
+ ## §2. Components
+ 
+@@ -301,9 +301,11 @@
+   `describe`, stdout as the whole answer, the thin wrapper, and refusal of both undeclared
+   positionals and flags a command does not honour.
+ 
+-## Proposed surface 1.1 — prefix floors
+-
+-Pending user approval under DESIGN-023 §7: the existing `template apply` input
+-may raise declared prefix floors through optional `ceilings`, using existing
+-ceiling events. This adds no concept, command group or guard. See §5 contracts.
+-No live store is changed by preparing or testing this candidate.
++## Approved surface 1.1 — prefix floors
++
++The user approved the bounded revision on 2026-10-20 under DESIGN-023 §7;
++`perry/evidence/2026-10/TASK-492-prefix-floor/approval.json` preserves the actual
++reply. Existing `template apply` can raise declared floors through optional
++`ceilings`, using existing ceiling events. No concept, command group or guard
++was added. See §5 contracts. Source availability never authorizes another live
++migration; its actual writes still require project-specific authority.
+--- before/kernel/architecture/sections/§5-contracts.md
++++ after/kernel/architecture/sections/§5-contracts.md
+@@ -14,7 +14,7 @@
+ repeats `error` for a human. Every key is always present.
+ 
+ ```json
+-{"ok": true, "surface": "1.0", "command": "item move", "effect": "written",
++{"ok": true, "surface": "1.1", "command": "item move", "effect": "written",
+  "events": [57], "store_seq": 57, "warnings": [], "result": {"item": {"…": "…"}},
+  "error": null}
+ ```
+@@ -49,7 +49,7 @@
+ | `template_version` | 1 | `version` is not above the applied one, or equals it with different content |
+ | `template_incompatible` | 1 | the new version would strand stored data (§ 5.2). The affected items are named |
+ | `item_not_found` | 1 | an id in the input, a `ref` value or a relation end does not exist |
+-| `id_exhausted` | 1 | `item create` would mint an id above 2⁵³, the highest number an id may carry and the highest `import` accepts, so a store never holds an id its own export could not import. `details` names the `type`, `prefix` and `ceiling`; other types go on minting. It is part of the unreleased `surface` 1.0, not a minor bump (the user accepted it on 2026-09-26) |
++| `id_exhausted` | 1 | `item create` would mint an id above 2⁵³, the highest number an id may carry and the highest `import` accepts, so a store never holds an id its own export could not import. `details` names the `type`, `prefix` and `ceiling`; other types go on minting. It was accepted on 2026-09-26 as part of the then-unreleased `surface` 1.0 and remains in the current surface 1.1 |
+ | `unknown_type` · `unknown_field` · `unknown_transition` · `unknown_relation` | 1 | the applied template does not declare that name |
+ | `field_invalid` | 1 | a value does not fit its field's kind (§ 5.3) |
+ | `metric_invalid` | 1 | a metric value breaks § 5.5 |
+@@ -323,7 +323,7 @@
+   - **Detection.** The harness reads the live store's highest event seq read-only before
+     and after the run. A new event whose actor carries the run's own session fails the
+     suite; one from any other session is reported, not failed (OQ-K4). This is the
+-    kernel's `tests/tree_guard.py`, which cannot see inside `.git/` (DESIGN-023 § 5.3).
++    source-tree guard, which cannot inspect `.git/`; the kernel suite's live-store detector covers its own session's writes (DESIGN-023 § 5.3).
+ 
+ ### 5.8 Export and import
+ 
+@@ -417,7 +417,7 @@
+ Neither native path belongs to the legacy claims register. H retires that schema;
+ the kernel path rules remain authoritative.
+ 
+-### Proposed surface 1.1: prefix floors (pending user approval)
++### Approved surface 1.1: prefix floors
+ 
+ `template apply` accepts optional `ceilings: {"PREFIX": integer}` outside the
+ template object. Each key must be a prefix declared by the submitted compatible
+@@ -429,4 +429,4 @@
+ no ID is reused, and the eight concepts, twelve command groups and four guards
+ stay unchanged. Existing 1.0 invocations retain their behavior. The result shape
+ is unchanged; ordinary events/export/replay carry actual `ceiling:` changes.
+-This candidate contract needs the explicit DESIGN-023 §7 approval before release.
++The explicit DESIGN-023 §7 approval was recorded on 2026-10-20 in the prefix-floor approval evidence. This does not authorize a new live activation or publication.
+--- before/modes/inquiry.md
++++ after/modes/inquiry.md
+@@ -16,5 +16,5 @@
+ artifact is prose. An inquiry may yield a new task or a proposed decision, never
+ a fabricated past design or user declaration. A child task uses a native parent
+ relation, not a hidden board cell. Missing attribution stays visible until goals
+-resolves it. Ordinary provenance regex checks retire provisionally; this explicit
++resolves it. Ordinary provenance regex checks are retired; this explicit
+ source review replaces them, while `reference/operating-rules.md` retains safety.
+--- before/modes/pipeline.md
++++ after/modes/pipeline.md
+@@ -21,6 +21,6 @@
+ Closure requires exit criteria and evidence against the promised outcome.
+ High-stakes consequences, V4 independence and V5 human signoff remain binding via
+ `reference/operating-rules.md`. A dropped task has an authorized reason; it is not
+-a successful delivery. The old stage/mode/verification scanners are proposed
+-retirements pending final H acceptance. Read actual documents and evidence in the
++a successful delivery. The old stage/mode/verification scanners were retired in the accepted H cutover;
++that does not establish a new automated stage evaluator. Read actual documents and evidence in the
+ review rather than reporting absent automated scores as green.
+--- before/modes/queue.md
++++ after/modes/queue.md
+@@ -22,6 +22,5 @@
+ 
+ Verification follows the actual consequence and written criterion, with
+ independent review/human signoff where required. Follow
+-`reference/operating-rules.md`; ordinary legacy mode/SLA regex checks are proposed
+-retirements, never fabricated current passes. Retain outstanding obligations in
++`reference/operating-rules.md`; legacy mode/SLA regex checks are retired, never fabricated current passes. Retain outstanding obligations in
+ the handoff and follow `reference/next.md` after writes.
+--- before/packs/software-ops/architecture.md
++++ after/packs/software-ops/architecture.md
+@@ -2,15 +2,15 @@
+ 
+ The most powerful anti-drift tool isn't a list of rules — it's a single, user-controlled architecture document that every coding agent reads, with independent compliance review selected from the exact integration diff.
+ 
+-This is the **`ARCHITECTURE.md`** discipline. The user writes it. Agents read it. The PMO enforces it.
++This is the **`ARCHITECTURE.md`** discipline. Confirmed target choices belong to the user. Agents may prepare a scoped draft or descriptive update when authorized; actual target changes require the user's decision before landing.
+ 
+ ## The contract
+ 
+-There is exactly **one** architecture document per project: `ARCHITECTURE.md` at the project root.
++There is one root architecture entry at `ARCHITECTURE.md`. It may link approved component targets and split section files; read every governing target touched by the task.
+ 
+ | Property | Value |
+ |---|---|
+-| **Owner** | User. Agents never write. |
++| **Owner** | User owns confirmed target choices. An Agent may draft authorized text, but cannot approve its own mission/Forbidden/contract/hard-target change. |
+ | **Visibility** | Read into every dispatch / autopilot run; injected into agent prompts. |
+ | **Authority** | A change touching any section in this doc must be either consistent with the section OR accompanied by a user-approved edit to the section first. |
+ | **Update cadence** | User-driven and user-triggered (annual / quarterly / ad-hoc). `okr plan-phase` and `end-phase-retro` *prompt* for a review but never force one — see `### /pmo architecture review`. |
+@@ -18,12 +18,12 @@
+ 
+ ## Document structure
+ 
+-`ARCHITECTURE.md` has a fixed section layout. PMO refuses to consume malformed docs (a missing required section means the agent gets injected nothing for that area, which is itself a signal).
++`ARCHITECTURE.md` has a fixed section layout. The Agent checks the applicable sections against the task. Missing/unreadable governing context is an explicit gap, never silently injected as empty or treated as passed conformance.
+ 
+ ```markdown
+ # Architecture — <Project Name>
+ 
+-> Owner: user (agents read-only)
++> Owner: user (confirmed target changes require actual approval)
+ > Version: v<N>
+ > Last reviewed: YYYY-MM-DD
+ > Status: active | draft
+@@ -61,19 +61,19 @@
+ - **Check** (optional): a runnable command that mechanically catches violations
+ - **Known exceptions**: list with reason, or `(none)`
+ 
+-## §7. Open questions
++## §7. Open questions / declared remaining acceptance boundaries
+ 
+ Things the user hasn't decided yet. Each tagged with a USER-id if it's in PMO's input queue.
+ 
+-## §8. Change log
++## §8. Change log / evidence references
+ 
+ Append-only. Each entry: date · version bump · what changed · driver (ADR-NNN / incident / scheduled review).
+ ```
+ 
+-PMO never writes to this file. It can:
++An Agent does not unilaterally change confirmed targets. Within actual authorization it can:
+ - Refuse to start tasks when section is missing.
+ - Surface a diff when the file is edited (next standup notes "ARCHITECTURE.md changed since last standup; <N> sections touched").
+-- Schedule reminders for review.
++- Propose a review reminder; schedule only when explicitly authorized and supported by the host.
+ 
+ ## Subcommands
+ 
+@@ -82,11 +82,11 @@
+ Interactive bootstrap when `ARCHITECTURE.md` doesn't exist. Walks the user through filling §1–§8 with prompts. Output is a draft the user edits to completion before flipping `Status: active`.
+ 
+ Procedure:
+-1. Detect `OKR.md` / existing code structure / `decisions/` to pre-fill §1 (Mission, drawn from OKR) and seed §2 (Components, drawn from top-level code directories).
++1. Read native goals/decisions and their attached rationale, plus actual source structure, to propose mission/components. Legacy OKR files are historical evidence only; source layout cannot declare the user's intended target.
+ 2. For each section, prompt the user with the section's question. Capture answers via free-text (no AskUserQuestion — these are essay answers, not multiple choice).
+ 3. Write the draft. A legacy `draft` label does not suspend existing architecture rules.
+ 4. **Tier 1 cap check** — verify the draft ≤ 500 lines. If exceeds, AskUserQuestion (header `"ARCH cap"`, options): `Split — move §3+§4+§5 detail to architecture/sections/§<N>-<topic>.md and keep TOC + summaries in main (Recommended) | Trim sections in place | Override with logged reason`. Refuse the write on Override unless reason is provided.
+-5. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. Existing architecture already binds the integration gate."
++5. Print: "Edit `ARCHITECTURE.md` to finish. Record the actual target review when ready. Existing architecture already binds the integration gate."
+ 6. Retain the dated draft-creation note in `architecture/audit-history/`; attach the note to the related kernel task, if one exists, using `attach add`. Do not append to `journal/`.
+ 
+ ### `/pmo architecture review`
+@@ -101,7 +101,7 @@
+ 
+ Drift detection — replaces the older `audit` name. Two layers:
+ 
+-**Layer 1 — mechanical checks**: for every §6 NN with a `Check:` field, run the command. Non-zero exit → violation row.
++**Layer 1 — authorized mechanical checks**: inspect each applicable Check command and its actual effects before running it within user authority. Nonzero exit is a failed check with diagnostics, not automatic proof of semantic nonconformance.
+ 
+ For Python code, first use [code-backed architecture analysis](architecture-analysis.md)
+ to produce source facts, a host-agent responsibility model and cited target
+@@ -123,13 +123,13 @@
+ **Decision flow** (skipped when `--quiet`): for each drift item, `AskUserQuestion` (batch ≤4), header = section ref, options:
+ - `Fix code — schedule as P0/P1 task (Recommended)` — calls `add-task` with pre-drafted spec.
+ - `Update ARCHITECTURE.md — drift was intended` — opens the doc; user edits; `## Changes since last review` records the edit + reason.
+-- `Defer via ADR` — calls `/pmo decide` (type Architecture); ADR's sunset criterion is the deferral date.
+-
+-Bump `Last reviewed:` regardless of outcome.
++- `Defer via ADR` — hands the decision to `/perry decide adr` (type Architecture); ADR's sunset criterion is the deferral date.
++
++Record the audit date in its report. Update target Last reviewed only after an actual target review; an automated/static scan or quiet report does not establish that review.
+ 
+ ### `/pmo architecture diff`
+ 
+-Quick read-only: show `git diff` of `ARCHITECTURE.md` since last standup. Useful for "what did I change recently".
++Read-only: compare ARCHITECTURE.md against the actual recorded baseline/ref. If no last-standup reference exists, state that gap; a working-tree-versus-HEAD diff is labelled as that comparison, not invented standup history.
+ 
+ ## Dispatch integration — the enforcement loop
+ 
+@@ -160,14 +160,14 @@
+ > Touches architecture: §2, §3, §6.NN-3        # comma-separated section refs, or '(none)'
+ ```
+ 
+-`(none)` is allowed but must be explicit. Section refs use the §-numbering. Sub-references (`§6.NN-3`) point to specific non-negotiables.
+-
+-Empty field → spec is malformed; `add-task` refuses to write.
++`(none)` is allowed where supported by the actual scope but must be explicit. Section refs use the §-numbering. Sub-references (`§6.NN-3`) point to specific non-negotiables.
++
++When required by the selected pack/project, an empty field is a spec gap the Agent must resolve. It is not a native kernel field or a new mechanical semantic guard.
+ 
+ ## Autopilot integration
+ 
+ `autopilot` (see `$PERRY_HOME/work/reference/autopilot.md`):
+-- A spec with hard non-negotiables in `Touches architecture:` is **skipped — high-stakes** (cannot be auto-dispatched).
++- A spec whose actual operations change a confirmed hard target is **skipped without the required actual user authority** (cannot be auto-dispatched).
+ - A spec with only soft sections touched keeps the same pre-flight; integration
+   applies the same diff-triggered fresh review. Autopilot cannot bypass it.
+ - Review cost occurs for triggered integration candidates, not every dispatch.
+@@ -179,7 +179,7 @@
+ 2. `ARCHITECTURE.md § Open questions` (§7).
+ 3. `ARCHITECTURE.md § Change log` (§8) since previous phase's `plan-phase`.
+ 
+-For each unresolved audit drift, the new phase OKR MUST include an explicit response: a KR/Project that resolves it, an ARCHITECTURE.md edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. Refusal otherwise.
++For each unresolved audit drift, the goals Agent must obtain an explicit response in the approved phase narrative: a KR/Project that resolves it, an ARCHITECTURE.md edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. Refusal otherwise.
+ 
+ For each §7 open question idle ≥30 days, surface as a User Input Queue candidate.
+ 
+@@ -240,7 +240,7 @@
+ - **`mid-phase-review`** / **`end-phase-retro`**: invoke `architecture-audit --quiet` inline (via `health-check`).
+ - **`incident close`**: 3-question gate's "Architecture section" question (replacing "Invariant") asks: *"Does this incident reveal that some section of `ARCHITECTURE.md` is wrong, missing, or out of date? If yes, which section, and what should change?"*
+ 
+-## Why this guarantees what /invariants couldn't
++## What the independent review checks beyond literal invariants
+ 
+ A grep-based invariant catches `import psycopg2`. It cannot catch:
+ - A new module added at the wrong layer.
+@@ -256,3 +256,13 @@
+ <!-- next-close: work architecture init --> <!-- next-close: work architecture review --> <!-- next-close: work architecture-audit -->
+ 
+ For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
++
++## Evidence limits
++
++This pack is an Agent procedure. Catalogs and dated target headers are authored
++documents, not native task/goal state or a hidden scanner API. Layer1 commands
++must be inspected and authorized; static rules never execute arbitrary Check
++text. Layer2 needs a genuinely independent context when claimed as independent;
++if the environment/user does not allow delegation, report that review as unrun
++and prepare its concrete brief instead of self-awarding PASS. A stated cadence
++is not an installed timer. Source facts do not prove past human acceptance.
+--- before/packs/software-ops/incidents.md
++++ after/packs/software-ops/incidents.md
+@@ -14,16 +14,16 @@
+ - The user has to dig into agent-written code to figure out what happened.
+ 
+ Do NOT open an incident for:
+-- A dispatched task that failed during dispatch (that's a `review` row, handled by the normal task lifecycle).
++- A dispatched task that failed before producing a reviewable deliverable (record its actual blocked/in-progress state and next action through the normal task lifecycle).
+ - A bug found before deployment.
+ - A planning miss / scope cut (that's a `triage` or retro item).
+ 
+ ## File layout
+ 
+ ```
+-<project_root>/
++<agreed_document_root>/
+ └── incidents/
+-    ├── INDEX.md                                # auto-maintained catalog
++    ├── INDEX.md                                # Agent-maintained during the authorized operation
+     ├── <YYYY-MM-DD>-<slug>.md                  # one file per incident
+     └── ...
+ ```
+@@ -64,11 +64,11 @@
+ 
+    **Q2** — `header: "Architecture"`, options:
+    - `Yes — update ARCHITECTURE.md` — prompt for which §-section. Common edits: add a new §6 non-negotiable; tighten a §5 contract; surface a §7 open question. The doc edit is the user's; PMO opens the file and pre-drafts the proposed change inline based on the incident root cause.
+-   - `Yes — file a follow-up ADR` — calls `/pmo decide` so the decision history captures the new structural rule before it lands in `ARCHITECTURE.md`. The ADR's resolution writes the section edit when ready.
++   - `Yes — file a follow-up ADR` — hands a proposed ADR to `/perry decide adr` so the decision history captures the new structural rule before it lands in `ARCHITECTURE.md`. The ADR's resolution writes the section edit when ready.
+    - `No — incident is on the runbook side, not the architecture` — must include a one-line reason.
+ 
+    **Q3** — `header: "Runbook"`, options:
+-   - `Yes — update runbook/<component>.md` — appends a new "Common failures" entry pre-drafted from this incident; bumps `Last verified:` date.
++   - `Yes — update runbook/<component>.md` — appends a new "Common failures" entry pre-drafted from this incident; records Last verified only after actual verification of the changed runbook.
+    - `Yes — write runbook for <component>` (only offered if the component has none) — schedules a P1 task.
+    - `No — runbook already covers this case` — must include a one-line reason.
+ 
+@@ -172,3 +172,10 @@
+ <!-- next-close: work incident --> <!-- next-close: work incident close --> <!-- next-close: work incident archive -->
+ 
+ For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
++
++The incident status/index is an owned domain document, not another native task
++register. Any derived executable work uses native task IDs. The three close
++outcomes are semantic user choices: reuse answers already supplied, adapt
++prompting to the actual host, and never treat a button or document field as past
++consent. A runbook excerpt is reference material, not authority to execute a
++production command. Review operations and source ownership before acting.
+--- before/packs/software-ops/roles/coding.md
++++ after/packs/software-ops/roles/coding.md
+@@ -6,7 +6,7 @@
+ 
+ ## Context
+ 
+-Writes and changes code in this repository. Reads the board for what is wanted
++Writes and changes code in this repository. Reads native task items and their written criteria for what is wanted
+ and the evidence trail for what has already been tried. Does not decide scope.
+ 
+ ## Loads
+--- before/packs/software-ops/roles/review.md
++++ after/packs/software-ops/roles/review.md
+@@ -17,8 +17,8 @@
+ 
+ ## May touch
+ 
+-- write: `evidence/`
+-- run: the project's own test, lint and mutation commands
++- write: assigned review evidence in an isolated/external output location; never the reviewed checkout
++- run: authorized read-only tests on the target; mutation demonstrations only on isolated copies/stores
+ 
+ ## Must escalate
+ 
+--- before/packs/software-ops/runbooks.md
++++ after/packs/software-ops/runbooks.md
+@@ -19,9 +19,9 @@
+ ## Directory layout
+ 
+ ```
+-<project_root>/
++<agreed_document_root>/
+ ├── runbook/
+-│   ├── INDEX.md                     # auto-maintained catalog
++│   ├── INDEX.md                     # maintained by the Agent during authorized work
+ │   ├── <component-slug>.md          # one file per deployed component
+ │   └── ...
+ ```
+@@ -46,7 +46,7 @@
+ - Runbook path:     runbook/<slug>.md
+ ```
+ 
+-These three are not narrative — they're machinery. "It will log on success" is not a success signal; `grep "DEPLOY_COMPLETE" logs/deployer.log | tail -1` is.
++These are authored operational evidence requirements, not kernel fields or automatically executed machinery. "It will log on success" is not a success signal; `grep "DEPLOY_COMPLETE" logs/deployer.log | tail -1` is.
+ 
+ ## `close-task` gate (the enforcement)
+ 
+@@ -58,7 +58,7 @@
+    - Confirm the runbook file has all four mandatory sections (What / Healthy / Failures / Escalation) — empty placeholders count as missing.
+    - Confirm `## Observability` section exists in the spec with non-empty values for the three sub-fields.
+    - **If any check fails**, refuse the close. Use `AskUserQuestion` (header = TASK-ID, options): `Add runbook now (Recommended) | Keep as review until runbook exists | Override — close without runbook (NOT recommended)`. "Override" requires the actual user's written reason in the task's close evidence document as `runbook-override: <reason>`. Attach that document with `attach add` before the closing transition; retain its path in the transition's `evidence`. Never append to `journal/`.
+-3. If `Deployed: no` or field absent: proceed with the normal close flow. No runbook required.
++3. If Deployed is explicitly no and actual scope agrees, use the normal close flow. An absent/unreadable field is unknown, not evidence that deployment did not occur; resolve the applicable spec requirement before closure.
+ 
+ The override path exists because there are legitimate edge cases (one-off scripts, deprecation closes, runbook lives in another system). The attached close evidence and kernel attachment/transition events make the override auditable.
+ 
+@@ -81,8 +81,8 @@
+ 5. For each gap row, use `AskUserQuestion` (batch up to 4) — header = component slug, options: `Write/refresh now (Recommended) | Schedule as P1 task | Mark obsolete — component removed`.
+    - "Write/refresh now": offer to draft a runbook from the spec, kernel events and related attachments (the user reviews and edits).
+    - "Schedule as P1": calls `add-task` with a stub spec for the runbook work.
+-   - "Mark obsolete": prompts for confirmation that the component is decommissioned; on confirm, moves `runbook/<slug>.md` to `runbook/archive/<slug>.md` and updates INDEX.
+-6. Rebuild `runbook/INDEX.md` at the end.
++   - "Mark obsolete": prompts for confirmation that the component is decommissioned; on actual confirmation, proposes an owned archive move after checking incoming references and rollback; preserves or updates every reference before retiring the old path.
++6. Rebuild the authored index only when that maintenance is in the authorized scope, preserving unrelated entries. A read-only check reports facts without writing it.
+ 
+ Gaps with no user response are surfaced in the next standup as a `🚧` line: `Runbook gaps: <n> (oldest <component> · <days>d)`.
+ 
+@@ -176,7 +176,7 @@
+ Runbook stale_days: 90                # default; override per project
+ ```
+ 
+-If declared, bootstrap seeds `runbook/` with empty markdown stubs for each known component and adds them to the User Input Queue as P1 "Write runbook for <component>" tasks.
++If declared, bootstrap seeds `runbook/` with empty markdown stubs for each known component and proposes native P1 tasks for the missing runbooks after scope approval. Human asks and executable tasks are different item types; no old input-queue register is created.
+ 
+ ## Why this isn't optional
+ 
+@@ -188,3 +188,9 @@
+ <!-- next-close: work runbook-check -->
+ 
+ For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
++
++This is an Agent procedure under the agreed document root. No helper computes
++all deployment/runbook facts or refreshes verification dates on a schedule.
++Read/refresh dates require actual verification evidence; an index rebuild alone
++cannot change Last verified. Read-only inspection does not authorize rebuilding
++an index. Pack disable never removes independent operational obligations.
+--- before/packs/software-ops/templates/ARCHITECTURE_TEMPLATE.md
++++ after/packs/software-ops/templates/ARCHITECTURE_TEMPLATE.md
+@@ -1,6 +1,6 @@
+ # Architecture — {{Project Name}}
+ 
+-> Owner: user (agents read-only)
++> Owner: user (confirmed target changes require actual approval)
+ > Version: v1
+ > Last reviewed: {{YYYY-MM-DD}}
+ > Status: draft
+@@ -8,15 +8,16 @@
+ 
+ <!--
+ This is the single source of truth for the system's design. Edit freely.
+-Agents must NOT write to this file. PMO refuses to consume malformed docs
+-(missing required sections = agent receives no guidance for that area).
++Agents may prepare authorized drafts; they cannot approve changes to confirmed
++mission, Forbidden rules, contracts or hard targets. Missing governing context
++is a reported blocker, never an empty successful injection.
+ 
+ When ready, flip Status to `active`. That enables the dispatch compliance
+ gate: every code-changing task touching a section here must pass an
+ independent review-agent check.
+ 
+ Section structure is fixed (§1 through §8). Subsections within each are free.
+-Soft cap: 800 lines total. Typical: 200–500.
++Keep the declared 500-line root cap; split long sections with explicit links.
+ -->
+ 
+ ## §1. Mission & scope
+--- before/reference/adoption-sources.md
++++ after/reference/adoption-sources.md
+@@ -164,8 +164,7 @@
+ 2. Add a column entry to the depth matrix — a new source defaults to `deep` until
+    its cost is understood.
+ 3. Declare its citation form in § Provenance format.
+-4. Add a fixture case under `tests/fixtures/pre-adoption-project/` so the scan
+-   output is tested rather than asserted.
++4. Demonstrate the source on an isolated representative project and record the actual method, evidence and limits. The retired pre-adoption scanner/fixture suite is not a current automatic parser or acceptance result.
+ 
+ No change to `reference/adoption.md` should be needed. If one is, the pipeline is
+ leaking source-specific logic and that is the bug.
+--- before/reference/config.md
++++ after/reference/config.md
+@@ -61,5 +61,7 @@
+ Release readiness additionally requires the approved policy and verified adapter
+ in `packs/software-ops/releases.md`.
+ 
+-The preference-prose migration is a provisional H design consequence for review
+-and final V5 acceptance; this source candidate performs no live preference edit.
++Preference prose and structured safety are the accepted native arrangement.
++Actual local H/V5 evidence is dated under
++`perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
++A source instruction does not itself change or approve a project's preferences.
+--- before/reference/diagnose.md
++++ after/reference/diagnose.md
+@@ -54,6 +54,6 @@
+ Use `diagnose-explanations.md` as a reading checklist, not a scoring engine.
+ Check instruction load, document discoverability, concurrency/isolation,
+ goals/checks/decisions, ID/title readability, namespace collisions, mode fit and
+-process cost. Ordinary old regex scores/thresholds are proposed retirements
+-pending final human acceptance; do not report their absent outputs as passes.
++process cost. Old regex scores/thresholds were retired under the accepted H list. Inspect
++meaning and actual evidence; never report absent old outputs as current passes.
+ Follow `next.md` after completed writes.
+--- before/reference/host-capabilities.md
++++ after/reference/host-capabilities.md
+@@ -2,7 +2,7 @@
+ 
+ Perry runs on **Claude Code**, **OpenCode**, and **Codex CLI**. It registers **one** skill, `perry`, on every host; `goals`, `work`, and `decide` are lanes loaded on demand. OpenCode is an explicitly added host adapter after DESIGN-003 decision 8; this support does not reinterpret that older Claude+Codex decision as having already authorized OpenCode.
+ 
+-> **This page is outside the shorthand carve-out.** It owns host translation, so all commands and directories below use the live vocabulary. `tests/test_shipped_vocabulary.py::TestHostCapabilitiesNamesTheOneLiveEntrance` enforces that boundary.
++> **This page is outside the shorthand carve-out.** It owns host translation, so all commands and directories below use the live vocabulary. This is a source-review requirement; the retired shipped-vocabulary byte pins no longer enforce it.
+ 
+ ## Detect once per session
+ 
+@@ -42,6 +42,14 @@
+ 
+ ## Capability matrix
+ 
++This matrix describes Perry's existing CLI adapters and executor identifiers.
++A desktop/session environment may expose additional input, job or agent tools.
++Inspect the actual available tools and their instructions; use a native choice
++UI when available and permitted, otherwise the fallback below. Tool availability
++is not delegation or messaging authority. Environment/user restrictions win;
++never invent a new Perry executor ID or bypass a strict existing adapter check.
++
++
+ | Capability | claude-code | opencode | codex-cli |
+ |---|---|---|---|
+ | User choices | `AskUserQuestion` | `question` tool | numbered free-text fallback |
+@@ -69,11 +77,11 @@
+ report `unknown`. Claude Code is always unknown here because its session identity
+ is not verified; `--session` is only an explicit caller-asserted reading. Neither
+ unknown nor a large token count blocks work or requires a handoff. Session changes
+-belong to the agent environment and user. Detail: `tools/README.md § context budget`.
++belong to the agent environment and user. Details: `work/reference/budget-boundary.md` and the current `tools/context_budget.py --help`.
+ 
+ ## Prompt rendering
+ 
+-An instruction to use `AskUserQuestion` means the host's native choice UI. Claude Code uses `AskUserQuestion`; OpenCode uses `question` with equivalent labels, options and recommendation. Translate Claude's `multiSelect: true` to OpenCode's `multiple: true` exactly; passing the Claude field name to OpenCode is invalid. Codex prints numbered options and waits for free text:
++An instruction to use `AskUserQuestion` means the host's native choice UI. Claude Code uses `AskUserQuestion`; OpenCode uses `question` with equivalent labels, options and recommendation. Translate Claude's `multiSelect: true` to OpenCode's `multiple: true` exactly; passing the Claude field name to OpenCode is invalid. For the baseline Codex CLI fallback, print numbered options and wait for free text (a provided session choice tool takes precedence):
+ 
+ ```
+ [Header]
+--- before/reference/input-quality-rubrics.md
++++ after/reference/input-quality-rubrics.md
+@@ -10,7 +10,7 @@
+ | 1.2 | **KR is an outcome, not an output/activity** (the classic trap) | "Launch the newsletter" · "Build the dashboard" | "Grow subscribers to 500" · "Cut median load time to <1s" |
+ | 1.3 | **KR is measurable: number + unit + deadline** | "Improve reliability" | "p99 latency ≤ 300 ms by phase end" |
+ | 1.4 | **KR has a baseline** (target is meaningless without a start point) | "Get NPS to 50" | "Raise NPS from 32 → 50" |
+-| 1.5 | **2–4 Objectives, 1–5 KRs each** (solo project: fewer) | 6 Objectives, 8 KRs on one | 3 Objectives, 3–4 KRs each |
++| 1.5 | **Use the agreed scope** — default to one Objective and at most three KRs; retain a fully formed user draft | 6 Objectives, 8 KRs on one | one focused Objective with a few measurable KRs, or the user-approved supplied structure |
+ | 1.6 | **Objective aligns to Mission** — state which Mission clause it serves; if none, it's scope creep | Objective unrelated to why the project exists | Each Objective traces to a Mission clause |
+ | 1.7 | **Anti-Goals are concrete refusals, not platitudes** | "Don't waste time" | "No production deploys until the promotion gate; no new paid APIs this period" |
+ | 1.8 | **No sandbagging on commit KRs** — if the target is obviously already met, it's a status line, not a goal | commit KR the project already hit | commit KR that requires real work; overshoot goes to a stretch KR |
+--- before/reference/input-quality.md
++++ after/reference/input-quality.md
+@@ -49,16 +49,16 @@
+ | 4.2 | **Deliverable is an artifact, not an activity** | "Work on the migration" | "`migrations/007_*.sql` merged + rollback tested" |
+ | 4.3 | **Single owner from the Owner model** — not "team" / unassigned | "Owner: someone" | "Owner: Coding Agent" |
+ | 4.4 | **Priority is justified** — P0 must plausibly block a Must-Have | everything P0 | P0 only if it blocks a DoD Must-Have; else P1/P2 |
+-| 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | `kr:P<NNN>-O1-KR2` |
++| 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | approved native task→KR relation with exact version/phase scope |
+ | 4.6 | **Summary is written for a stranger** — why the row exists and what is true when it is done, in plain language, for somebody who was not in this conversation. The title is shorthand; native `item get` exposes this field. | the title again, or `D009 step 3` | "Perry ships two opposite orderings of the phase-close pipeline. Nothing picks one, so whoever runs it picks by which page they read." |
+ 
+-> The skill verifies 4.1, 4.2 and 4.6 before creation. Native required-field guards check presence, not whether evidence is falsifiable or prose is readable. Read the deliverable and summary against the rubric; never present a successful mutation as semantic acceptance. The former word-count/sentence regex refusals are proposed retirements pending H acceptance.
++> The skill verifies 4.1, 4.2 and 4.6 before creation. Native required-field guards check presence, not whether evidence is falsifiable or prose is readable. Read the deliverable and summary against the rubric; never present a successful mutation as semantic acceptance. The former word-count/sentence regex refusals were retired under the separately recorded H approval; the rubric remains an Agent procedure.
+ 
+ ---
+ 
+ ## What the pass does NOT do
+ 
+ - **Does not rewrite the user's Mission / Problem / Objective prose.** It suggests; the words stay the user's.
+-- **Does not enforce anything §-numbered as a hard block** — the only hard blocks in Perry remain: `design lock` gate, `pmo` no-`done`-without-evidence, tier-1 size caps.
++- **Does not enforce anything §-numbered as a hard block** — it does not waive native guards, recovery, ownership, high-stakes authority, applicable document caps or independent/human acceptance.
+ - **Does not run on tier 2/3 files** (journal, evidence, renders) — those are agent-internal or disposable.
+ - **Does not re-run every turn.** Once per input event (init / plan-phase / plan-week / new / lock / add-task).
+--- before/reference/kernel.md
++++ after/reference/kernel.md
+@@ -7,6 +7,12 @@
+ exit, `ok: false`, refusal or stale expectation is never an empty list or success.
+ 
+ ## Invocation and scope
++
++The kernel resolves one store per project anchor. Git worktrees share the Git
++common-directory store. Outside Git, the supported default is
++`<anchor>/.perry/perry.db`. Inspect native errors rather than inventing another
++anchor/store; all isolated demonstrations name --root and --store explicitly.
++
+ 
+ Use the actual skill root as `PERRY_HOME`. Every state call names an absolute
+ project root. `--input @/absolute/file.json` reads a UTF-8 file containing one JSON object.
+@@ -105,7 +111,9 @@
+ `templates/process/perry.json` object. Do not initialize over missing migration
+ state. For an existing project, follow the reviewed import reconciliation and
+ switch plan; the importer creates a rehearsal store, not a live cutover.
+-All rehearsal commands name both an isolated `--store` and its `--root`. Verify
++The root first-run procedure establishes the agreed .perry namespace before
++init; explicit --root must identify that anchor. All rehearsal commands name
++both an isolated `--store` and its `--root`. Verify
+ counts, IDs, references and ceiling reconciliation for each affected project.
+ Do not copy a rehearsal SQLite file into the live location: use validated export
+ and kernel `import` at the actual project root after the user's switch approval.
+--- before/reference/new-projects.md
++++ after/reference/new-projects.md
+@@ -83,8 +83,10 @@
+   src/              or wiki/raw/assets/deliverables: the project's actual output
+ ```
+ 
+-The shared native store is resolved by the kernel at the project Git anchor;
+-it is not another `STATE.md` or a database copied into the document tree.
++The kernel resolves the shared native store at the project anchor: Git projects
++use their common Git directory; without Git the supported fallback is
++`<anchor>/.perry/perry.db`. Keep --root explicit and use the declared resolver;
++it is not a second STATE.md or a rehearsal database copied into place.
+ `init` records the document root; `template apply` applies process data. The
+ owning lanes create native items and narrative attachments only as needed.
+ No parallel board, intake, task journal or decision registry is generated.
+--- before/reference/operating-rules.md
++++ after/reference/operating-rules.md
+@@ -70,9 +70,10 @@
+ Record material gaps against the criterion, with path and a concrete fix.
+ 
+ The old narrative regex/heading budgets, deterministic next-step evaluator,
+-method-specific mode/diagnosis scores and frozen-file parity checks are proposed
+-retirements pending final human acceptance. They are not reported as green,
+-approved or completed checks. The finite disposition records identify each row.
++method-specific mode/diagnosis scores and obsolete projection checks were retired
++under the actual user-approved H list. The finite source inventory retains its
++original proposal labels; actual approval/V5 is a separate dated record. An
++absent old check is not a passing test or a new semantic verification.
+ Safety checks above are replacements, never dropped. Retain reviewed red cases:
+ a malformed recovery marker, interrupted dossier, unauthorized high-stakes scope,
+ foreign ownership, missing evidence, self-review and fabricated human signoff
+--- before/reference/project-archetypes.md
++++ after/reference/project-archetypes.md
+@@ -1,3 +1,7 @@
++> Research and standalone-pattern rationale. Native operations follow the current
++> router, new-project guide and owning lane. Historical measurements, examples
++> and old tracking vocabulary below do not create native fields, writers or gates.
++
+ # Project archetypes — what actually works in agent-run projects
+ 
+ Loaded by `/perry diagnose`. Also readable on its own: this is the research
+--- before/reference/snapshot.md
++++ after/reference/snapshot.md
+@@ -43,9 +43,9 @@
+ |---|---|
+ | Work | task totals by state; startable open task IDs/titles and blockers |
+ | Human input | nonterminal asks, question and blocking relation |
+-| Risk | nonterminal risks and their declared severity |
++| Risk | nonterminal risk concerns/reasons; severity only if independently declared in cited narrative, never an invented native field |
+ | Goals | current objective/KR version and phase associations from item fields/relations |
+-| Progress | actual metric `current`, `target`, `fraction`, `met`; objective/phase `rollup` |
++| Progress | actual metric `current`, `target`, `fraction`, `met` and returned one-level `rollup`; absent aggregate values remain unknown, never recursively inferred phase progress |
+ | Checks | declared check and actual measurement state; show unmeasured/obsolete/error |
+ | Decisions | designs by state; active ADRs and attachments |
+ 
+--- before/reference/style.md
++++ after/reference/style.md
+@@ -46,7 +46,7 @@
+ 
+ Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the host's structured choice tool over free-text "what do you want?" prompts. Claude Code uses `AskUserQuestion`; OpenCode uses `question`. Both render clickable choices with a free-text fallback.
+ 
+-> **Host translation**: OpenCode maps Claude's `multiSelect: true` to `multiple: true`; field names are not portable even when the behavior is. Codex has no choice tool, so render the same options as a numbered free-text prompt per `$PERRY_HOME/reference/host-capabilities.md`. The chosen value and downstream writes are unchanged.
++> **Host translation**: OpenCode maps Claude's `multiSelect: true` to `multiple: true`; field names are not portable even when the behavior is. Use a provided, permitted session choice tool on Codex when available; otherwise render numbered options per `$PERRY_HOME/reference/host-capabilities.md`. The chosen value and downstream writes are unchanged.
+ 
+ ### When to use it
+ 
+@@ -77,19 +77,19 @@
+ 
+ ### Concrete pattern: child skills with structured option lists
+ 
+-For child skills whose state files already enumerate options (notably `design/<DESIGN-ID>-*.md`'s `User Decisions` table), write the Options column in **pipe-separated short labels** so `decide` can map each cell directly to `AskUserQuestion` options without rephrasing:
++For child skills whose state files already enumerate options (notably `design/<DESIGN-ID>-*.md`'s `User Decisions` table), write the Options column in **slash-separated short labels** so `decide` can map each cell directly to `AskUserQuestion` options without rephrasing:
+ 
+ ```
+ | # | Decision | Options | Chosen | Date |
+ |---|---|---|---|---|
+-| 1 | Cache backend | Redis | Memcached | DynamoDB | TBD | — |
++| 1 | Cache backend | Redis / Memcached / DynamoDB | TBD | — |
+ ```
+ 
+-Each piped token becomes one `AskUserQuestion` option label.
++Use slash-separated short labels inside the Options cell; raw pipes would create extra Markdown columns. Render the parsed choices through the actual host UI.
+ 
+ ## Per-project hooks (optional)
+ 
+-If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
++Store project-specific roadmap references, MCP tools, role context and approved preferences only in the project's `.perry/hook.md` through the root procedure. Root and lanes read it; never add project blocks to the installed skill's SKILL.md files.
+ 
+ Project hook files live at the project root (not in the skill folder), so a single Perry installation can serve many projects without entanglement. The recommended location is `<project_root>/.perry/hook.md`; children read it on every invocation.
+ 
+--- before/reference/user-load.md
++++ after/reference/user-load.md
+@@ -6,9 +6,8 @@
+ 
+ ## The premise
+ 
+-An agent has broad competence and perfect recall. It can reason about
+-cryptography, tax law, and CSS in the same session, and it remembers every ID
+-it ever minted. The user has neither. They are expert in a few areas, hazy in
++An agent can read across disciplines and retrieve exact records, but its context
++and recall are finite. It must look up IDs and evidence rather than rely on memory. The user has neither. They are expert in a few areas, hazy in
+ the rest, and they cannot hold forty identifiers in their head.
+ 
+ **The project is theirs, and they are the only irreplaceable part of it.** So
+@@ -80,9 +79,9 @@
+ 
+ Asking less means deciding more on the user's behalf, which is only acceptable
+ if those decisions stay **visible and reversible**. So every decision an agent
+-takes on the user's behalf is logged like any other — in `decisions/` or the
+-project's equivalent — and marked as agent-decided, with what would trigger a
+-revisit. The user must be able to find, later, every call that was made without
++takes on the user's behalf is logged like any other — in its owned evidence/event note or the project's agreed equivalent, marked as
++agent-decided with a revisit condition. Formal ADRs remain decide-owned; a work
++Agent does not write another lane's records merely to log a reversible choice. The user must be able to find, later, every call that was made without
+ them. Silent autonomy is a worse failure than over-asking.
+ 
+ ## Failure 2 · Identifiers the user cannot resolve
+--- before/reference/version-compatibility.md
++++ after/reference/version-compatibility.md
+@@ -1,6 +1,6 @@
+ # Native cutover and compatibility
+ 
+-The final candidate has one native entry point, `bin/perry`. `describe` is the
++The integrated architecture has one native entry point, `bin/perry`. `describe` is the
+ versioned contract; consumers must reject unsupported majors and error envelopes.
+ No legacy CLI, old typed state contract or hidden compatibility command remains.
+ Historical documents stay historical and do not govern current-state reads.
+@@ -26,9 +26,9 @@
+ 
+ aiMark must use native probes and its reviewed goals/decide adapters. Knowledge,
+ role and churn reads use skill-side helpers under `tools/`, whose versioned output
+-shapes are documented there. The viewer's source retirement is a reviewable
+-proposal pending final acceptance after required consumers are covered. No
+-source deletion means the user has accepted a dropped behavior.
++shapes are documented there. The viewer retirement and actual consumer verification were accepted separately
++in the dated local cutover record. Historical proposal labels remain unchanged;
++source deletion or a helper read does not accept another consumer migration.
+ 
+ ## Verification boundary
+ 
+@@ -38,5 +38,7 @@
+ candidate and the new `tests/merge-check` receipt. Live activation and final H V5
+ remain outside source implementation.
+ 
+-The preference-prose migration is a provisional H design consequence for review
+-and final V5 acceptance; this source candidate performs no live preference edit.
++The final local H/V5 record is
++`perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
++Future projects still need their own reviewed setup/migration; previous acceptance
++does not authorize new live writes or public publication.
+--- before/release/README.md
++++ after/release/README.md
+@@ -101,5 +101,5 @@
+ local `--base` and repeatable `--candidate` refs and binds its external receipt
+ to the exact merged tree and transcript. No PR discovery or network is required.
+ The independent integrator still allocates the version and checks the actual
+-merged candidate; this source branch does not allocate or publish a release.
++merged candidate. Source checks alone allocate no version and publish nothing.
+ See [the finite candidate ledger](retirement/README.md).
+--- before/tests/ARCHITECTURE.md
++++ after/tests/ARCHITECTURE.md
+@@ -1,7 +1,8 @@
+ # Architecture — tests/
+ 
+-Candidate source map for DESIGN-023 H. This changes the verification target and
+-requires reviewer/user reconciliation; it does not certify that target itself.
++Source map for the integrated DESIGN-023 H native/helper harness. The dated
++cutover record contains actual independent integration and human acceptance;
++this map does not certify a subsequent source change.
+ 
+ ## Entry points
+ 
+@@ -24,8 +25,7 @@
+ prevents default-store writes and detects its own live-store events.
+ 
+ Full/slow now name the new source suite described in [README.md](README.md).
+-They are not evidence for the removed typed-state/parser corpus. Complete
+-legacy source dispositions remain proposed until actual acceptance. External
++They are not evidence for the removed typed-state/parser corpus. The legacy source inventory retains proposal labels for provenance; actual acceptance is recorded separately. External
+ receipts bind local refs, the reconstructed merged tree and transcript bytes;
+ they do not establish evidence truth, semantic architecture correctness,
+ independent review, production readiness or human sign-off.
+--- before/tests/README.md
++++ after/tests/README.md
+@@ -9,8 +9,7 @@
+ 
+ This is not a passing result for the removed legacy full/slow corpus. The
+ immutable-base inventory is [test-disposition.json](test-disposition.json).
+-Each source path has its original SHA and proposed disposition. These are
+-source-retirement proposals; none records user approval. Safety checks now
++Each source path has its original SHA and proposed disposition. These preserve historical source-retirement proposals; actual user approval and final V5 are separate dated cutover records. Safety checks now
+ combine native structural guards, explicit skill procedures and the red
+ fixtures in `test_document_checks.py`. A lexical document check cannot decide
+ whether evidence is true or whether a human actually approved an operation.
+--- before/tools/helper-contracts.md
++++ after/tools/helper-contracts.md
+@@ -1,11 +1,11 @@
+-# Skill helper contracts — retirement candidate
++# Skill helper contracts
+ 
+ These stdlib/shell helpers belong to the skill. `bin/perry` is the native
+ kernel entrance. No helper imports kernel internals, legacy `bin/lib`, viewer
+ parsers, or the retired state schema. None is a compatibility state CLI.
+-This is a proposed source replacement, not activation or human acceptance.
++These are the integrated helper shapes. Actual cutover/acceptance is recorded separately; a helper success never authenticates consent.
+ 
+-| Previous source | Candidate destination | Behavior |
++| Retired source | Current destination | Behavior |
+ |---|---|---|
+ | `bin/perry-detect-host` | `tools/detect-host.sh` | Shell host detection, manual override wins |
+ | `bin/perry-update-check` | `tools/update-check.sh` | Shell wrapper for `release/update.py`; network/update only when explicitly invoked |
+@@ -136,5 +136,4 @@
+ Declared role cards must contain exactly one nonempty `May touch` and
+ `Must escalate` section. Missing, duplicate or misspelled safety sections produce
+ a role error and block dispatch. Optional Context/Loads prose and extra headings
+-do not grant authority or cancel the structured project policy. The old universal
+-heading grammar is a separate proposed retirement, not helper parity.
++do not grant authority or cancel the structured project policy. The old Context/Loads closed grammar was explicitly retired under R0096; this is not a claim of legacy helper parity.
+--- before/tools/reviewed-plan-migration.md
++++ after/tools/reviewed-plan-migration.md
+@@ -11,10 +11,10 @@
+ `1c5ccd851aec14d6d2e524b8237f508b1efde4f0`, in the read-only checkout
+ `/Users/bytedance/.codex/worktrees/goals-decide-kernel/Perry`:
+ `tools/goals_decide_migrate.py`, `Plan(source).build(native_items).document()`.
+-That release retains its old isolated readers. Its corrected `in_review` mapping
++That commit retains its old isolated readers; the checkout path is provenance, not a guarantee that a local worktree remains available. Its corrected `in_review` mapping
+ and invalid-status refusal have an independent bounded PASS and 18 passing
+ source-preparation tests in the upstream handoff. Those are provenance, **not
+-results from this candidate's suite**. Do not reinstall or copy its readers into
++results from the current suite**. Do not reinstall or copy its readers into
+ the final product. Running preparation requires that pinned isolated old release;
+ it is not a mode of the shipped apply helper.
+ 
+@@ -81,7 +81,7 @@
+ 
+ Apply preserves each existing task/ask/risk item exactly and verifies the original
+ event prefix. Sparse filename identities and the final recorded prefix ceilings
+-use the candidate's optional native `template apply.ceilings` surface (1.1).
++use the approved optional native `template apply.ceilings` surface (1.1).
+ The user approved that exact primitive on2026-10-20 in DESIGN-023;
+ `perry/evidence/2026-10/TASK-492-prefix-floor/approval.json` records the actual
+ reply. Its presence in a source checkout alone still supplies no approval.
+--- before/work/SKILL.md
++++ after/work/SKILL.md
+@@ -11,10 +11,14 @@
+ Work is the only writer of `evidence/`, `weekly/` and `handoff/`.
+ Never write to OKR files or `decisions/` from work; goals and decide own them.
+ 
+-## Mandatory first move: the Standup
++## Startup by route
+ 
+ Apply `$PERRY_HOME/SKILL.md § Mandatory first move: combined snapshot` recovery and
+ interrupted-run gates before this lane reads project state.
++
++Explain/help reads shipped instructions only. A narrow Query reads only its
++requested native projection after safety. The steps below describe execution
++and an explicitly requested overview; they do not force a full standup on help.
+ 
+ **Set `$PERRY_HOME`** from the parent of this lane: it contains `bin/`, `reference/`, `goals/`, `work/`, `decide/` and `SKILL.md`.
+ 
+@@ -89,11 +93,12 @@
+ `$PERRY_HOME/reference/kernel.md`, `reference/review-constraints.md`, `reference/state-files.md`,
+ `reference/dispatch-preflight.md`, `reference/budget-boundary.md`,
+ `reference/git-boundaries.md`,
+-`reference/reporting-format.md`, `reference/promotion-format.md`,
++`reference/reporting-format.md`,
+ `reference/task-close.md`, `reference/conversational.md`,
+-`reference/add-task-notes.md`, `reference/dispatch-notes.md`,
+-`reference/extending.md`, `reference/lane-notes.md`,
++`reference/add-task-notes.md`, `reference/extending.md`,
+ `reference/promotion.md`, `reference/time-estimation.md`.
++`dispatch-notes.md` and `lane-notes.md` are historical rationale only; their old
++commands, schema and rung descriptions are not operational instructions.
+ 
+ ## Subcommand index
+ 
+--- before/work/reference/bootstrap.md
++++ after/work/reference/bootstrap.md
+@@ -13,15 +13,16 @@
+ 
+ 1. Inspect the project hook and obtain its high-stakes boundary agreement.
+ 
+-2. **Create state files under the agreed state root**:
++2. **Create only selected needed work documents under the agreed document root**:
+    - Work documents: `evidence/`, `weekly/`, `handoff/`, `inputs/`, `knowledge/`.
+    - **not** `decisions/` or `design/`; only decide creates those.
+ 
+-3. Run kernel `init` with the agreed state_root and actual actor, then apply the parsed
+-shipped process template. Read `template show` and query the types this lane owns to verify
+-the result. A missing store on an existing project is a migration condition, not
+-permission to initialize over history. Never restore work state by hand-editing
+-exports or copying a database that is bound to a rehearsal anchor.
++3. The root first-run procedure performs native init and template apply once
++with actual authority. This lane inspects template show and its owned task/ask/
++risk queries; it does not repeat root configuration or initialization. A missing
++store on an existing project is a migration condition, not a new empty project.
++Use the declared export/import interface only under its actual preconditions;
++never hand-edit exports or copy a rehearsal database over live state.
+ 
+ Do not create legacy task, ask, risk, intake or cadence registers, a board or daily
+ journals. Existing projects use the reviewed reconciliation/switch plan. Retain
+--- before/work/reference/conversational.md
++++ after/work/reference/conversational.md
+@@ -13,7 +13,7 @@
+ - ❌ Don't write a reply that covers "today's standup" AND "the new digest" AND "this week's plan-week" all at once.
+ - ✅ Do write a reply that picks one of those and offers to do the others next.
+ 
+-Exception: the standup snapshot itself is a fixed-shape dashboard, not a multi-topic discussion. After the dashboard renders, the "What do you want to do?" question is the topic — the user picks.
++Exception: the standup snapshot itself is a fixed-shape dashboard, not a multi-topic discussion. After a requested dashboard, give one supported next step. A named/authorized user action remains the task; do not append a ceremonial selection question.
+ 
+ ### R2 — One question per reply
+ 
+@@ -31,7 +31,7 @@
+ 
+ **Phase A is required when**:
+ - The action will write to `evidence/<YYYY-MM>/<TASK-ID>-spec.md` (any new spec, P0/P1 promotion).
+-- The action is an ADR. **`work` does not write one** — that moved to `decide` with `decisions/` on 2026-08-16 — so Phase A here means proposing the decision in prose and then handing off with `/perry decide adr <slug> --type <T>`. The propose-before-produce rule still applies; the produce step is another lane's.
++- The action is an ADR. **`work` does not write one** — that moved to `decide` with `decisions/` on 2026-08-16 — so Phase A here means proposing the decision in prose and then handing off with the decide lane's `adr` procedure and the applied native decision_type field. The propose-before-produce rule still applies; the produce step is another lane's.
+ - The action will write to or substantially edit `ARCHITECTURE.md`.
+ - The user asked an open-ended question like "how should we handle X?", "what should the design be for Y?", "this feels off, can we adjust?" — propose 1–3 directions with a recommendation, do not jump straight to one answer.
+ 
+--- before/work/reference/digests.md
++++ after/work/reference/digests.md
+@@ -2,10 +2,15 @@
+ 
+ PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / work documents.
+ 
++This is an Agent skill procedure, not a native CLI or background service.
++Resolve the configured document root; inputs and knowledge paths below are
++relative to that root. Existing source ownership and user authority still apply.
++The kernel has no digest item or automatic source-age/referrer classifier.
++
+ ## Two directories — clear separation
+ 
+ ```
+-<project_root>/
++<agreed_document_root>/
+ ├── inputs/                              # raw drop zone — user puts anything here
+ │   ├── 2025-12-09-vendor-acme-contract.pdf  # waiting to be digested
+ │   ├── pasted-error-budget-thresholds.md    # user paste, not yet processed
+@@ -20,7 +25,7 @@
+     │   └── kubernetes-best-practices-2024-digest.md
+     ├── _shared/                         # cross-topic / project-constitution
+     │   └── USER-002-constraints-digest.md
+-    └── INDEX.md                         # auto-maintained
++    └── INDEX.md                         # Agent-maintained during the approved operation
+ ```
+ 
+ **Lifecycle**: `inputs/` → `/pmo digest <path>` → both source + digest move to `knowledge/<topic>/`. `inputs/` is transient; ideally empty after every digest pass.
+@@ -41,7 +46,7 @@
+ 
+ ### Pre-flight
+ 
+-1. Source exists at `inputs/<path>`. Refuse if path is anywhere else (use `mv` first).
++1. Resolve the source under the agreed inputs root and inspect ownership. A source elsewhere requires an explicitly authorized copy/staging plan; never move a foreign or user-owned original merely to satisfy this layout.
+ 2. Hash the source (SHA-256). Used later to detect source changes.
+ 3. Detect file kind: `.md` / `.txt` (read directly), `.pdf` (use Read tool's PDF support), `.xlsx` / `.csv` (Read), screenshot images (Read).
+ 
+@@ -63,7 +68,7 @@
+ ### Move + commit
+ 
+ 9. Choose target folder: `knowledge/<topic>/`. Create the subfolder if new.
+-10. Move the source file: `git mv inputs/<source> knowledge/<topic>/<source>` (or plain `mv` if source is gitignored).
++10. With actual approval of the exact source/destination and checked collisions, move the owned staged source into knowledge. Preserve user originals, attached historical sources and untracked work; retain hashes and the actual operation in the digest.
+ 11. Write the final digest: `knowledge/<topic>/<basename>-digest.md` (using the verified content).
+ 12. Update `knowledge/INDEX.md` (see `## INDEX.md` below).
+ 13. Record the source, destination, topics and verified facts in the digest itself. If this fulfils a task, attach the digest with kernel `attach add` and update that task through `$PERRY_HOME/reference/kernel.md`. Do not append a work journal entry.
+@@ -73,7 +78,7 @@
+ 
+ `/pmo digest knowledge/<topic>/<existing-digest>.md --refresh`:
+ - Re-hash the source. If unchanged, exit "no refresh needed".
+-- If changed: re-read source, diff against existing digest, surface ONLY the changed sections via AskUserQuestion (don't re-verify everything).
++- If changed, or the user requests a new interpretation/template, re-read the affected source and surface changed claims. An unchanged hash alone does not prove continued relevance or acceptance.
+ - Per Q6c (user can hand-edit), respect any sections marked `<!-- user-edited -->` — do NOT overwrite without explicit AskUserQuestion confirmation.
+ - Update `Source SHA-256` and `Last digested` fields.
+ 
+@@ -88,7 +93,7 @@
+ 
+ ### Classification signals
+ 
+-Compute weighted evidence from the source. **Each signal toward `research-style` = +1 point. ≥3 points → high-confidence `research-style`. 0–1 points → high-confidence `project-context`. 2 points → ambiguous, ask user.**
++Compute weighted evidence from the source. These are Agent selection heuristics, not native guards or a mechanical semantic classifier. **Each signal toward `research-style` = +1 point. ≥3 points → high-confidence `research-style`. 0–1 points → high-confidence `project-context`. 2 points → ambiguous, ask user.**
+ 
+ | Signal | Counts toward `research-style` if … |
+ |---|---|
+@@ -131,7 +136,7 @@
+ > Superseded by: <filename or —>
+ > Topics: <comma-separated>
+ > Verification level: standard | strict
+-> Referenced by: <auto-grep result; updated at INDEX rebuild>
++> Referenced by: <observed references, method/date/coverage; unknown when unmeasured>
+ 
+ **`Id:` is the citation handle, and it is minted once.** Take the next unused
+ `SRC-<n>` across all of `knowledge/`, never reuse one, and never renumber. A
+@@ -190,13 +195,13 @@
+ 
+ ## `knowledge/INDEX.md` — the catalog
+ 
+-PMO maintains this file automatically. Updated on every `/pmo digest`, archive operation, and full rebuild during `end-phase-retro`.
++The work Agent updates this authored catalog during an approved digest/archive operation. A retro may request a bounded refresh; no background indexer or automatic header parser maintains it. Preserve unrelated entries and report unknown/stale counts.
+ 
+ ```markdown
+ # Knowledge index — <project name>
+ 
+ > Last updated: <YYYY-MM-DD>
+-> Active: <count> · Eternal: <count> · Stale: <count> · Archived: <count>
++> Counts: <actual bounded inspection and date, or unknown>
+ 
+ ## Eternal (project constitution; never archived)
+ 
+@@ -253,15 +258,15 @@
+ 
+ ### Archive-candidate detection (Q7=a, Q8=one-shot)
+ 
+-Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
+-
+-1. `Status: active` AND no reference to the digest path found in any of:
++When an authorized review actually needs this evidence, the Agent inspects the agreed knowledge scope. There is no scheduled stale scan. Evaluate source availability, observed references and documented dates; a missing scan result is unknown. A review can propose active digests matching:
++
++1. `Status: active` AND an actually recorded last-reference date older than the agreed threshold, with a bounded inspection of:
+    - the task store (kernel `query` (all task pages; see `$PERRY_HOME/reference/kernel.md`))
+-   - `journal/<YYYY-MM>/*.md` for last 90 days
++   - native event/attachment evidence for the selected period (event time is not last-read time)
+    - `evidence/<YYYY-MM>/**.md` for last 90 days
+    - `decisions/`
+    - `phase/<NNN>-<slug>.md` (current phase) and recent `phase/snapshots/`
+-   for ≥ `archive_inactive_days` (default **90 days**, override per-project hook)
++   using the agreed `archive_inactive_days` reference (default 90 days). Absence of a link or an old mtime cannot establish the date a source was last used; unknown age prevents an age-based recommendation.
+ 2. Source file no longer exists (orphaned digest)
+ 3. Header has `Superseded by:` filled in but `Status:` still `active`
+ 
+@@ -272,12 +277,12 @@
+ - `Archive (Recommended)` — flip `Status: archived`, set `Archived: <date> (reason: <user input>)`. INDEX moves to Archived section on next rebuild.
+ - `Keep active — still relevant` — note suppression date in INDEX so it's not re-flagged for 30 days.
+ - `Mark eternal — never propose archive` — flip `Status: eternal`. Featured at top of INDEX.
+-- `Delete entirely (digest + source)` — `git rm` both files; remove from INDEX. Use sparingly (loses history).
++- `Delete entirely (digest + source)` — a separate destructive scope: first show exact paths, backlinks and recoverable bytes, check ownership and actual authorization, and preserve frozen migration/acceptance evidence. Never delete a source merely because it appears old.
+ 
+ ### "I need an archived digest"
+ 
+ PMO behavior:
+-- Default: only searches `Status: active | eternal` when picking references for new specs / journal / decisions.
++- Default: consult active/eternal sources when relevant; never append work history to a journal. Other lanes own their decision documents.
+ - On user request ("the old vendor-acme contract from 2024"): grep the archived section of INDEX.md.
+ - Re-activate: `/pmo digest knowledge/<topic>/<digest-name>.md --refresh` (refresh subcommand re-flips status to active automatically if user confirms).
+ 
+@@ -287,13 +292,13 @@
+ 
+ ```
+ - Inactive days before archive candidate: 60      # tighter than 90
+-- Auto-eternal topics: USER-002-constraints, OKR-anti-goals, operating-rules
++- Protected topics to review: <declared topics; eternal status still needs the actual user choice>
+ - Topics never to digest: scratch, temp           # PMO refuses /pmo digest on inputs/ tagged with these names
+ ```
+ 
+ ## Bootstrap
+ 
+-When `/pmo` bootstraps a new project (per `SKILL.md § First-time setup`), also create:
++Only when the user selects knowledge/digest work, create the needed owned paths after the root first-run collision checks; do not create these eagerly for every new project:
+ - Empty `inputs/` directory
+ - Empty `knowledge/` directory
+ - `knowledge/INDEX.md` from `work/templates/knowledge_INDEX_TEMPLATE.md` (just headers, no entries)
+--- before/work/reference/dispatch.md
++++ after/work/reference/dispatch.md
+@@ -93,74 +93,26 @@
+ 
+ ### Where the agent puts a scratch file
+ 
+-> **A dispatched agent's scratch directory is DERIVED FROM ITS WORKTREE and
+-> lives OUTSIDE the repository. It is never a shared directory the agent is
+-> asked to namespace inside.**
+-
+-Every dispatched prompt carries this block verbatim, and the agent re-derives it
+-in each command rather than remembering a name:
++Scratch stays outside the checkout. Derive the project bucket, then allocate a
++fresh run directory once for each dispatch/review and retain its absolute path:
+ 
+ ```sh
+-# perry-scratch-derivation — do not edit without re-reading TASK-421
+-PERRY_SCRATCH="${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"
+-mkdir -p "$PERRY_SCRATCH"
+-```
+-
+-**The agent contributes nothing to the uniqueness, and that is the whole
+-mechanism.** The distinguishing component is the worktree directory name, which
+-the dispatching tool minted when it honoured `isolation: "worktree"` — the agent
+-reads it, it does not choose it. So an agent that writes the dumbest possible
+-filename, `$PERRY_SCRATCH/baseline.txt` — the exact name that collided four
+-times — still cannot collide with a concurrent agent, because the parent differs
+-by construction. **"Pick a unique name" is what failed; this asks for no name at
+-all.**
+-
+-**Outside the repository is the other half, and it is load-bearing.** An in-repo
+-scratch directory reddens two tree-walkers that scan by name at any depth:
+-`tests/header_rule.py` admits any Python-parseable file it finds as a real
+-reader, and `tests/tree_guard.py` reports the tree as moved. A round that put
+-copies of Perry source in an in-repo `.scratch/` turned a named test red while
+-obeying its brief. `${TMPDIR:-/tmp}` is invisible to both, so the isolation
+-costs no test its coverage.
+-
+-**What this inherits, and what it therefore does not promise.** The scratch
+-isolation is exactly as strong as the worktree isolation above it and no
+-stronger: an agent dispatched **without** `isolation: "worktree"` resolves
+-`--show-toplevel` to the shared checkout, and two such agents get the same
+-scratch root. That is not a second hole to close but the same one — which is why
+-the flag is mandatory rather than recommended.
+-
+-**Where the normative part of this section ends.** Everything above this
+-paragraph, plus the whole of § `Executor: claude-subagent` below, is pinned
+-byte-for-byte by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`:
+-a sentence added, removed or reworded anywhere in it reddens a named test, and
+-re-pinning is a deliberate second edit in the same commit. Everything from the
+-next heading to the end of this section is **rationale, and deliberately not
+-pinned**, so the two observed failures and the argument can be improved without
+-touching a test. Nothing there grants an exception — a sentence in it that reads
+-like one is a defect, not a rule. Normative text goes above this paragraph.
+-
+-### Why it is a rule and not a preference
+-
+-This file used to say "work on a feature branch" and nothing about the tree, and
+-a branch instruction with no isolation instruction is an instruction to run
+-`git checkout -b` *in the shared working tree*. Observed live, twice, in one
+-day:
+-
+-- **2026-09-02** — TASK-247 was dispatched as a `claude-subagent` told to create
+-  `coding/task-247-config-predicate`. It did, in the shared tree, so the PMO's
+-  own checkout moved onto that branch. Every PMO write afterwards — journal,
+-  evidence, board — committed there. A `git add -A` in the agent's commit would
+-  have swept two lanes into one code commit.
+-- **2026-09-03** — the bill arrived: four V4 review documents and 91 journal
+-  lines were on that branch and not on `main`, while a merge commit bearing the
+-  branch's name sat in `main`'s history and a commit message asserted the work
+-  was live on `main`. True of the code, false of the records.
+-
+-The failure is also **invisible from inside**: TASK-247's own agent reported that
+-every `bash tests/run` step 0 failed naming only PMO-lane paths, and that this
+-"cannot be distinguished from a real tree-guard failure by the guard's own
+-output".
++PERRY_SCRATCH_BASE="${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"
++mkdir -p "$PERRY_SCRATCH_BASE"
++PERRY_SCRATCH=$(mktemp -d "$PERRY_SCRATCH_BASE/run-XXXXXXXX")
++```
++
++Carry that actual PERRY_SCRATCH path in the prompt, logs and RESULT. Reuse it
++for dependent commands in that run; a new shell does not preserve variables.
++Another run receives a different mktemp directory. Never use shared task-ID-only
++filenames. The basename is a project bucket, not a uniqueness guarantee: managed
++worktrees may all end in the same project name. This corrects the old derivation's
++assumption while preserving external scratch and isolated worktree requirements.
++
++The current tests/run.py source guard detects source writes, and the native
++suite protects the live store. Old header/tree-guard and spec-byte-pin test names
++are historical rationale, not current executable checks. Uniqueness of a scratch
++path does not isolate a reviewed tree or authorize mutation of it.
+ 
+ ### `Executor: claude-subagent` (Claude Code only)
+ 
+@@ -169,7 +121,7 @@
+ - Build prompt = **bounded architecture context + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + standard RESULT format. The author reports implementation facts, not an architecture verdict.
+ - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
+ - **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
+-- **Include the `perry-scratch-derivation` block verbatim** — see § Where the agent puts a scratch file. A prompt that hands out a shared directory and asks the agent to namespace inside it is the defect that section exists to remove; it has been observed five times.
++- **Provide the exact allocated scratch run path** from § Where the agent puts a scratch file; do not hand out a shared bucket or ask another agent to guess a unique name.
+ - Sub-agent shares parent cwd, and that is a fact about the *process*, not a licence for the *tree*: without `isolation`, the agent's `git checkout -b` moves the shared working tree, and every other lane's writes land on its branch. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
+ 
+ ### `Executor: opencode-subagent` (OpenCode only)
+@@ -187,9 +139,9 @@
+   bash "$PERRY_HOME/tools/codex-preflight.sh"
+   ```
+   The script: (a) `codex --version` ≥ `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) smoke test (`codex exec "Reply with just: PERRY_OK"`, 60s timeout if `timeout` / `gtimeout` is installed). Cached 6h at `~/.cache/perry/codex-smoke-pass`. Exit non-0 → **refuse + surface stderr verbatim + fall back to delegate**. Catches stuck CLI / broken auth / version-rejected-by-API BEFORE we fire async dispatch that would silently hang.
+-- Then: Bash → `cd <code-repo-path> && codex exec "<prompt>"`.
++- Then invoke codex exec in the explicit isolated executor working directory using the host working-directory control. Pass the self-contained prompt as a structured argument or safely quoted file input, never interpolated shell code.
+ - Always async (codex is its own session). On Claude Code, pass `run_in_background: true`. On OpenCode or Codex CLI, use shell backgrounding with log + PID; see `../../reference/host-capabilities.md § No-background-shell-tool fallback`.
+-- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **bounded architecture context + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + standard RESULT format (no author compliance block) + the explicit list of files codex can read for context + **the `perry-scratch-derivation` block verbatim** (§ Where the agent puts a scratch file). Self-contained means this one too: a codex session reads no startup page, so the scratch rule reaches it only if the prompt carries it.
++- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **bounded architecture context + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + standard RESULT format (no author compliance block) + the explicit list of files codex can read for context + **the exact allocated scratch run path** (§ Where the agent puts a scratch file). Self-contained means this one too: a codex session reads no startup page, so the scratch rule reaches it only if the prompt carries it.
+ - Capture stdout to a temp file; on completion, parse for the RESULT block.
+ - If the long-running codex call fails (non-0 exit / no RESULT block / timeout), per the failure handling below, mark task `review` and surface raw output. Pre-flight is the cheap pre-check; this is the post-check.
+ 
+@@ -210,7 +162,7 @@
+ requires discussion of findings. Target changes require the user's explicit decision.
+ These checks do not replace tests, human acceptance or a fresh V4 reviewer.
+ 
+-Executors: claude-subagent | opencode-subagent | codex | manual.
++Executors: claude-subagent | opencode-subagent | codex | manual. Actual tool availability and environment/user delegation restrictions still govern whether a dispatch is authorized.
+ 
+ ## Architecture review
+ 
+@@ -276,10 +228,7 @@
+ === END RESULT ===
+ ```
+ 
+-**On `Tests:` when the round ran a tier.** Write the command as it was typed —
+-`bash tests/run --tier affected --base <sha>` — and put the printed selection
+-block in `Notes:` or in the result document. The count on that line is then the
+-count of what ran, which for `affected` is a subset: name it as
+-`green for --tier affected (N of M modules)`, not as a green suite. A result
+-that says "the suite is green" over a 29-module run is the sentence this whole
+-tier arrangement has to avoid producing (`DESIGN-021 § 5.5`).
++**On Tests when a round runs a tier:** report the exact command, exit and
++receipt/log path. Current Perry tiers are `bash tests/run --tier full` and
++`bash tests/run --tier slow`; there is no affected tier or duration-based selection facade.
++A targeted command proves only its selected checks, never repository-wide green.
+--- before/work/reference/health-check.md
++++ after/work/reference/health-check.md
+@@ -1,96 +1,49 @@
+-# `/pmo health-check` — the per-phase reality-check meta-runner
++# Health check — bounded evidence review
+ 
+-A single ritual that surfaces all the drift signals at once. Designed to run at phase midpoint, phase end, or on-demand when "I haven't looked at this project in a while" anxiety hits.
++This is a work Agent procedure, not a CLI scanner, timer or automatic repair
++pipeline. Follow root startup and `$PERRY_HOME/reference/kernel.md`. Establish
++actual project/document roots, review scope and requested output. A phase review
++may include this procedure when its selected capabilities contribute evidence;
++it does not silently run every pack operation or write every index.
+ 
+-`health-check` is a meta-runner. It doesn't have unique logic; it composes existing scans and rolls their findings into one decision-ready report. Inside `mid-phase-review` and `end-phase-retro` it runs automatically; the user can also call it directly.
++## Collect evidence
+ 
+-## What it runs
++1. Read selected pack controls and independent project obligations. Software
++   architecture, runbook and incident guidance applies only where eligible.
++   Mark inapplicable sections not run, never zero findings. Core safety remains.
++2. Query the relevant native task/ask/risk/phase/goal items and events, following
++   complete pagination for any total. Retain store seq, filters and date range.
++   Read selected criteria and actual evidence; distinguish stale wording,
++   unresolved blockers and unsupported closure claims.
++3. For software architecture use `$PERRY_HOME/packs/software-ops/architecture.md`
++   and architecture-analysis.md. Run only inspected authorized checks. A limited
++   static scan is not full conformance or an independent review. Do not update a
++   target, create a schedule or infer acceptance from a successful command.
++4. For deployed components read actual specs, runbook content and dates through
++   the pack's runbooks.md. Missing deployment facts remain unknown. For incidents
++   inspect actual records and their follow-ups through incidents.md; no process
++   liveness or runtime success is inferred from a filename.
++5. Inspect selected source digests/cards with digests.md, promotion.md and the
++   helper contracts. The knowledge helper reads cards, not digest usage history.
++   Unknown last-use time prevents an age-based archive assertion.
+ 
+-Use `$PERRY_HOME/reference/config.md § Pack capabilities and controls` first.
+-Scans 1, 2 and 4 are software-ops defaults: skip them when the pack is inactive,
+-unless independently required by the project. Name retained requirements. Mark
+-skipped sections “not run — pack inactive”, not zero findings; create no pack
+-artifacts and ask no enablement question. Digests and task hygiene still run.
++## Report and next action
+ 
+-In order:
++Save an authorized dated report under `evidence/<YYYY-MM>/` when needed. Include
++scope, actual commands/seqs, artifact links, findings, skipped/unreadable areas,
++known limits and proposed actions. Counts have a numerator/denominator and source;
++unmeasured spend, ages and readiness stay unknown. A report is not another state
++register or a new verification award.
+ 
+-1. **`/pmo architecture-audit --quiet`** (`architecture.md`) — two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs `ARCHITECTURE.md`. Writes `architecture/audit-history/<YYYY-MM-DD>.md`. Also surfaces §7 open questions idle ≥30 days and §8 change-log entries from the last 30 days.
+-2. **`/pmo runbook-check`** (`runbooks.md`) — missing/stale/incomplete runbooks for deployed components. Updates `runbook/INDEX.md`.
+-3. **Digest stale scan** (`digests.md § Archive lifecycle`) — knowledge entries un-referenced for ≥ `archive_inactive_days`. Updates `knowledge/INDEX.md`.
+-4. **Incident pattern check** (`incidents.md`) — incidents from the last 30 days, grouped by component; flag any "derived-change skipped" patterns (e.g., ≥ 3 incidents in same component with no ARCHITECTURE.md edit).
+-5. **Task evidence** — kernel task query and events, read-only: stale next actions, unresolved dependencies and evidence-less closure claims.
++Report optional sub-check failures independently. Recovery, unsafe ownership,
++unarmed policy and unauthorized operations still STOP their affected procedures;
++never continue a blocked operation merely because other checks are independent.
+ 
+-Each sub-scan is independent. A failure or hang in one does not abort the others.
++Discuss consequential findings and reuse existing user authority. Creating tasks
++uses work's native task procedure; changing goals/decisions goes to their owning
++lanes. Do not automatically close tasks/incidents, archive sources, edit confirmed
++targets or refresh verification dates without the actual supporting check.
+ 
+-## Output
+-
+-Single file: `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`. Sections:
+-
+-```markdown
+-# Health check — <YYYY-MM-DD>
+-
+-> Project: <name>
+-> Triggered by: manual | mid-phase-review | end-phase-retro
+-> Took: <duration>
+-
+-## Summary line
+-🏛 Architecture: <v<N> · last reviewed <Nd ago> · §6 NN: <count> · §7 open: <count> · audit drift: <K>>
+-📕 Runbooks:    <N active · S stale · G gaps>
+-📚 Digests:     <A active · E eternal · X stale-candidates>
+-🔥 Incidents:   <O open · M-this-month · D-with-derived-changes / M-total>
+-📋 Tasks:       <query total> open · <stale next actions> stale · <evidence gaps> claims pending
+-
+-## Drift to decide
+-[Numbered list — one row per item needing user decision.]
+-
+-## Patterns of note
+-[E.g., "3 incidents in alert-bot since 2026-04-15, all with 'too narrow' ARCHITECTURE.md skip"]
+-
+-## Recommended actions
+-[2–5 bullets, ordered by leverage. Verbs like "Fix NN-3 violation" / "Write runbook for deploy-daemon" / "Snapshot current phase".]
+-
+-## Detail links
+-- architecture/audit-history/<YYYY-MM-DD>.md
+-- runbook/INDEX.md
+-- knowledge/INDEX.md
+-- incidents/INDEX.md
+-```
+-
+-## Decision flow
+-
+-After writing the report, run a single `AskUserQuestion` batch (multiSelect, header `"Address drift"`) listing the top 4 actionable items from "Drift to decide". Each option labelled with a verb: "Fix NN-3 violation" / "Write runbook for deploy-daemon" / etc.
+-
+-For items not in the top 4, the user can act later from the file — they're not lost, just deprioritised.
+-
+-## When to run it
+-
+-- **Automatically**: every `mid-phase-review` and `end-phase-retro` (they call it inline).
+-- **Manually**: when starting a new phase and want fresh signal; when returning from a break; when investigating "why does this project feel off".
+-- **Before a big architectural change**: gives a current baseline so the change can be measured.
+-
+-## What it explicitly does NOT do
+-
+-- **Does not modify code.** Only writes the report + (with user consent) schedules tasks via `add-task`.
+-- **Does not change spec or ARCHITECTURE.md.** Only flags; user decides.
+-- **Does not close incidents.** Surfaces them; user closes.
+-- **Does not archive digests.** Surfaces candidates; user decides (per `digests.md` archive lifecycle).
+-- **Does not block autopilot.** A failed sub-scan logs and continues.
+-
+-The report is information. The decisions live with the user.
+-
+-## Why a meta-runner
+-
+-Each underlying scan is useful on its own. The reason to compose them:
+-
+-1. **Cache warmth** — all four scans read overlapping files (spec/, kernel queries/events, ARCHITECTURE.md, runbook/INDEX, knowledge/INDEX). Running them in one session amortises the read cost.
+-2. **Pattern surface** — drift in one area often correlates with drift in another. "Stale runbook for component X" + "3 incidents in X" + "no §6 NN added" is a stronger signal than any of those alone. Only a meta-runner sees the correlation.
+-3. **Single decision point** — the user gets one `AskUserQuestion` batch instead of four. The cost of "should I look at this?" drops.
+-
+-The output report is durable, citable, and small. A user 6 months from now can read `evidence/2026-05/health-check-2026-05-13.md` and reconstruct the project's state on that day with its cited kernel events and evidence.
+-
+-## Completion routing
+-
+-After completed writes from `health-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
++Follow [the shared closing step](../../reference/next.md#closing-step) after
++writes; a read-only answer does not require another planning question.
+ <!-- next-close: work health-check -->
+-
+-For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
+--- before/work/reference/review-constraints.md
++++ after/work/reference/review-constraints.md
+@@ -53,33 +53,12 @@
+ 
+ ## Your scratch files are yours alone
+ 
+-A round writes harnesses, mutant tables and captured output. **Put them under
+-the one scratch derivation Perry has: `$PERRY_HOME/work/reference/dispatch.md §
+-The tree the agent works in`, the block headed `perry-scratch-derivation`.**
+-Re-derive it in each command rather than remembering a name. Its uniqueness
+-comes from the worktree directory, not from anything you add, which is why it
+-survives across commands and a log path you report is still there when someone
+-opens it.
+-
+-There is deliberately no second recipe on this page. The first version of this
+-section had one, built from `git rev-parse --short HEAD` and `$$`: both are
+-contributed by the caller, which is the thing that block says must not be the
+-mechanism, and `$$` changes on every shell invocation — so the log path the next
+-section promises would not have survived to the next command. It was a second
+-spelling of a byte-pinned rule, marked *do not edit without re-reading
+-TASK-421*, and the V4 round caught it (TASK-472).
+-
+-Two incidents, one shape. The `pkill` incident above began as "an unexpected
+-tree name in its own output", which was a **shared-path collision**. On
+-2026-09-20 it happened again with no signal sent: two review rounds ran
+-concurrently, the second overwrote the first's harness in a shared scratch
+-directory **while a mutant was live in the tree**, and the first round only
+-knew because it restored from `git show` and checked. Nothing escaped, and
+-nothing about the collision was visible in either round's own output.
+-
+-A mutation round is the worst case for this: between planting and restoring,
+-the tree is deliberately wrong, and a harness that changes underneath you can
+-make a survivor look like a kill or the reverse.
++Use `dispatch.md § Where the agent puts a scratch file`: derive the project
++bucket and allocate a fresh external run directory with mktemp. Preserve the
++exact path across commands and in the verdict; do not reallocate between a
++mutation and its verification. Basename alone cannot distinguish managed
++worktrees with identical project directory names. External scratch does not
++permit mutation of the reviewed checkout; destructive checks still use copies.
+ 
+ ## Batch what is independent; sequence what is not
+ 
+@@ -132,7 +111,7 @@
+ 
+ ## Do not run the write side against what you are reviewing
+ 
+-Native mutations (`item`, `rel`, `attach`, `template`, `init`, `import`, `replay`)
++Native mutations (`item`, `rel`, `attach`, `template`, `init`, `import`)
+ change the project under review. Never invoke them against its actual store.
+ Read current state using native `query`, `item get`, `events` and `describe`.
+ Every mutation demonstration uses an explicit temporary `--store` with
+--- before/work/reference/review.md
++++ after/work/reference/review.md
+@@ -114,7 +114,7 @@
+ The implementer cannot widen its own threshold. Recommend a justified change,
+ record the user's choice, and retain the old failures. Do not re-ask an already
+ answered principle or close defects silently. The old schema/config/regex round
+-counter is retired provisionally; this explicit history review preserves the
++counter is retired under the accepted H list; this explicit history review preserves the
+ decision gate. Preference edits follow `reference/config.md`.
+ 
+ ## Completion routing
+--- before/work/reference/subcommands.md
++++ after/work/reference/subcommands.md
+@@ -7,7 +7,9 @@
+ 
+ ## `status` / `friday-review`
+ 
+-Use `reporting-format.md` to save `weekly/<ISO-week>.md`. Distinguish implementation,
++A narrow status request is read-only. For an explicitly requested weekly report or
++friday-review, use `reporting-format.md` and save `weekly/<ISO-week>.md` only
++within the approved reporting scope. Distinguish implementation,
+ tests, independent review, human acceptance and integration. Query totals and
+ states; do not claim every returned row represents every stored row when truncated.
+ 
+--- before/work/templates/digest_TEMPLATE.md
++++ after/work/templates/digest_TEMPLATE.md
+@@ -9,7 +9,7 @@
+ > Superseded by: —
+ > Topics: {{comma-separated}}
+ > Verification level: standard
+-> Referenced by: (auto-grep on INDEX rebuild)
++> Referenced by: {{observed references, method/date/coverage; unknown if not inspected}}
+ 
+ ## TL;DR (≤ 3 sentences)
+ 
+--- before/work/templates/digest_paper_TEMPLATE.md
++++ after/work/templates/digest_paper_TEMPLATE.md
+@@ -8,11 +8,11 @@
+ > Superseded by: —
+ > Topics: {{comma-separated}}
+ > Verification level: standard
+-> Doc type: research-style                        # auto-detected; do not edit
++> Doc type: research-style                        # Agent-selected; record the reason and any actual user override
+ > Authors / affiliation: {{comma list, or '(unknown)'}}
+ > Published / dated: {{YYYY-MM-DD or '(unknown)'}}
+ > Source venue: {{arXiv:NNNN.NNNNN | journal | conf | company report | …}}
+-> Referenced by: (auto-grep on INDEX rebuild)
++> Referenced by: {{observed references, method/date/coverage; unknown if not inspected}}
+ 
+ ## TL;DR (≤ 3 sentences)
+ 
+--- before/work/templates/evidence_TEMPLATE.md
++++ after/work/templates/evidence_TEMPLATE.md
+@@ -1,7 +1,7 @@
+ # {{TASK-ID}} — {{Title}}
+ 
+ > Evidence file for {{TASK-ID}}. Lives at `evidence/{{YYYY-MM}}/{{TASK-ID}}-<short-slug>.md`.
+-> The task record's `evidence` field (`perry-task evidence`) points here. Long-form analysis lives in this file, not in the record.
++> The native task's `evidence` field and/or attachment points here; update through `bin/perry item` / `attach`, with fresh seqs. Long-form analysis lives in this file, not in the record.
+ 
+ ## Linkage
+ 
+--- before/work/templates/handoff_TEMPLATE.md
++++ after/work/templates/handoff_TEMPLATE.md
+@@ -2,7 +2,7 @@
+ 
+ > **Purpose**: One-document bridge so the next PMO session can continue without re-walking the conversation. Generated by `/perry work handoff`.
+ > **Period covered**: {{description, e.g., "2026-04-30 全天 + 2026-05-01 全天"}}
+-> **Lock status**: snapshot; reset on next `friday-review`.
++> **Snapshot**: {{capture timestamp and native store seq; re-query before resuming}}
+ 
+ ---
+ 
+@@ -86,37 +86,23 @@
+ | {{e.g., staging build success rate}} | {{value}} |
+ | {{e.g., monthly infra spend}} | {{value}} |
+ 
+-## 7. Board snapshot
++## 7. Native state snapshot (optional)
+ 
+-```
+-P0 tasks:
+-  ✅ {{TASK-ID}}    done
+-  🟡 {{TASK-ID}}    in_progress
+-  🟢 {{TASK-ID}}    ready
++{{Exact query filters, store seq, selected IDs/titles and exclusions. Query every
++page when claiming complete totals. This is dated evidence, not a new board.}}
+ 
+-P1 tasks:
+-  ✅ {{TASK-ID}}    done
+-  🟡 {{TASK-ID}}    pending
++## 8. Resume instructions
+ 
+-P2 tasks:
+-  待启动: {{TASK-IDs}}
++1. Read the root startup/recovery procedure and actual project preferences.
++   Resolve any interrupted-run choice before other state reads or writes.
++2. Query the named native items/events through `bin/perry` with absolute --root;
++   use `$PERRY_HOME/reference/kernel.md`. Reconcile seqs, blockers and evidence.
++3. Read this handoff's resume point, exact checkout/base/branch and selected
++   criteria/evidence. Do not resume or mark done solely from this snapshot.
+ 
+-User Input Queue: {{n}}/{{N}} done (剩 {{remaining USER-IDs}})
+-```
++Continue already authorized work; ask only for genuinely missing authority or
++consequential unresolved information. Never require a ceremonial user phrase or
++a new session because of token usage. Record partial/unrun checks explicitly.
+ 
+-## 8. Resume instructions for next PMO session
+-
+-When you (PMO Agent in a new session) resume tomorrow, **read these files first**, in this order:
+-
+-1. `perry-tasks board` (the latest board)
+-2. `evidence/{{YYYY-MM}}/{{the most active TASK-ID}}.md` (latest evidence)
+-3. **This file** (`handoff/{{YYYY-MM-DD}}.md`)
+-
+-When resuming a chosen handoff, first verify § 0 per `work/reference/budget-boundary.md` (Optional handoff).
+-
+-Then have the user say: "已读今日总结, [{{key topic}}] 进展如何" — and continue from there.
+-
+----
+-
+-**Generated**: {{YYYY-MM-DD}} by PMO Agent
+-**Source files**: all `evidence/{{YYYY-MM}}/` + `perry-tasks board` + today's conversation.
++**Generated**: {{actual date and actor}}
++**Sources**: {{native commands/seqs, actual evidence paths and actual user choices}}
+--- before/work/templates/knowledge_INDEX_TEMPLATE.md
++++ after/work/templates/knowledge_INDEX_TEMPLATE.md
+@@ -1,6 +1,6 @@
+ # Knowledge index — {{project name}}
+ 
+-> Auto-maintained by the `work` lane. Updated on every `/perry work digest`, archive operation, and full rebuild during `end-phase-retro`.
++> Authored catalog maintained by the work Agent during an authorized digest/archive/review. No background indexer or native knowledge-state writer exists.
+ > Last updated: {{YYYY-MM-DD}}
+ > Active: 0 · Eternal: 0 · Stale: 0 · Archived: 0
+ 
+--- before/work/templates/role_card_TEMPLATE.md
++++ after/work/templates/role_card_TEMPLATE.md
+@@ -1,52 +1,36 @@
+ # Role · {{role-name}}
+ 
+-- Accepted by: {{who verifies this role's output}}
+-- Default rung: {{V0–V6}}
+-- Executors: any
++- Accepted by: {{actual output verifier}}
++- Default rung: {{V1–V6; an actual task may require stricter verification}}
++- Executors: {{allowed executor or any; subject to actual host and authority}}
+ 
+ ## Context
+ 
+-{{Three to six lines. Who this is and what they are for — not an essay, and not
+-a list of steps.}}
++{{Optional role purpose and limits. This is context, not a workflow.}}
+ 
+ ## Loads
+ 
+-- knowledge: {{topic, topic}}
+-- pack: {{pack-name, optional}}
++- knowledge: {{optional topics}}
++- pack: {{optional selected pack}}
+ 
+ ## May touch
+ 
+-- write: {{paths}}
+-- run: {{commands, or a pointer to a subscribed source-of-truth card}}
++- write: {{explicit owned paths or isolated output location}}
++- run: {{allowed commands or authoritative instruction reference}}
+ 
+ ## Must escalate
+ 
+-- any outbound `{{term}}`, `{{term}}`
+-- any {{thing}} that will be `{{term}}`
++- any `{{literal operation or path fragment}}` requires {{actual escalation condition}}
+ 
+ <!--
+-A ROLE CARD IS A HIRING CONTRACT THE HARNESS INSTANTIATES, NEVER A WORKFLOW.
+-What the role *does* belongs in the task and the lane docs. This file says who
+-it is, what it may touch, and what it must escalate.
++Exactly one nonempty May touch and Must escalate section is required by the
++roles helper. Missing, misspelled or duplicate safety sections block dispatch.
++Context/Loads are optional context; extra prose cannot grant scope or remove a
++project restriction. The retired perry-lint closed-heading grammar does not run.
+ 
+-The four `##` sections are a CLOSED SET, and `perry-lint --knowledge` reports
+-anything else — including `## Steps`, `## Procedure`, `## How to`, which are
+-`## Workflow` wearing other names. Each of the four has a mechanical consumer:
+-
+-  Context, May touch  → rendered into the delegation prompt, verbatim
+-  Loads               → knowledge injection, by topic
+-  Must escalate       → backticked spans extracted and UNIONED with the
+-                        project's high-stakes list in the dispatch pre-flight.
+-                        The union only ever grows: a role can add to what the
+-                        project refuses to do unsupervised, never subtract.
+-  Accepted by,
+-  Default rung        → the close-task gate. The STRICTER of the mode's rung
+-                        and the role's wins.
+-
+-A fifth section is prose nothing reads.
+-
+-THE EXISTENCE TEST. A role is warranted only when it has a permission boundary
+-or an acceptance standard *distinct from the default*. Finance and legal that
+-are both "read files, run nothing, user reviews output" are one role with two
+-knowledge topics, not two roles. Add roles after real collisions, not up front.
++The Agent reads actual scope and acceptance requirements. No automatic knowledge
++injection, permission expansion or verification award follows from this card.
++Role escalation adds to .perry/safety.json; the union cannot shrink project rules.
++A default rung is guidance, never V4 independence or actual named human V5.
++Instantiate only with real scope and explicit ownership. See tools/helper-contracts.md.
+ -->
+--- before/work/templates/weekly_TEMPLATE.md
++++ after/work/templates/weekly_TEMPLATE.md
+@@ -3,6 +3,7 @@
+ - **Week of**: {{monday_date}} → {{sunday_date}}
+ - **Phase / Month**: {{phase}} · {{YYYY-MM}}
+ - **Generated by**: PMO Agent
++- **Capture**: {{timestamp, native store seq and exact queries; this is a dated snapshot}}
+ 
+ ## Summary
+ 
+@@ -10,7 +11,7 @@
+ - **Main progress**: {{one line}}
+ - **Main risk**: {{one line}}
+ - **User decisions needed**: {{count + USER-ids}}
+-- **Cost ceiling status**: {{spent / ceiling}} ({{%}} of cap; soft fallback at {{soft%}} · {{tripped | armed}})
++- **Cost ceiling status**: {{actual measured spend/cap and wiring evidence, or unknown; never imply an unwired safeguard is armed}}
+ 
+ ## P0
+ 

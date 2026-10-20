@@ -164,8 +164,7 @@ Sources are additive. To add one:
 2. Add a column entry to the depth matrix — a new source defaults to `deep` until
    its cost is understood.
 3. Declare its citation form in § Provenance format.
-4. Add a fixture case under `tests/fixtures/pre-adoption-project/` so the scan
-   output is tested rather than asserted.
+4. Demonstrate the source on an isolated representative project and record the actual method, evidence and limits. The retired pre-adoption scanner/fixture suite is not a current automatic parser or acceptance result.
 
 No change to `reference/adoption.md` should be needed. If one is, the pipeline is
 leaking source-specific logic and that is the bug.

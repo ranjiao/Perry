@@ -1,0 +1,9 @@
+{
+  "scope": "IDs and six core fields for all rows; next action and evidence for open rows. Null/empty/em dash normalized per importer. Closed next actions intentionally excluded by reviewed importer mapping.",
+  "old_rows": 489,
+  "kernel_rows": 489,
+  "old_open": 23,
+  "kernel_open": 23,
+  "differences": [],
+  "contract": "perry-kernel/1.0"
+}

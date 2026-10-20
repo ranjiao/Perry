@@ -40,28 +40,33 @@ reason, evidence and event before/after values. Terminal items are not reopened
 by editing a status field. A sunset review reads narrative and current evidence;
 it does not execute code found in a document or infer a semantic trigger by regex.
 
-## DESIGN-023 F activation successor
+## Historical DESIGN-023 activation
 
-`tools/TASK-492-adr-successor.json` is a reviewed-input candidate, not an activated
-ADR or human sign-off. At activation root/decide re-reads ADR-025, DESIGN-023 and
-current native IDs, verifies actual prior authority, drafts/attaches the body,
-creates the ADR through the CLI, and records typed authorized_by/aligned_to links.
-Obtain the actual minted ID after the filename ceiling is reconciled. This coding
-agent never writes `perry/decisions/` or declares that the user signed F/H.
+Perry's F/G/H local activation is complete. ADR-028 and the actual approval,
+migration, independent-review and V5 records are discoverable from
+`perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
+The original successor input and proposal are archived under
+`release/retirement/pre-cutover-notes/`; they are historical preparation inputs,
+not a request to mint another successor or repeat activation.
 
 ## Migration and refusal boundary
 
-The one-shot `tools/goals_decide_migrate.py` reads copied actual filesystem data,
-including uncommitted ADRs and superseded/archived headers. Source hashes,
-version-scoped label maps and attachments are review evidence. It never reads
-metadata from git HEAD as a substitute for the actual files.
+The shipped `tools/goals_decide_migrate.py` applies a reviewed, SHA256-pinned
+format-1 plan. It does not parse legacy Markdown/JSONL or discover ADR metadata.
+Read `$PERRY_HOME/tools/reviewed-plan-migration.md` for the actual --plan and
+--plan-sha256 interface, isolation checks and pinned historical preparation.
+Legacy preparation reads bounded copies of actual files, including uncommitted
+sources; current apply only verifies those reviewed hashes and native operations.
+Do not reinstall a retired reader or pretend HEAD substitutes for actual source.
 
-Use its plan before any write. Every rehearsal names --root and --store under
-its external --work directory with PERRY_KERNEL_TESTING=1. Existing native work
-items/events/IDs must remain exactly unchanged. Replay/export parity, a no-write
-idempotent rerun and current-source reconciliation are required independently.
-A sparse filename floor that existing CLI cannot reserve is a blocker with the
-bounded proposal in tools/TASK-492-kernel-proposal.md; no fake item, direct event/
-SQLite edit, or import over a nonempty native store is allowed.
-Live activation follows fresh backups, independent review and root/user authority;
-never copy a rehearsal database into the live store. Root owns legacy H disposal.
+Every CLI rehearsal names an external --work, isolated --root and --store, with
+PERRY_KERNEL_TESTING=1; only the copied work baseline is changed. Check original
+items/events, exact source/attachment hashes, no-write repeat and export/replay
+parity independently. Source drift needs a new reviewed plan. The CLI has no live
+mode or JSON consent flag; an explicit live API seam supplies no authorization.
+
+The approved `template apply.ceilings` surface can only raise an issued-number
+floor. No fake item, direct event/SQLite edit or import over a populated store is
+allowed. Actual activation follows fresh backups, reviewed source/consumer
+receipts and actual scoped user authority. Never copy a rehearsal database into
+a live store. Prior cutover approval does not migrate another project.

@@ -1,6 +1,6 @@
 # Planning and triage
 
-Read `kernel.md` first. Query nonterminal tasks, including `blocked_by`, then
+Read `$PERRY_HOME/reference/kernel.md` first. Query nonterminal tasks, including `blocked_by`, then
 pending asks and open risks. Page through the whole result when evaluating every
 row. Read selected task attachments, not every design or old journal.
 

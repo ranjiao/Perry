@@ -1,0 +1,1 @@
+Use bin/perry for current structured state and the documented tools/ helpers for host, architecture, startup safety and report-only telemetry. Update consumer command paths. Retain user-owned configuration, safety policy and narrative attachments. Source integration precedes separately verified live activation.

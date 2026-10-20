@@ -49,16 +49,16 @@ The Overall OKR (§1), Phase OKR (§2) and Design doc (§3) rubrics are `input-q
 | 4.2 | **Deliverable is an artifact, not an activity** | "Work on the migration" | "`migrations/007_*.sql` merged + rollback tested" |
 | 4.3 | **Single owner from the Owner model** — not "team" / unassigned | "Owner: someone" | "Owner: Coding Agent" |
 | 4.4 | **Priority is justified** — P0 must plausibly block a Must-Have | everything P0 | P0 only if it blocks a DoD Must-Have; else P1/P2 |
-| 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | `kr:P<NNN>-O1-KR2` |
+| 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | approved native task→KR relation with exact version/phase scope |
 | 4.6 | **Summary is written for a stranger** — why the row exists and what is true when it is done, in plain language, for somebody who was not in this conversation. The title is shorthand; native `item get` exposes this field. | the title again, or `D009 step 3` | "Perry ships two opposite orderings of the phase-close pipeline. Nothing picks one, so whoever runs it picks by which page they read." |
 
-> The skill verifies 4.1, 4.2 and 4.6 before creation. Native required-field guards check presence, not whether evidence is falsifiable or prose is readable. Read the deliverable and summary against the rubric; never present a successful mutation as semantic acceptance. The former word-count/sentence regex refusals are proposed retirements pending H acceptance.
+> The skill verifies 4.1, 4.2 and 4.6 before creation. Native required-field guards check presence, not whether evidence is falsifiable or prose is readable. Read the deliverable and summary against the rubric; never present a successful mutation as semantic acceptance. The former word-count/sentence regex refusals were retired under the separately recorded H approval; the rubric remains an Agent procedure.
 
 ---
 
 ## What the pass does NOT do
 
 - **Does not rewrite the user's Mission / Problem / Objective prose.** It suggests; the words stay the user's.
-- **Does not enforce anything §-numbered as a hard block** — the only hard blocks in Perry remain: `design lock` gate, `pmo` no-`done`-without-evidence, tier-1 size caps.
+- **Does not enforce anything §-numbered as a hard block** — it does not waive native guards, recovery, ownership, high-stakes authority, applicable document caps or independent/human acceptance.
 - **Does not run on tier 2/3 files** (journal, evidence, renders) — those are agent-internal or disposable.
 - **Does not re-run every turn.** Once per input event (init / plan-phase / plan-week / new / lock / add-task).

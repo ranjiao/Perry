@@ -1,0 +1,62 @@
+{
+  "item": {
+    "id": "TASK-496",
+    "type": "task",
+    "state": "done",
+    "fields": {
+      "evidence": "evidence/2026-10/TASK-496-result.md",
+      "next_action": "Session restriction removed. Continue the already-authorized remaining architecture cutover without a Perry token gate.",
+      "owner": "Coding Agent",
+      "priority": "P1",
+      "reason": null,
+      "summary": "User explicitly requested on 2026-10-19 that session rollover be decided by the agent environment and user. Remove the fixed/default session gate and all forced handoff instructions, retaining truthful read-only usage statistics. This is the immediate scope correction before remaining architecture migration.",
+      "title": "Remove Perry session-context enforcement; retain usage reporting",
+      "track": "intake",
+      "verification": "V3",
+      "verified_by": null
+    },
+    "seq": 1196,
+    "created_at": "2026-10-19T08:22:20Z",
+    "updated_at": "2026-10-19T08:38:37Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "evidence/2026-10/TASK-496-result.md",
+        "hash": null
+      },
+      {
+        "ref": "evidence/2026-10/TASK-496-spec.md",
+        "hash": null
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  "export": {
+    "ok": true,
+    "surface": "1.0",
+    "command": "export",
+    "effect": "written",
+    "events": [],
+    "store_seq": 1196,
+    "warnings": [],
+    "result": {
+      "dir": "/Users/bytedance/proj/Perry/perry/export",
+      "files": {
+        "items.jsonl": {
+          "lines": 602,
+          "bytes": 544314,
+          "sha256": "4b0291aab93966215c1fabc6de20318b41f9fc5976266f75c777777980274dbd"
+        },
+        "events.jsonl": {
+          "lines": 1196,
+          "bytes": 958029,
+          "sha256": "4b436779ad68641f32f0b70f933d6959f92194314875b165c61a77e2f074fd1c"
+        }
+      },
+      "last_export_seq": 1196
+    },
+    "error": null
+  }
+}

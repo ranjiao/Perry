@@ -1,0 +1,666 @@
+{
+  "version": 1,
+  "producer": "host-agent",
+  "snapshot": "480f07362838bd1fc5a96f97858f9cb9887588d093140cd1d39f643f5a9f7563",
+  "title": "TASK-492 observed file responsibilities",
+  "components": [
+    {
+      "id": "unit-0",
+      "label": "bin/lib/__init__.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Write text/bytes to a fresh temp file beside `path`, fsynced. / Replace `path` with text/bytes and return the published SHA-256.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/lib/__init__.py"
+      ],
+      "evidence": [
+        "bin/lib/__init__.py::_blank_key@264",
+        "bin/lib/__init__.py::_corroborates@1421"
+      ]
+    },
+    {
+      "id": "unit-1",
+      "label": "bin/perry",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Every executable in `bin/` whose name is a tool name. / A `bin/` tool as a module. Extensionless, so `import` cannot.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry"
+      ],
+      "evidence": [
+        "bin/perry::cmd_describe@115",
+        "bin/perry::cmd_list@86"
+      ]
+    },
+    {
+      "id": "unit-2",
+      "label": "bin/perry-architecture",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-architecture"
+      ],
+      "evidence": [
+        "bin/perry-architecture::main@51",
+        "call:bin/perry-architecture:100:33"
+      ]
+    },
+    {
+      "id": "unit-3",
+      "label": "bin/perry-churn",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: First day of a --days N window: today counts as day 1. / `git <args>` stdout stripped, or None if git said no.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-churn"
+      ],
+      "evidence": [
+        "bin/perry-churn::bucket_key@474",
+        "bin/perry-churn::cell@566"
+      ]
+    },
+    {
+      "id": "unit-4",
+      "label": "bin/perry-config",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A refusal is a first-class outcome. Nothing was written. / The store as it is on disk, validated. Refuses rather than guessing.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-config"
+      ],
+      "evidence": [
+        "bin/perry-config::Refused@43",
+        "bin/perry-config::_rel@188"
+      ]
+    },
+    {
+      "id": "unit-5",
+      "label": "bin/perry-context-budget",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: `200k` and `200000` are the same number. `--ceiling 200` is not 200k. / The host `perry-detect-host` names, and the session id that host exports\nfor THIS session. Claude Code hands its subagents the main session's\n`CLAUDE_CODE_SESSION_ID`, and no verified signal tells them apart, so a\nClaude session has none (`reference/host-capabilities.md`).",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-context-budget"
+      ],
+      "evidence": [
+        "bin/perry-context-budget::bind@367",
+        "bin/perry-context-budget::children@190"
+      ]
+    },
+    {
+      "id": "unit-6",
+      "label": "bin/perry-decide",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A refusal is a first-class outcome, not a crash. Nothing was written. / The decision statuses \u2014 `schema/state-schema.json \u00a7 enums`, not a tuple.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-decide"
+      ],
+      "evidence": [
+        "bin/perry-decide::Args@519",
+        "bin/perry-decide::Refused@87"
+      ]
+    },
+    {
+      "id": "unit-7",
+      "label": "bin/perry-diagnose",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A directory carrying its own `.git` is a different project. / True for a tier-1 document the host discovers on its own.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-diagnose"
+      ],
+      "evidence": [
+        "bin/perry-diagnose::_as_dict@1975",
+        "bin/perry-diagnose::_award@1983"
+      ]
+    },
+    {
+      "id": "unit-8",
+      "label": "bin/perry-explain",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Filter tokens that match the ID shape but are not project identifiers. / True for a path whose job is to explain, not to track.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-explain"
+      ],
+      "evidence": [
+        "bin/perry-explain::find_ids@148",
+        "bin/perry-explain::glossary_entry@924"
+      ]
+    },
+    {
+      "id": "unit-9",
+      "label": "bin/perry-goals",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A refusal is a first-class outcome, not a crash. Nothing was written. / Attach the flag a value arrived on to any `UnrenderableCell` inside.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-goals"
+      ],
+      "evidence": [
+        "bin/perry-goals::Args@5141",
+        "bin/perry-goals::Okr.__init__@399"
+      ]
+    },
+    {
+      "id": "unit-10",
+      "label": "bin/perry-kernel",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-kernel"
+      ],
+      "evidence": [
+        "call:bin/perry-kernel:12:13",
+        "call:bin/perry-kernel:12:4"
+      ]
+    },
+    {
+      "id": "unit-11",
+      "label": "bin/perry-kernel-migrate",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: The import cannot go on. Nothing was written outside `--work`. / A cell that says nothing, so it is unset and not imported (TASK-489\nround 3, item 1): null, or a string `lib.is_blank_cell` calls blank.\nThat is the project's one blank rule, pinned by\n`tests/test_blank_cell_is_one_rule.py`. It reads its spellings from\n`schema/state-schema.json \u00a7 i18n.blank_cell`, so besides an empty string\nand the old store's marker `\u2014` it takes `-`, `n/a`, `TBD`, `none`, `?`,\n`\u5f85",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-kernel-migrate"
+      ],
+      "evidence": [
+        "bin/perry-kernel-migrate::Plan.__init__@192",
+        "bin/perry-kernel-migrate::Plan.add@237"
+      ]
+    },
+    {
+      "id": "unit-12",
+      "label": "bin/perry-knowledge",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A refusal is a first-class outcome, not a crash. Nothing was written. / `bin/perry-lint` as a module, with its schema glossary loaded.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-knowledge"
+      ],
+      "evidence": [
+        "bin/perry-knowledge::Args@588",
+        "bin/perry-knowledge::Refused@92"
+      ]
+    },
+    {
+      "id": "unit-13",
+      "label": "bin/perry-lint",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: (level, text, line_no) for every ATX heading. / Bodies of every section whose heading matches, as (body, start_line).",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-lint"
+      ],
+      "evidence": [
+        "bin/perry-lint::Finding.__init__@173",
+        "bin/perry-lint::Finding.__str__@186"
+      ]
+    },
+    {
+      "id": "unit-14",
+      "label": "bin/perry-okr",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: `perry_md_store.main` under this tool's name, and importable.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-okr"
+      ],
+      "evidence": [
+        "bin/perry-okr::main@47",
+        "call:bin/perry-okr:37:0"
+      ]
+    },
+    {
+      "id": "unit-15",
+      "label": "bin/perry-restore-check",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: The git work tree containing `start`, or None. / The committed bytes of `rel` at `ref`. None if the ref has no such path.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-restore-check"
+      ],
+      "evidence": [
+        "bin/perry-restore-check::_git@82",
+        "bin/perry-restore-check::_root_refusal@179"
+      ]
+    },
+    {
+      "id": "unit-16",
+      "label": "bin/perry-state",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Whether a `## User Input Queue` row has had its answer. / How long a question has waited, in days. `-1` when nothing says.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-state"
+      ],
+      "evidence": [
+        "bin/perry-state::_RuleError@2758",
+        "bin/perry-state::_at@3140"
+      ]
+    },
+    {
+      "id": "unit-17",
+      "label": "bin/perry-state-cost",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: This tool's own refusal, per `bin/lib` \u00a7 Each tool keeps its own. / The git repository `start` sits in, or a refusal.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-state-cost"
+      ],
+      "evidence": [
+        "bin/perry-state-cost::Refused@91",
+        "bin/perry-state-cost::breakdown@347"
+      ]
+    },
+    {
+      "id": "unit-18",
+      "label": "bin/perry-task",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A refusal is a first-class outcome, not a crash. Nothing was written. / Every column this row actually sets, beyond the six every board has.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-task"
+      ],
+      "evidence": [
+        "bin/perry-task::Args@7974",
+        "bin/perry-task::Board.__init__@710"
+      ]
+    },
+    {
+      "id": "unit-19",
+      "label": "bin/perry-tasks",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: The store, derived from today's canonical sources. / `bin/perry-task` as a module, loaded ONCE per process.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry-tasks"
+      ],
+      "evidence": [
+        "bin/perry-tasks::Refused@42",
+        "bin/perry-tasks::_perry_lint_module@1843"
+      ]
+    },
+    {
+      "id": "unit-20",
+      "label": "bin/perry_architecture/analysis.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/analysis.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/analysis.py::attach.edge@97",
+        "bin/perry_architecture/analysis.py::attach.unit_at@92"
+      ]
+    },
+    {
+      "id": "unit-21",
+      "label": "bin/perry_architecture/audit.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/audit.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/audit.py::compare.matches@39",
+        "bin/perry_architecture/audit.py::compare.patterns@33"
+      ]
+    },
+    {
+      "id": "unit-22",
+      "label": "bin/perry_architecture/checkpoint.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/checkpoint.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/checkpoint.py::digest@19",
+        "bin/perry_architecture/checkpoint.py::load_checkpoint@130"
+      ]
+    },
+    {
+      "id": "unit-23",
+      "label": "bin/perry_architecture/facts.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Small inventory; exact source remains accessible in the full snapshot.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/facts.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/facts.py::brief@211",
+        "bin/perry_architecture/facts.py::enrich.Collect.definition@44"
+      ]
+    },
+    {
+      "id": "unit-24",
+      "label": "bin/perry_architecture/model.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/model.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/model.py::bind.visit@19",
+        "bin/perry_architecture/model.py::bind@12"
+      ]
+    },
+    {
+      "id": "unit-25",
+      "label": "bin/perry_architecture/report.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/report.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/report.py::render@6",
+        "call:bin/perry_architecture/report.py:10:37"
+      ]
+    },
+    {
+      "id": "unit-26",
+      "label": "bin/perry_architecture/scan.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Return JSON-compatible facts; roots are explicit, not runtime sys.path.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_architecture/scan.py"
+      ],
+      "evidence": [
+        "bin/perry_architecture/scan.py::scan.excluded@38",
+        "bin/perry_architecture/scan.py::scan.inspect_node@157"
+      ]
+    },
+    {
+      "id": "unit-27",
+      "label": "bin/perry_md_store.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: A refusal is a first-class outcome. Nothing was written. / Every squashed spelling of one column name, English first.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_md_store.py"
+      ],
+      "evidence": [
+        "bin/perry_md_store.py::Doc.__init__@1082",
+        "bin/perry_md_store.py::Doc.base@1094"
+      ]
+    },
+    {
+      "id": "unit-28",
+      "label": "bin/perry_store.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Every markdown table block in ``lines[start:end]``. / One `perry-task/list` task \u2192 one store record, in `STORED` key order.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "bin/perry_store.py"
+      ],
+      "evidence": [
+        "bin/perry_store.py::UnfilledPlaceholder@2058",
+        "bin/perry_store.py::_declared_columns@2062"
+      ]
+    },
+    {
+      "id": "unit-29",
+      "label": "kernel/perry_kernel/__init__.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/__init__.py"
+      ],
+      "evidence": [
+        "import:325",
+        "import:326"
+      ]
+    },
+    {
+      "id": "unit-30",
+      "label": "kernel/perry_kernel/__main__.py",
+      "description": "Generic state/template/CLI implementation",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/__main__.py"
+      ],
+      "evidence": [
+        "call:kernel/perry_kernel/__main__.py:5:0",
+        "call:kernel/perry_kernel/__main__.py:5:9"
+      ]
+    },
+    {
+      "id": "unit-31",
+      "label": "kernel/perry_kernel/cli.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The non-flag tokens, skipping the values of flags that take one. / `(command name, flags)`, or raises Help / a usage KernelError.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/cli.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/cli.py::Help.__init__@30",
+        "kernel/perry_kernel/cli.py::Help@29"
+      ]
+    },
+    {
+      "id": "unit-32",
+      "label": "kernel/perry_kernel/commands.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: One invocation: its flags, input, environment and working directory. / `{field: new value or None}` for every field named in `given`.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/commands.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/commands.py::Ctx.__init__@60",
+        "kernel/perry_kernel/commands.py::Ctx.anchor@71"
+      ]
+    },
+    {
+      "id": "unit-33",
+      "label": "kernel/perry_kernel/errors.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: A refusal. Raised anywhere, caught once at the top (NN-K6).",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/errors.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/errors.py::KernelError.__init__@85",
+        "kernel/perry_kernel/errors.py::KernelError.exit@94"
+      ]
+    },
+    {
+      "id": "unit-34",
+      "label": "kernel/perry_kernel/guards.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The item's type, state and effective field values. / Guards run after the command's changes are applied, so this item\nalready sits in `target_state` and `items_in` returns it: it counts\nitself once, in the loop.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/guards.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/guards.py::_actor@57",
+        "kernel/perry_kernel/guards.py::_effective@25"
+      ]
+    },
+    {
+      "id": "unit-35",
+      "label": "kernel/perry_kernel/paths.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: An absolute, resolved path, or a typed refusal. `~user` that names no\none, a symlink loop and an unreadable component are `io_error`, never an\nexception (NN-K6). / An environment variable's value, or None when it is unset.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/paths.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/paths.py::_abs@57",
+        "kernel/perry_kernel/paths.py::_holds_anchor@93"
+      ]
+    },
+    {
+      "id": "unit-36",
+      "label": "kernel/perry_kernel/store.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: `(prefix, number)`, or None when `item_id` is not an id's shape. / `fn()`, run again while sqlite answers busy or locked and `deadline`\nhas not passed. sqlite's busy handler waits out a lock another connection\nholds, but it is not called where waiting could deadlock (two\nconnections upgrading one file's lock at once, as two first inits do):\nSQLITE_BUSY then comes back at once. `store_busy` means the lock was not\nacquired within 5 s, so the kernel waits the rest o",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/store.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/store.py::Store.__enter__@308",
+        "kernel/perry_kernel/store.py::Store.__exit__@311"
+      ]
+    },
+    {
+      "id": "unit-37",
+      "label": "kernel/perry_kernel/surface.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The whole surface. Deterministic: no store, no path, no clock.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/surface.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/surface.py::_spec_line@255",
+        "kernel/perry_kernel/surface.py::arr@38"
+      ]
+    },
+    {
+      "id": "unit-38",
+      "label": "kernel/perry_kernel/template.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: Membership that a list or an object in the caller's template cannot\nturn into a TypeError: only a string can name something. / Only the declared keys, and every required one. False if `obj` is not\nan object at all.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/template.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/template.py::Problems.__bool__@71",
+        "kernel/perry_kernel/template.py::Problems.__init__@65"
+      ]
+    },
+    {
+      "id": "unit-39",
+      "label": "kernel/perry_kernel/values.py",
+      "description": "Generic state/template/CLI implementation. Observed entry responsibilities: The one serialisation: sorted keys, compact, UTF-8 (\u00a7 5.8). / `(path, message)` for the first part of `value` that cannot be kernel\ninput, or None. Walks iteratively, so depth cannot overflow the stack.\nA message never quotes the offending value.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "kernel/perry_kernel/values.py"
+      ],
+      "evidence": [
+        "kernel/perry_kernel/values.py::ValueProblem.__init__@138",
+        "kernel/perry_kernel/values.py::ValueProblem@134"
+      ]
+    },
+    {
+      "id": "unit-40",
+      "label": "release/manage.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/manage.py"
+      ],
+      "evidence": [
+        "release/manage.py::Refused@36",
+        "release/manage.py::allocate@221"
+      ]
+    },
+    {
+      "id": "unit-41",
+      "label": "release/publish.py",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/publish.py"
+      ],
+      "evidence": [
+        "release/publish.py::NoRedirect.redirect_request@20",
+        "release/publish.py::NoRedirect@19"
+      ]
+    },
+    {
+      "id": "unit-42",
+      "label": "release/update.py",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Local tag/cache association is a candidate, never remote verification.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "release/update.py"
+      ],
+      "evidence": [
+        "release/update.py::NoRedirect.redirect_request@46",
+        "release/update.py::NoRedirect@45"
+      ]
+    },
+    {
+      "id": "unit-43",
+      "label": "templates/knowledge-base/bin/kb-lint",
+      "description": "Deterministic tools and shared libraries. Observed entry responsibilities: Link targets in a page, wiki-style and markdown-style alike. / A wikilink resolves by page name; a markdown link resolves by path.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "templates/knowledge-base/bin/kb-lint"
+      ],
+      "evidence": [
+        "templates/knowledge-base/bin/kb-lint::main.add@104",
+        "templates/knowledge-base/bin/kb-lint::main@82"
+      ]
+    },
+    {
+      "id": "unit-44",
+      "label": "templates/ops/bin/deliverable-lint",
+      "description": "Deterministic tools and shared libraries",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "templates/ops/bin/deliverable-lint"
+      ],
+      "evidence": [
+        "templates/ops/bin/deliverable-lint::check@75",
+        "templates/ops/bin/deliverable-lint::main@128"
+      ]
+    },
+    {
+      "id": "unit-45",
+      "label": "viewer/parsers.py",
+      "description": "Legacy state readers. Observed entry responsibilities: The schema's i18n block, or {} when the schema isn't readable. / `lib.is_blank_cell` \u2014 THE rule, re-exported, never re-implemented.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "viewer/parsers.py"
+      ],
+      "evidence": [
+        "viewer/parsers.py::ADR@1446",
+        "viewer/parsers.py::ArchMeta@1492"
+      ]
+    },
+    {
+      "id": "unit-46",
+      "label": "viewer/tables.py",
+      "description": "Legacy state readers. Observed entry responsibilities: Index of the first cell a markdown row cannot carry, or None. / `| a | b |` \u2192 `[\"a\", \"b\"]`, and `\\|` is a value, not a delimiter.",
+      "uncertainty": "File assignment is bounded host interpretation; dynamic behavior and prose semantics require review.",
+      "layer": 0,
+      "members": [
+        "viewer/tables.py"
+      ],
+      "evidence": [
+        "viewer/tables.py::HeaderIndex.__init__@439",
+        "viewer/tables.py::HeaderIndex.column@443"
+      ]
+    }
+  ]
+}

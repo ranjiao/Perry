@@ -1,10 +1,10 @@
 # ADR-020 — the rung gate is the write path and the schema
 
-> Status: active
+> Status: superseded
 > Type: Process
 > Date: 2026-09-11
 > Deciders: Ran Jiao
-> Supersedes: ADR-005   · Superseded by: —
+> Supersedes: ADR-005   · Superseded by: ADR-027
 > Sunset: —
 
 ## Context

@@ -1,0 +1,40 @@
+{
+  "project": "/Users/bytedance/proj/SkyTonight",
+  "state_root": "doc/perry",
+  "store": "/Users/bytedance/proj/SkyTonight/.git/perry/root.db",
+  "start_seq": 68,
+  "before_items": 34,
+  "before_events": 68,
+  "backup_sha256": "3e9b9a94090af0120a59e73889e1a22e05b9a9a7277af4fcd88f2d6b3d6138bd",
+  "plan_sha256": "94cc95a38cea7ae7cecccc1329af7702867dfeec3118de3889f270a506fea606",
+  "source_hashes": {
+    ".perry/config.jsonl": "e4b22d3798b3b7af1f891c7e363f1afb062a3a6ab8fd7e4b8a4ab1d7af7675ea",
+    ".perry/hook.md": "d65d0774c54232764f7db1d6a1a141f81440f7cc14dcb184a83487050d67eaf8",
+    "doc/perry/OKR.md": "4a71e137e9b729502655c281a3baea39bbeb4e0e56a9650de992db2d8a62faf6",
+    "doc/perry/design/DESIGN-001-product-framework.md": "caa0b8e60f513d6ef88541114c5815e6b007365a2cc13a06dd59150d995dedad",
+    "doc/perry/design/README.md": "69b5b32ee0c99de57b4d436f68b40de2ab42a3adf99857b31bd15ec6e58c9e55",
+    "doc/perry/evidence/2026-09/TASK-001-result.md": "b8a0cc5e61b1481a19558aa29c31831125c208cef2e1c93f1044ca7b349d2f62",
+    "doc/perry/evidence/2026-09/TASK-002-result.md": "1191186b9b7fa45f2d5b79bf8fba9b52c19c72e4d5b7a6fef9bde274055fab97",
+    "doc/perry/evidence/2026-09/TASK-003-result.md": "d6ba163fcfcecea684cf82d7ed0749100882a82de103541a6647c81b57301f86",
+    "doc/perry/evidence/2026-09/TASK-004-result.md": "bbf0241b9e3d9e480c3649a087b342480a3200560edcfd54f426f47bf457c2b7",
+    "doc/perry/linkage.jsonl": "c9a76926f07326ecf9892073da63300d923e954716db1261a3bc2fb242557b46",
+    "doc/perry/okr.jsonl": "7d72f208d8a2d2edf06f0a4629c357265285068871f6e17b999950a1829a5906",
+    "doc/perry/phase/001-design-foundation.md": "dcffa2532b2061e11349b3f9747c45c32f19565d6979d0aeaeddd4430be6d078",
+    "doc/perry/phase/002-content-experience.md": "60d4e46e17911e85d2ee2682305bc3e4024d6f613cb067ded1c2566efeb1f34d",
+    "doc/perry/phase/003-experience-polish.md": "5ca331ec891437e9d2fd2819a627f7a5d2fe4e1b2cce571e5786430f21ffa323",
+    "doc/perry/phase/CURRENT": "b4d7a8bf9ecb04a2b17d8097331b2a57b7e411c7bcfe441e0fa9335e1adce6ad",
+    "doc/perry/phase/snapshots/2026-09-17-001-design-foundation-final.md": "fe65ab5595d70bca162f51a20905fbec055ba0df5f8e39d8c8bb79d522efb923",
+    "doc/perry/phase/snapshots/2026-09-17-002-content-experience-final.md": "60d4e46e17911e85d2ee2682305bc3e4024d6f613cb067ded1c2566efeb1f34d",
+    "doc/perry/tasks.jsonl": "efad45d20780c324056ac884c4ce7489d3520344d2ce338c75b51c5adac8d425"
+  },
+  "counts": {
+    "check": 24,
+    "design": 1,
+    "kr": 24,
+    "objective": 8,
+    "phase": 3
+  },
+  "helper_sha256": "14dd61b165da5e321f28d19bc7a538c7401ef3a0a26dc05028f3b175f8beb1e1",
+  "source_commit": "7f7849060d035871160b5be6e0cc9efca0cd6a5f",
+  "effect": "prepared; policy migrated; native store unchanged"
+}

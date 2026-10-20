@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "approval_ref": "Actual user2026-10-20 accepted423 retirement rows and safety replacement; /Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-review-candidate/approval.json",
+  "rules": [
+    {
+      "id": "prior-rule-1",
+      "label": "生产部署与发布：deploy, deploys, deploying, release, releases, promote, production, prod",
+      "patterns": [
+        "deploy",
+        "deploys",
+        "deploying",
+        "release",
+        "releases",
+        "promote",
+        "production",
+        "prod"
+      ]
+    },
+    {
+      "id": "prior-rule-2",
+      "label": "凭据与密钥：.env, secret, secrets, credentials, token, tokens, apikey, api_key, id_rsa",
+      "patterns": [
+        ".env",
+        "secret",
+        "secrets",
+        "credentials",
+        "token",
+        "tokens",
+        "apikey",
+        "api_key",
+        "id_rsa"
+      ]
+    },
+    {
+      "id": "prior-rule-3",
+      "label": "云基础设施：terraform, helm, k8s, infra/, iam",
+      "patterns": [
+        "terraform",
+        "helm",
+        "k8s",
+        "infra/",
+        "iam"
+      ]
+    },
+    {
+      "id": "prior-rule-4",
+      "label": "资金及付费服务：cost ceiling, paid API, billing, invoice, payment, refund, pricing",
+      "patterns": [
+        "cost ceiling",
+        "paid API",
+        "billing",
+        "invoice",
+        "payment",
+        "refund",
+        "pricing"
+      ]
+    },
+    {
+      "id": "prior-rule-5",
+      "label": "破坏性数据操作：DROP TABLE, migrate --down, rm -rf, rm -fr, bulk delete, restore-over",
+      "patterns": [
+        "DROP TABLE",
+        "migrate --down",
+        "rm -rf",
+        "rm -fr",
+        "bulk delete",
+        "restore-over"
+      ]
+    },
+    {
+      "id": "prior-rule-6",
+      "label": "代表用户发送或发布：publish, publishes, publishing, published, send, sends, sending, sent, email, slack, post, posts, posting, client, filing, submit, submits, submitting",
+      "patterns": [
+        "publish",
+        "publishes",
+        "publishing",
+        "published",
+        "send",
+        "sends",
+        "sending",
+        "sent",
+        "email",
+        "slack",
+        "post",
+        "posts",
+        "posting",
+        "client",
+        "filing",
+        "submit",
+        "submits",
+        "submitting"
+      ]
+    },
+    {
+      "id": "prior-rule-7",
+      "label": "重写 Git 历史：push --force, rebase, tag deletion",
+      "patterns": [
+        "push --force",
+        "rebase",
+        "tag deletion"
+      ]
+    },
+    {
+      "id": "database",
+      "label": "Database mutation, migration or replacement",
+      "patterns": [
+        "sqlite3",
+        "DROP TABLE",
+        "DELETE FROM",
+        ".git/perry",
+        "root.db",
+        "perry.db",
+        "migrate --down"
+      ]
+    },
+    {
+      "id": "policy",
+      "label": "Changing safety policy or self-update",
+      "patterns": [
+        ".perry/safety.json",
+        "git pull"
+      ]
+    }
+  ]
+}

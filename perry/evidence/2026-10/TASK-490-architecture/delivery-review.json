@@ -1,0 +1,14 @@
+{
+  "snapshot": "25dec3c480080e23eab1fc6490399166ca197acab5d203d53e8aa5080fa2a7c0",
+  "summary": "The isolated branch retires legacy writes and recovery side effects on reads. Kernel tests and two imported-project rehearsals passed. Full legacy repository gate failed and is not waived. Governing bin target still describes the old work writer; target edits and live cutover are not accepted.",
+  "target_change_requested": true,
+  "findings": [
+    {
+      "reason": "Phase-E implementation intentionally retires the legacy work writer, while the pinned bin target still calls perry-task the lane writer. Prepare a target-document revision for user confirmation before integration; do not claim full acceptance.",
+      "target": "bin/ARCHITECTURE.md:31-33",
+      "evidence": [
+        "bin/perry-task::main@8690"
+      ]
+    }
+  ]
+}

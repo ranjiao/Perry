@@ -1,0 +1,458 @@
+{"kind": "kr", "phase": "003-storage-code", "objective": "O1", "id": "P003-O1-KR1", "title": "Stores declared in `claims[]` that exist on disk", "metric": "6 of 6 (baseline 4 of 6 — `intake.jsonl` and `asks.jsonl` built by TASK-196 / TASK-197 and never imported). Measured 2026-09-01: one `perry-lint --root .` run prints a record count for all six — store 255, risks 4, intake 47, ask 14, OKR 36, config 9.", "target": 6, "current": 6, "stretch": false, "linked": "O2-KR1"}
+{"kind": "kr", "phase": "003-storage-code", "objective": "O1", "id": "P003-O1-KR2", "title": "Stores for which one run of `perry-lint --root .` prints a drift verdict", "metric": "6 of 6 (baseline 2 of 6 — tasks and risks; `perry-okr diff` and `perry-config diff` both work and the census calls neither). Measured 2026-09-01: one `perry-lint --root .` run prints six drift verdicts, one per store. TASK-067 stays open under this KR and measures something WIDER than the metric — a writer can still destroy the table it writes to and the census cannot see it. The KR being met does not close it. RE-MEASURED 2026-09-07 because the asserted value had gone stale -- TASK-067 moved review->done at 2026-09-04T03:06:30Z, after the 2026-09-03 assertion. Still met: all six original stores print a drift verdict in one run. BUT THE POPULATION HAS GROWN AND THE TARGET HAS NOT. One `perry-lint --root .` run now prints SEVEN verdicts, not six -- tasks, risks, intake, ask, OKR, config, and `linkage` -- because TASK-276/277/278 added `linkage.jsonl` as a seventh declared store DURING THIS PHASE, and it prints `121 record(s), 0 row(s) drifted`, a real verdict rather than a deferred one. `current` is left at 6 against `target` 6 deliberately: raising both to 7 is a KR change and belongs to the user, not to a re-measurement. FLAGGED FOR SCORING: on the honest reading this KR is 7 of 7.", "target": 6, "current": 6, "stretch": false, "linked": "O2-KR3"}
+{"kind": "kr", "phase": "003-storage-code", "objective": "O1", "id": "P003-O1-KR3", "title": "Stores that report `unchecked` rather than `clean` when the store file is removed", "metric": "6 of 6, measured by removing each one (baseline: true for `intake.jsonl` and `asks.jsonl`, unmeasured for the other four). Measured by TASK-229 — `evidence/2026-08/TASK-229-result.md`: six removals, six `unchecked, not clean` verdicts, each store moved back before the next.", "target": 6, "current": 6, "stretch": false, "linked": "O2-KR3"}
+{"kind": "kr", "phase": "003-storage-code", "objective": "O2", "id": "P003-O2-KR1", "title": "Call sites in `bin/` that read the track register from `.perry/config.md` as truth while `.perry/config.jsonl` exists, excluding the drift-comparison reader", "metric": "0 (baseline 4, all `parse_tracks`: bin/perry-task:6680, bin/perry-diagnose:1888, bin/perry-goals:2102, bin/perry-state:139 — line numbers as of 2026-08-28; `parse_tracks` now sits at bin/perry-state:643, reached only through `declared_tracks_detail`:1174, which falls back to the markdown ONLY when the store is absent). RESTATED 2026-09-01, two changes. (1) The population is TRACK-REGISTER readings — what the four baseline sites were. The old wording said any projected markdown file, and two V4 reviewers measured that at >=7 on 2026-08-29 (six `kind: setting` reads at perry-state:126-135 plus perry-conform:304); the intake rows filed then say the honest number is `0 track-register readings` and that fixing it must be an EDIT to this file. This is that edit. (2) The adoption/migration exclusion is dropped — `bin/perry-migrate` was deleted 2026-08-31 (TASK-261, USER-910 answered A), and perry-conform:304 went with the gate, so one of the >=7 sites no longer exists. MEASURED 0 ON 2026-09-07, and `current` recorded for the first time -- all four linked rows were `done` while this KR carried no asserted value at all, so the DoD item it serves may have been met for days with nothing saying so. The measurement counts INVOCATIONS, not mentions, which is this phase's own operating rule: `grep -rn 'parse_tracks(' bin/ viewer/` minus its own `def` returns EXACTLY ONE line, bin/perry-state:1172, and the seventeen other hits are comments and docstrings naming it. That one call sits inside `declared_tracks_detail`, which returns `stored_tracks()` first and reaches `parse_tracks` ONLY when there is no store. Observable confirmation on this project: `perry-state --json` reports `tracks_source = store`.", "target": 0, "current": 0, "stretch": false, "linked": "O2-KR1"}
+{"kind": "kr", "phase": "003-storage-code", "objective": "O2", "id": "P003-O2-KR3", "title": "The render distinguishes what is projected from what is canonical, so a reader can tell truth from projection", "metric": "the distinction is readable from the render (baseline: nothing marks it — the boundary was invisible in `BOARD.md`, TASK-199). RESTATED 2026-08-29 by USER-907, answer (a): the KR read `BOARD.md`'s two truth models are marked in the file, and ADR-010 deletes that file. The property the KR was buying was never the marking, it was a reader being able to tell truth from projection, and that need survives onto the surface ADR-010 creates. WITHDRAWN AND RESTORED 2026-09-01: a pivot dropped this KR as ADR-010's rejected Option 2 without reading USER-907, which had already chosen (a) over exactly that. The drop is reversed; TASK-199 could not be, because a dropped row is terminal and an id is never reissued, so TASK-262 carries the re-scoped work.", "stretch": false, "linked": "O2-KR1"}
+{"kind": "kr", "phase": "003-storage-code", "objective": "O3", "id": "P003-O3-KR2", "title": "Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add`", "metric": "Target 100%. NO CURRENT VALUE IS WRITTEN HERE: this KR is computed, not asserted — `bin/lib § same_action_linkage` re-runs it on every read from `linkage.jsonl` and `.perry/events.jsonl`, and `perry-state`/`perry-goals` publish that number with `current_provenance.state: measured`. The population is the `main`-track rows whose own `add` event carries a `kr` key, which is the mark row D's gate left on every row it governed; `phase/003-storage-code.md § Definition of Done` item 5, restated 2026-08-31, is why the rows opened before the gate are phase 004's and not this denominator. The numerator is the rows that answered in that same `add` — a non-null `kr` on the event, or an `unlinked` record with `via: \\\"add\\\"`. A row linked later by a separate `perry-goals link` has `via: \\\"link\\\"` and does not count, which is the whole of the KR's `in the same action as` clause. The former prose here read `100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)`; the baseline it asserted is now derived, so it cannot disagree with the computation. THE TARGET IS NOW TYPED, NOT ONLY PROSE (TASK-415): `target: 100` sits on this record beside the computation, because a consumer may not read a number out of the first three words of this cell — `perry-goals/list` draws nothing for a KR whose `target` is null, so the only rigorously measured row in the register rendered as one nobody had written a target for. The count form (`target: 30`, `current: 13`) was declined: this KR's denominator is `the rows that were asked` and GROWS every time a row is opened during phase 003, and a target that moves when someone opens a row is a denominator, not a target. It stays in `current_measurement` where it belongs. NO `current` AND NO `asserted_at` WERE WRITTEN BY THAT CHANGE — this number is measured, not asserted, and stamping it would be TASK-155's defect spelled a third way.", "target": 100, "stretch": false, "linked": "O2-KR3"}
+{"kind": "edge", "task": "TASK-203", "kr": "P003-O1-KR1", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-209", "kr": "P003-O1-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-067", "kr": "P003-O1-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-229", "kr": "P003-O1-KR3", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-095", "kr": "P003-O2-KR1", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-233", "kr": "P003-O2-KR1", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-247", "kr": "P003-O2-KR1", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-283", "kr": "P003-O2-KR1", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-215", "kr": "P003-O2-KR3", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-262", "kr": "P003-O2-KR3", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-276", "kr": "P003-O3-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-277", "kr": "P003-O3-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-278", "kr": "P003-O3-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-279", "kr": "P003-O3-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-281", "kr": "P003-O3-KR2", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-077", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-097", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-129", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-155", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-173", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-177", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-179", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-181", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-182", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-183", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-184", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-185", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-186", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-187", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-188", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-189", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-190", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-191", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-192", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-193", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-194", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-204", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-206", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-207", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-208", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-211", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-212", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-216", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-217", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-218", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-219", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-220", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-221", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-226", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-139", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-157", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-066", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-112", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-116", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-137", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-172", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-198", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-213", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-214", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-222", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-223", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-224", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-225", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-227", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-228", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-230", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-231", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-232", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-234", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-235", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-236", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-237", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-238", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-239", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-240", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-241", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-242", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-243", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-244", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-245", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-246", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-248", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-249", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-250", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-251", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-252", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-263", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-264", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-265", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-266", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-280", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-282", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-284", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-285", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-286", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-287", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-288", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-289", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-290", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-291", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-292", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-293", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-294", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-295", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-296", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-297", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-298", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-299", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-300", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-301", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-302", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-303", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-304", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-305", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-325", "phase": "003-storage-code", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-382", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T05:59:02Z", "actor": "agent", "via": "add"}
+{"kind": "edge", "task": "TASK-383", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T06:00:24Z", "actor": "agent", "via": "add"}
+{"kind": "edge", "task": "TASK-394", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T11:44:31Z", "actor": "agent", "via": "add"}
+{"kind": "objective", "phase": "001-work-modes-live", "id": "O1", "title": "The three non-`project` modes run on a live track"}
+{"kind": "objective", "phase": "001-work-modes-live", "id": "O2", "title": "The `goals` lane can write its own state"}
+{"kind": "objective", "phase": "001-work-modes-live", "id": "O3", "title": "A real project can become Perry-shaped, once"}
+{"kind": "objective", "phase": "002-fields-are-typed", "id": "O1", "title": "The three stores are stores"}
+{"kind": "objective", "phase": "002-fields-are-typed", "id": "O2", "title": "The defect classes cannot be expressed"}
+{"kind": "objective", "phase": "002-fields-are-typed", "id": "O3", "title": "Agents work the new way"}
+{"kind": "objective", "phase": "003-storage-code", "id": "O1", "title": "Every declared store exists, and one command checks all of them"}
+{"kind": "objective", "phase": "003-storage-code", "id": "O2", "title": "The code reads a store, not a rendered file"}
+{"kind": "objective", "phase": "003-storage-code", "id": "O3", "title": "The phase's KRs cover the work that actually runs"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O1", "id": "P001-O1-KR1", "title": "Non-`project` modes running on a live, non-fixture track", "metric": "3 of 3 modes live (baseline 0 of 3)", "target": 3.0, "current": 0.0, "stretch": false, "linked": "O1-KR1"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O1", "id": "P001-O1-KR2", "title": "Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance", "metric": "3 of 3 produce output (baseline 0 of 3)", "target": 3.0, "current": 0.0, "stretch": false, "linked": "O1-KR2"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O1", "id": "P001-O1-KR3", "title": "Switching a track's mode edits one file and rewrites no state, shown by a revert test", "metric": "1 file, 0 state rewrites; baseline unproven. Two numbers, no single scalar — target omitted deliberately.", "stretch": false, "linked": "O1-KR3"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O1", "id": "P001-O1-KR4", "title": "Blocking review findings open against the mode work", "metric": "0 open (baseline 6 — 3 on TASK-019, 3 on TASK-020). `current` counts fix rows for blocking findings that are not yet `done`.", "target": 0.0, "current": 3.0, "stretch": false, "linked": "O1-KR1"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O2", "id": "P001-O2-KR1", "title": "Lanes with a deterministic write tool", "metric": "3 of 3 (baseline 2 of 3 — `goals` has none)", "target": 3.0, "current": 3.0, "stretch": false, "linked": "O2-KR1"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O2", "id": "P001-O2-KR2", "title": "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships", "metric": "1 passing test (baseline: no such test)", "target": 1.0, "current": 1.0, "stretch": false, "linked": "O2-KR1"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O3", "id": "P001-O3-KR1", "title": "A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration", "metric": "1 marker, all 3 writers gating (baseline: `is_adopted()` answers only whether any Perry file exists)", "target": 3.0, "current": 3.0, "stretch": false, "linked": "O3-KR4"}
+{"kind": "kr", "phase": "001-work-modes-live", "objective": "O3", "id": "P001-O3-KR2", "title": "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project", "metric": "id set before == id set after (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked)", "target": 1.0, "current": 0.0, "stretch": false, "linked": "O3-KR4"}
+{"kind": "edge", "task": "TASK-019", "kr": "P001-O1-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-021", "kr": "P001-O1-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-028", "kr": "P001-O1-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-020", "kr": "P001-O1-KR2", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-046", "kr": "P001-O1-KR2", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-027", "kr": "P001-O1-KR4", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-053", "kr": "P001-O1-KR4", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-056", "kr": "P001-O1-KR4", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-062", "kr": "P001-O1-KR4", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-037", "kr": "P001-O2-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-042", "kr": "P001-O2-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-043", "kr": "P001-O3-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-045", "kr": "P001-O3-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-047", "kr": "P001-O3-KR1", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-044", "kr": "P001-O3-KR2", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-051", "kr": "P001-O3-KR2", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-052", "kr": "P001-O3-KR2", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-068", "kr": "P001-O3-KR2", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-034", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-038", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-040", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-048", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-050", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-057", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-058", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-059", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-060", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-061", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-063", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-064", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-065", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-066", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-067", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-069", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-070", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-072", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-073", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-074", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-075", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-076", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-077", "phase": "001-work-modes-live", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-019", "kr": "P001-O1-KR1", "name": "`modes/pipeline.md`", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-020", "kr": "P001-O1-KR2", "name": "`modes/queue.md` + `BOARD.md § Intake` + triage drain", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-021", "kr": "P001-O1-KR1", "name": "Recurrence register (cadence-add / cadence-done)", "status": "done", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-027", "kr": "P001-O1-KR4", "name": "Lane rename goals/work/decide + aliases", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-028", "kr": "P001-O1-KR1", "name": "diagnose/adopt mode detection + both READMEs", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-037", "kr": "P001-O2-KR1", "name": "perry-goals writer", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-042", "kr": "P001-O2-KR1", "name": "OKR.md § Commitments — the half TASK-021 did not do", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-043", "kr": "P001-O3-KR1", "name": "Conformance marker: a project declares it is Perry-shaped, at version N", "status": "done", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-044", "kr": "P001-O3-KR2", "name": "Migration must be dry-runnable, lossless, recoverable and user-declared", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-045", "kr": "P001-O3-KR1", "name": "Retire the runtime tolerance branches, behind the conformance marker", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-046", "kr": "P001-O1-KR2", "name": "A queue track must declare an SLA at creation — no default", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-047", "kr": "P001-O3-KR1", "name": "Flip the conformance gate to enforce", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-051", "kr": "P001-O3-KR2", "name": "Migration recognizes a table by shape, not by vocabulary", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-052", "kr": "P001-O3-KR2", "name": "The losslessness assertions ask whether the bytes survived, never what the file now says", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-053", "kr": "P001-O1-KR4", "name": "route ignores --group, and the refusal that recommends it is mine", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-056", "kr": "P001-O1-KR4", "name": "A claim stated in three places and implemented in none — the missing-SLA finding", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-062", "kr": "P001-O1-KR4", "name": "The board-overflow signal does not name intake, and prescribes the split queue mode forbids", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "001-work-modes-live", "id": "TASK-068", "kr": "P001-O3-KR2", "name": "Migration joins its header block onto the author's prose — the fourth instance of one defect class", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-019", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-020", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-027", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-037", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-042", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-044", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-045", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-046", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-047", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-051", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-052", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-053", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-056", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-062", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "Coding Agent", "task": "TASK-068", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "001-work-modes-live", "id": "User + Agent", "task": "TASK-028", "declared_at": "2026-08-18T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O1", "id": "P002-O1-KR1", "title": "`BOARD.md` is rendered from `perry/tasks.jsonl`, which is the only thing writers write", "metric": "1 of 1 (baseline: the markdown is canonical)", "target": 1.0, "current": 1.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O1", "id": "P002-O1-KR2", "title": "`OKR.md` and `.perry/config.md` likewise", "metric": "2 of 2 (baseline 0 of 2)", "target": 2.0, "current": 2.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O1", "id": "P002-O1-KR3", "title": "A hand edit to a rendered file is reported rather than honoured, at the severity the user picks", "metric": "3 of 3 rendered files report a hand edit through `perry-lint`. Measured 2026-08-28 by changing one real cell in each and reading the drift count: BOARD.md → 2 rows drifted; OKR.md → 0; .perry/config.md → 0. Both misses ARE caught by `perry-okr diff` and `perry-config diff`, so the edit is not honoured — but a user running the tool this KR names sees nothing. TASK-209 is the row.", "target": 3.0, "current": 1.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O2", "id": "P002-O2-KR1", "title": "`CLOCK_RE` deleted and `By when` split into `due` + `by_when_note`", "metric": "0 occurrences of `CLOCK_RE` (baseline: one column, five failed review rounds)", "target": 0.0, "current": 0.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O2", "id": "P002-O2-KR2", "title": "Readers that resolve a header cell for the three stores", "metric": "0 (baseline 5 live copies across 4 rounds). Re-measured 2026-08-28: parse_board's four header/split calls all sit behind `tasks is None` guards — verified per call site by TASK-094, including the transitive one through backbone_chunk — and parse_okr has none at all. The 0 stands. TASK-050 stays open under this KR and measures something WIDER than this metric: two normalizations existing for any register, plus perry-lint's own heading_is_intake. The KR being met does not close it.", "target": 0.0, "current": 0.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O2", "id": "P002-O2-KR3", "title": "Lines of markdown parser serving the three stores", "metric": "0 for the three; adoption keeps what it needs (baseline 3,320 across `viewer/parsers.py` and `viewer/tables.py`)", "target": 0.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O3", "id": "P002-O3-KR1", "title": "Lane procedures that hand-edit a rendered file", "metric": "0 (baseline: unmeasured)", "target": 0.0, "current": 0.0, "stretch": false}
+{"kind": "kr", "phase": "002-fields-are-typed", "objective": "O3", "id": "P002-O3-KR2", "title": "The read contracts survive the move unchanged — a consumer pinned at `perry-task/list/1.9` needs no edit", "metric": "0 breaking changes (baseline: 1.9 live, aiMark pinned at 1.5)", "target": 0.0, "current": 0.0, "stretch": false}
+{"kind": "edge", "task": "TASK-038", "kr": "P002-O1-KR1", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-088", "kr": "P002-O1-KR1", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-089", "kr": "P002-O1-KR1", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-090", "kr": "P002-O1-KR1", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-092", "kr": "P002-O1-KR2", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-093", "kr": "P002-O1-KR3", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-091", "kr": "P002-O2-KR1", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-094", "kr": "P002-O2-KR2", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-050", "kr": "P002-O2-KR2", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-095", "kr": "P002-O2-KR3", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-099", "kr": "P002-O2-KR3", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-096", "kr": "P002-O3-KR1", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-087", "kr": "P002-O3-KR2", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-067", "phase": "002-fields-are-typed", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-097", "phase": "002-fields-are-typed", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-102", "phase": "002-fields-are-typed", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-037", "phase": "002-fields-are-typed", "declared_at": "2026-08-28T16:20:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "TASK-396", "phase": "003-storage-code", "declared_at": "2026-09-08T03:51:30Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-397", "phase": "003-storage-code", "declared_at": "2026-09-08T03:51:45Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-398", "phase": "003-storage-code", "declared_at": "2026-09-08T03:51:46Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-399", "phase": "003-storage-code", "declared_at": "2026-09-08T08:22:20Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-400", "phase": "003-storage-code", "declared_at": "2026-09-08T08:22:37Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-401", "phase": "003-storage-code", "declared_at": "2026-09-08T08:22:37Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-402", "phase": "003-storage-code", "declared_at": "2026-09-08T08:22:57Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-403", "phase": "003-storage-code", "declared_at": "2026-09-08T08:22:57Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-404", "phase": "003-storage-code", "declared_at": "2026-09-08T08:22:57Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-405", "phase": "003-storage-code", "declared_at": "2026-09-08T11:45:15Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-434", "phase": "003-storage-code", "declared_at": "2026-09-11T04:52:16Z", "actor": "PMO", "via": "add"}
+{"kind": "unlinked", "task": "TASK-435", "phase": "003-storage-code", "declared_at": "2026-09-11T05:05:40Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-436", "phase": "003-storage-code", "declared_at": "2026-09-11T05:16:51Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-437", "phase": "003-storage-code", "declared_at": "2026-09-11T07:10:27Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-438", "phase": "003-storage-code", "declared_at": "2026-09-11T07:10:27Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "edge", "task": "TASK-439", "kr": "P003-O3-KR2", "declared_at": "2026-09-12T14:42:57Z", "actor": "agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-440", "phase": "003-storage-code", "declared_at": "2026-09-12T15:09:08Z", "actor": "agent", "via": "add"}
+{"kind": "objective", "phase": "004-guided", "id": "O1", "title": "The user always knows where they are and what to do next"}
+{"kind": "objective", "phase": "004-guided", "id": "O2", "title": "Plans are asked for, drafted and approved"}
+{"kind": "objective", "phase": "004-guided", "id": "O3", "title": "What the user reads and decides fits on one screen, and is recorded"}
+{"kind": "objective", "phase": "004-guided", "id": "O4", "title": "Changing Perry gets cheaper, and its architecture holds"}
+{"kind": "kr", "phase": "004-guided", "objective": "O1", "id": "P004-O1-KR1", "title": "Fixture states for which `perry-state --section next` yields the expected primary rule", "metric": "5 of 5 — empty project, OKR only, phase without a week plan, closable phase, queue track; deleting any rule reddens its fixture (baseline 0: the section does not exist, DESIGN-020 phase A)", "target": 5, "stretch": false, "linked": "O1-KR1"}
+{"kind": "kr", "phase": "004-guided", "objective": "O1", "id": "P004-O1-KR2", "title": "State-changing subcommands whose procedure carries the closing step, as a guard enumerates them", "metric": "all of them, enumerated by the guard; removing one pointer turns it red (baseline 0: no closing step exists, DESIGN-020 phase B)", "stretch": false, "linked": "O1-KR1"}
+{"kind": "kr", "phase": "004-guided", "objective": "O1", "id": "P004-O1-KR3", "title": "Cadence lag on this repository while phase 004 is active", "metric": "latest weekly ≤ 1 ISO week behind and latest handoff ≤ 7 days old, at every snapshot (baseline 2026-09-15: 2026-W35, 3 weeks behind; handoff 16 days, from `perry-state § history`)", "stretch": false, "linked": "O1-KR3"}
+{"kind": "kr", "phase": "004-guided", "objective": "O2", "id": "P004-O2-KR1", "title": "Issues `reference/input-quality.md § 1` surfaces on the OKR produced by the first-OKR interview on `~/proj/SkyTonight`", "metric": "0 issues (baseline: no interview path exists; `goals/reference/setup.md § init` is a field checklist)", "target": 0, "stretch": false, "linked": "O2-KR2"}
+{"kind": "kr", "phase": "004-guided", "objective": "O2", "id": "P004-O2-KR2", "title": "Hand appends to `okr.jsonl` or `linkage.jsonl` after the `goals` KR writer lands", "metric": "the writer lands (`TASK-264`) and 0 hand appends follow it (baseline: OKR v4 and this phase's records were appended by hand on 2026-09-15)", "target": 0, "stretch": false, "linked": "O2-KR3"}
+{"kind": "kr", "phase": "004-guided", "objective": "O2", "id": "P004-O2-KR3", "title": "Planning-draft behaviours shown on a fixture", "metric": "2 of 2 — interrupted at question 3, the next `/perry` resumes at question 3; with a writer missing, finalize stops and the store's bytes are unchanged (baseline 0, DESIGN-020 phase D)", "target": 2, "stretch": false, "linked": "O2-KR1"}
+{"kind": "kr", "phase": "004-guided", "objective": "O3", "id": "P004-O3-KR1", "title": "Size of the rendered `/perry` snapshot", "metric": "≤ 12 lines and ≤ 1,200 characters (baseline unmeasured — measured first, from a rendered snapshot; `perry-state --compact` is 7,467 bytes). No overall v4 KR covers it; declared, not guessed", "stretch": false}
+{"kind": "kr", "phase": "004-guided", "objective": "O3", "id": "P004-O3-KR2", "title": "User decisions made during phase 004 that have a `USER-` record in `asks.jsonl`", "metric": "100%, and median ask ≤ 600 characters (baseline 2026-09-14→15: 21 commit subjects citing a user decision against 0 new asks; median ask 2,101 characters since 2026-09-01)", "stretch": false, "linked": "O1-KR2"}
+{"kind": "kr", "phase": "004-guided", "objective": "O3", "id": "P004-O3-KR3", "title": "90th-percentile length of an open row's Next action", "metric": "≤ 400 characters (baseline 1,702 on 2026-09-15, 22 rows over 1,000). No overall v4 KR covers it; declared, not guessed", "target": 400, "stretch": false}
+{"kind": "kr", "phase": "004-guided", "objective": "O4", "id": "P004-O4-KR1", "title": "Test time per executor round, and the suite's total", "metric": "affected-tier median ≤ 60 s; the full suite once per merge on the merge result; total ≤ 1,054 module-seconds (baseline: the full suite every round; 1,054.3 module-seconds on 2026-09-15, DESIGN-021)", "stretch": false, "linked": "O3-KR1"}
+{"kind": "kr", "phase": "004-guided", "objective": "O4", "id": "P004-O4-KR2", "title": "`DESIGN-017` structural rules running before merge, each shown red under its mutation", "metric": "7 of 7 — S1 to S7 (baseline 0; 0 of 97 September results carry the compliance block)", "target": 7, "stretch": false, "linked": "O3-KR2"}
+{"kind": "kr", "phase": "004-guided", "objective": "O4", "id": "P004-O4-KR3", "title": "L2 reference pages over the 32,768-byte tier budget", "metric": "0 over budget, and context bills for 5 of 5 subcommands (baseline 2026-09-15: 3 over — subcommands.md 81,996, dispatch.md 43,742, diagnose.md 34,926; 0 bills)", "target": 0, "stretch": false, "linked": "O3-KR3"}
+{"kind": "edge", "task": "TASK-442", "kr": "P004-O1-KR1", "declared_at": "2026-09-15T11:46:53Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-443", "kr": "P004-O1-KR2", "declared_at": "2026-09-15T11:46:53Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-444", "kr": "P004-O2-KR3", "declared_at": "2026-09-15T11:46:53Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-445", "kr": "P004-O3-KR2", "declared_at": "2026-09-15T11:46:54Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-446", "kr": "P004-O3-KR1", "declared_at": "2026-09-15T11:46:54Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-447", "kr": "P004-O3-KR3", "declared_at": "2026-09-15T11:46:54Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-448", "kr": "P004-O4-KR1", "declared_at": "2026-09-15T11:46:54Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-449", "kr": "P004-O4-KR1", "declared_at": "2026-09-15T11:46:54Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-450", "kr": "P004-O4-KR1", "declared_at": "2026-09-15T11:46:55Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-451", "kr": "P004-O4-KR2", "declared_at": "2026-09-15T11:46:55Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-452", "kr": "P004-O4-KR2", "declared_at": "2026-09-15T11:46:55Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-453", "kr": "P004-O4-KR2", "declared_at": "2026-09-15T11:46:55Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-454", "kr": "P004-O4-KR2", "declared_at": "2026-09-15T11:46:55Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-455", "kr": "P004-O4-KR2", "declared_at": "2026-09-15T11:46:56Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-456", "kr": "P004-O4-KR3", "declared_at": "2026-09-15T11:46:56Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-457", "kr": "P004-O4-KR3", "declared_at": "2026-09-15T11:46:56Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-177", "kr": "P004-O2-KR1", "declared_at": "2026-09-15T11:46:56Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-190", "kr": "P004-O2-KR1", "declared_at": "2026-09-15T11:46:56Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-191", "kr": "P004-O2-KR1", "declared_at": "2026-09-15T11:46:56Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-264", "kr": "P004-O2-KR2", "declared_at": "2026-09-15T11:46:57Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-434", "kr": "P004-O3-KR2", "declared_at": "2026-09-15T11:46:57Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-238", "kr": "P004-O4-KR1", "declared_at": "2026-09-15T11:46:57Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-312", "kr": "P004-O4-KR1", "declared_at": "2026-09-15T11:46:57Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-401", "kr": "P004-O4-KR1", "declared_at": "2026-09-15T11:46:57Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-066", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-112", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-129", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-137", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-172", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-173", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-184", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-185", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-186", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-187", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-188", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-189", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-192", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-193", "phase": "004-guided", "declared_at": "2026-09-15T11:46:59Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-194", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-204", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-206", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-207", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-212", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-218", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-219", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-220", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-221", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-222", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-224", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-231", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-240", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-242", "phase": "004-guided", "declared_at": "2026-09-15T11:47:00Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-252", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-254", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-255", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-265", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-266", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-270", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-271", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-275", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-282", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-286", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-287", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-289", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-291", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-294", "phase": "004-guided", "declared_at": "2026-09-15T11:47:01Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-297", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-301", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-309", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-334", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-340", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-349", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-350", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-352", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-355", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-369", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-371", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-372", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-374", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-375", "phase": "004-guided", "declared_at": "2026-09-15T11:47:02Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-377", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-378", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-380", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-384", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-386", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-387", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-390", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-391", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-393", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-395", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-396", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-397", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-398", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-403", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-413", "phase": "004-guided", "declared_at": "2026-09-15T11:47:03Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-416", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-422", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-423", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-424", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-426", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-427", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-428", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-432", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-435", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-436", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-438", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "unlinked", "task": "TASK-440", "phase": "004-guided", "declared_at": "2026-09-15T11:47:04Z", "actor": "agent", "via": "link"}
+{"kind": "edge", "task": "TASK-458", "kr": "P004-O4-KR2", "declared_at": "2026-09-15T12:02:51Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-459", "phase": "004-guided", "declared_at": "2026-09-15T12:40:44Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-460", "kr": "P004-O1-KR1", "declared_at": "2026-09-16T07:31:32Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "edge", "task": "TASK-461", "kr": "P004-O1-KR1", "declared_at": "2026-09-16T07:31:32Z", "actor": "pmo-agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-462", "phase": "004-guided", "declared_at": "2026-09-16T10:51:18Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-463", "phase": "004-guided", "declared_at": "2026-09-16T11:20:32Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-464", "phase": "004-guided", "declared_at": "2026-09-17T03:09:02Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-465", "phase": "004-guided", "declared_at": "2026-09-17T03:09:13Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-466", "kr": "P004-O2-KR1", "declared_at": "2026-09-17T09:44:07Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-467", "phase": "004-guided", "declared_at": "2026-09-18T06:18:53Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-468", "phase": "004-guided", "declared_at": "2026-09-18T07:20:39Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-469", "phase": "004-guided", "declared_at": "2026-09-18T07:20:40Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-470", "phase": "004-guided", "declared_at": "2026-09-18T07:20:40Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-471", "phase": "004-guided", "declared_at": "2026-09-18T07:20:41Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-472", "phase": "004-guided", "declared_at": "2026-09-18T07:20:41Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-473", "phase": "004-guided", "declared_at": "2026-09-18T07:20:42Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-474", "phase": "004-guided", "declared_at": "2026-09-20T04:05:37Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-475", "phase": "004-guided", "declared_at": "2026-09-21T05:16:26Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "check", "kr": "P004-O1-KR1", "okr_version": "", "id": "fixture-states", "label": "fixture states whose primary rule matches", "direction": "increase", "target": 5, "baseline": 0, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O1-KR2", "okr_version": "", "id": "closing-step-routes", "label": "state-changing subcommands carrying the closing step, of the guard's 50", "direction": "at_least", "target": 50, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O1-KR3", "okr_version": "", "id": "weekly-lag-weeks", "label": "ISO weeks the latest weekly lags", "direction": "at_most", "target": 1, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O1-KR3", "okr_version": "", "id": "handoff-age-days", "label": "days since the latest handoff", "direction": "at_most", "target": 7, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O2-KR1", "okr_version": "", "id": "input-quality-issues", "label": "input-quality issues on the interview-produced OKR", "direction": "at_most", "target": 0, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O2-KR2", "okr_version": "", "id": "kr-writer-landed", "label": "the goals KR writer has landed", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O2-KR2", "okr_version": "", "id": "hand-appends-after", "label": "hand appends to okr/linkage stores after the writer", "direction": "at_most", "target": 0, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O2-KR3", "okr_version": "", "id": "draft-behaviours", "label": "planning-draft behaviours shown on a fixture", "direction": "increase", "target": 2, "baseline": 0, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O3-KR1", "okr_version": "", "id": "snapshot-lines", "label": "lines in the rendered /perry snapshot", "direction": "at_most", "target": 12, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O3-KR1", "okr_version": "", "id": "snapshot-chars", "label": "characters in the rendered /perry snapshot", "direction": "at_most", "target": 1200, "baseline": null, "declared_at": "2026-09-21T07:53:45Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O3-KR2", "okr_version": "", "id": "decisions-recorded-pct", "label": "percent of phase decisions with a USER- record", "direction": "at_least", "target": 100, "baseline": null, "declared_at": "2026-09-21T07:53:46Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O3-KR2", "okr_version": "", "id": "median-ask-chars", "label": "median ask length in characters", "direction": "decrease", "target": 600, "baseline": 2101, "declared_at": "2026-09-21T07:53:46Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O3-KR3", "okr_version": "", "id": "next-action-p90", "label": "p90 open-row Next action length in characters", "direction": "decrease", "target": 400, "baseline": 1702, "declared_at": "2026-09-21T07:53:46Z", "actor": "pmo"}
+{"kind": "kr_revision", "kr": "P004-O4-KR2", "okr_version": "", "op": "restate", "fields": {"target": 6, "metric": "6 of 6 — S1 and S3 to S7; S2 deferred by USER-936 to phase 005 (baseline 0; 0 of 97 September results carry the compliance block)"}, "reason": "USER-983 (2026-09-21): S2 deferred by USER-936; target 6 this phase, S2 becomes a phase 005 KR", "revised_at": "2026-09-21T15:54:04+08:00", "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O1-KR1", "okr_version": "", "check": "fixture-states", "value": 5, "asserted_at": "2026-09-21T07:55:07Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O1-KR2", "okr_version": "", "check": "closing-step-routes", "value": 50, "asserted_at": "2026-09-21T07:55:07Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O1-KR3", "okr_version": "", "check": "weekly-lag-weeks", "value": 1, "asserted_at": "2026-09-21T07:55:07Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O1-KR3", "okr_version": "", "check": "handoff-age-days", "value": 4, "asserted_at": "2026-09-21T07:55:07Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O2-KR2", "okr_version": "", "check": "kr-writer-landed", "value": 1, "asserted_at": "2026-09-21T07:55:08Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O2-KR3", "okr_version": "", "check": "draft-behaviours", "value": 0, "asserted_at": "2026-09-21T07:55:08Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O3-KR2", "okr_version": "", "check": "median-ask-chars", "value": 258, "asserted_at": "2026-09-21T07:55:08Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O3-KR3", "okr_version": "", "check": "next-action-p90", "value": 344, "asserted_at": "2026-09-21T07:55:08Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O3-KR1", "okr_version": "", "check": "snapshot-lines", "value": 7, "asserted_at": "2026-09-21T07:55:59Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O3-KR1", "okr_version": "", "check": "snapshot-chars", "value": 329, "asserted_at": "2026-09-21T07:55:59Z", "evidence": "evidence/2026-09/phase004-kr-measurement-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O2-KR2", "okr_version": "", "check": "hand-appends-after", "value": 0, "asserted_at": "2026-09-21T09:01:08Z", "evidence": "evidence/2026-09/phase004-census-hand-appends-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O3-KR2", "okr_version": "", "check": "decisions-recorded-pct", "value": 83.6, "asserted_at": "2026-09-21T09:01:08Z", "evidence": "evidence/2026-09/phase004-census-decisions-2026-09-21.md", "computed": false, "actor": "pmo"}
+{"kind": "unlinked", "task": "TASK-476", "phase": "004-guided", "declared_at": "2026-09-21T09:39:17Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-477", "phase": "004-guided", "declared_at": "2026-09-21T10:59:39Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-478", "phase": "004-guided", "declared_at": "2026-09-21T12:16:56Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-479", "kr": "P004-O1-KR1", "declared_at": "2026-09-21T13:10:37Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-480", "phase": "004-guided", "declared_at": "2026-09-22T02:37:29Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-481", "phase": "004-guided", "declared_at": "2026-09-22T03:24:21Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-482", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T03:25:41Z", "actor": "pmo", "via": "add"}
+{"kind": "check", "kr": "P004-O4-KR1", "okr_version": "", "id": "affected-median-seconds", "label": "median seconds of an executor round's affected tier", "direction": "at_most", "target": 60, "baseline": null, "declared_at": "2026-09-22T03:56:32Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O4-KR1", "okr_version": "", "id": "full-suite-per-merge", "label": "the full suite runs on the merge result before every merge", "direction": "done", "target": 1, "baseline": null, "declared_at": "2026-09-22T03:56:33Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O4-KR1", "okr_version": "", "id": "total-module-seconds", "label": "full suite total module-seconds (tests/durations.json)", "direction": "at_most", "target": 1054, "baseline": null, "declared_at": "2026-09-22T03:56:33Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O4-KR2", "okr_version": "", "id": "structural-rules", "label": "DESIGN-017 structural rules running before merge, each red under its mutation", "direction": "increase", "target": 6, "baseline": 0, "declared_at": "2026-09-22T03:56:33Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O4-KR3", "okr_version": "", "id": "l2-pages-over-budget", "label": "L2 reference pages over the 32,768-byte budget", "direction": "decrease", "target": 0, "baseline": 3, "declared_at": "2026-09-22T03:56:33Z", "actor": "pmo"}
+{"kind": "check", "kr": "P004-O4-KR3", "okr_version": "", "id": "context-bills", "label": "subcommands carrying a context bill", "direction": "increase", "target": 5, "baseline": 0, "declared_at": "2026-09-22T03:56:33Z", "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O4-KR1", "okr_version": "", "check": "total-module-seconds", "value": 1058.7, "asserted_at": "2026-09-22T03:57:33Z", "evidence": "evidence/2026-09/phase004-o4-measurement-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O4-KR3", "okr_version": "", "check": "l2-pages-over-budget", "value": 0, "asserted_at": "2026-09-22T03:57:33Z", "evidence": "evidence/2026-09/phase004-o4-measurement-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O4-KR3", "okr_version": "", "check": "context-bills", "value": 5, "asserted_at": "2026-09-22T03:57:34Z", "evidence": "evidence/2026-09/phase004-o4-measurement-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O4-KR1", "okr_version": "", "check": "affected-median-seconds", "value": 30.2, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O4-KR1", "okr_version": "", "check": "full-suite-per-merge", "value": 0, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O4-KR2", "okr_version": "", "check": "structural-rules", "value": 4, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "measurement", "kr": "P004-O1-KR1", "okr_version": "", "check": "fixture-states", "value": 5, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
+{"kind": "edge", "task": "TASK-483", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T07:38:11Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-484", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T17:43:52Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-485", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:07Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-486", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-487", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-488", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-489", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-490", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-491", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-492", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-493", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-494", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:10Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-495", "phase": "004-guided", "declared_at": "2026-10-12T07:49:23Z", "actor": "PMO Agent", "via": "add"}

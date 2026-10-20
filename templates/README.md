@@ -1,55 +1,29 @@
-# `templates/` — archetype scaffolds
+# Templates: scaffolds, process data and internal workflows
 
-Runnable starting points for the three archetypes in
-[`reference/project-archetypes.md`](../reference/project-archetypes.md). The
-prescribe and execute stages of `/perry diagnose` copy from here.
+These groups have different consumers and installation paths:
 
-| Archetype | Directory | Native verification? |
+| Group | Consumer | Use |
 |---|---|---|
-| Software / product development | [`software/`](software/) | Yes — tests, build, lint |
-| Personal knowledge base | [`knowledge-base/`](knowledge-base/) | No — `bin/kb-lint` constructs one |
-| Ops / content / team-process | [`ops/`](ops/) | No — `bin/deliverable-lint` + a human gate |
+| [scaffolds/](scaffolds/) | A project owner or agent | Select and adapt files for a standalone project; do not copy tracking files into a native Perry project |
+| [process/](process/) | Native kernel `template apply` | Declare types, fields, transitions and structural guards; never copy as a project document |
+| [internal/](internal/) | Root Perry skill | Author scoped adoption/diagnosis records and reviewed policy proposals; never bulk-copy as a scaffold |
 
-## How to use them
+[New-project guide](../reference/new-projects.md) explains how project purpose,
+work mode, domain pack and artifact scaffold combine. [Modes](../modes/README.md)
+are Agent work procedures; [packs](../packs/README.md) add domain guidance.
+Neither is a scaffold or a kernel plugin.
 
-**By hand:** copy the archetype directory's contents into your project root,
-then edit every `{{placeholder}}`. Nothing here depends on Perry being
-installed — that is the point. Each scaffold stands alone.
+## Choose the state owner first
 
-**Through diagnose:** `/perry diagnose` proposes individual files from these
-scaffolds as prescription items, one per finding it closes. It never copies a
-whole directory over an existing project, because a scaffold that overwrites a
-user's own `AGENTS.md` destroys the content the refactor was supposed to
-preserve.
+**Standalone documents:** use a small scaffold without installing Perry.
+`STATE.md`, `DECISIONS.md` and optional intake/history files belong to that
+project. Adapt placeholders and commands; skeletons are not finished projects.
 
-## The rules the scaffolds encode
+**Native Perry:** follow [first-run](../reference/first-run.md), apply
+[process/perry.json](process/perry.json) through the CLI, and create owned
+narratives only when needed. Items/events own current state. Reuse selected
+domain artifacts from a scaffold, never its parallel state/decision registers.
 
-Three things are deliberate in all three, and they are the parts worth keeping
-if you change everything else:
-
-1. **The tier-0 file stays under ~60 lines.** Every scaffold's `AGENTS.md` is
-   short enough to read in one screen. A rules file that outgrows the budget
-   stops being obeyed rather than failing loudly, so the scaffolds practice
-   what the research prescribes.
-2. **There is exactly one runnable check**, and it is one command. Software
-   projects inherit theirs; the other two ship a linter, because "construct a
-   verification loop" is hand-waving unless something concrete comes with it.
-3. **Every shared surface is append-only.** The log, the journal, the decision
-   record. This is what lets a second session start without waiting for the
-   first, and it needs no worktrees, no locks, and no tooling.
-
-## `AGENTS.md` vs `CLAUDE.md`
-
-The scaffolds ship `AGENTS.md` because more hosts read it. For Claude Code,
-symlink rather than copy — two rule files drift apart and the agent obeys
-whichever it happened to read:
-
-```bash
-ln -s AGENTS.md CLAUDE.md
-```
-
-## Process templates
-
-`templates/process/perry.json` is data applied with kernel `template apply`,
-not a Markdown scaffold copied into a project. The kernel stores the applied
-version; the skill supplies the work procedure and evidence checks.
+An existing project is not a blank destination. Diagnose proposes individual
+files and reviews collisions; it never overlays an entire scaffold. Moving this
+repository's scaffold paths does not migrate or rename files in user projects.

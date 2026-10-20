@@ -1,0 +1,59 @@
+{
+  "perry": {
+    "base": "558e698f3e3672e5f1a9004eca4aa00555305529",
+    "candidate": "557d30ca594517b5eb9fc1e28b8c4105933bb987",
+    "merge": "3bbd4a0b1badac9042f7ca78dd1ec0a51996867c",
+    "tree": "44f1b0ce96abffecf7a7d890662d25630c4b052a",
+    "dirty_paths_preserved": 134
+  },
+  "aimark": {
+    "base": "b4944762e6babc2189bc3d704104933504c09899",
+    "adapter": "1efee323ed982c3d7d73ce74d84c503911d2d31f",
+    "stash": "335f96d8c78e12e652f343e024e1cc62d05881c1",
+    "status": "integrated; WIP reapplied and uncommitted; stash retained",
+    "merge": "09231bd25b3b79ef8f630aef0474a490f1ed056e",
+    "tree": "4fcfebca339b84b884e7aea20067adf7564e847a",
+    "compared_files": 223,
+    "combined_bytes_equal": true
+  },
+  "publication": "unpublished; no push/tag/release",
+  "version": "0.1.25",
+  "full": {
+    "modules": 162,
+    "tests": 4118,
+    "seconds": 214.2,
+    "status": "PASS",
+    "receipt": "/tmp/perry-scratch/Perry/TASK-490-release-integrator-20261018/merged-full-cap-fixed/receipt.json"
+  },
+  "slow": {
+    "modules": 166,
+    "tests": 4221,
+    "seconds": 148.9,
+    "status": "PASS",
+    "log": "/tmp/perry-scratch/Perry/TASK-490-release-integrator-20261018/slow.log"
+  },
+  "receipt_verification": "PASS on committed artifact557d30ca594517b5eb9fc1e28b8c4105933bb987",
+  "release_checks": "PASS base/head and tag-format v0.1.25",
+  "primary_diff_checks": {
+    "Perry": "PASS",
+    "aiMark": "PASS"
+  },
+  "live_store_changes": "none by integrator",
+  "invalid_runs": {
+    "merged-full-approved": "inherited PERRY_HOME selected primary; not valid source evidence",
+    "merged-full-clean-env": "valid red: architecture terminal-newline cap; fixed one blank line by author"
+  },
+  "source_sha256": {
+    "Perry": {
+      "bin/perry-task": "400f861b5097df61fb832f129230f8bb4c3f1786fbef1ffbf1da97243e13e16f",
+      "bin/perry-kernel-migrate": "beb42ee2e777bfe0790f82b86cbe97917ce864564cb9094b3e8f42d6276ff58f",
+      "kernel/perry_kernel/commands.py": "170093b162a3c397af5d86f873a57de13c31b27fa99784adfc1055c29a3b1c88",
+      "ARCHITECTURE.md": "bffaeedbc9e07c8274e86b2ba94871b686c79f77b1324d5835665467a3c36e83"
+    },
+    "aiMark": {
+      "src/perry-kernel.ts": "af8f950c7d59be2edb9b219d9e4c2238d2a0ee13ceff519357a909154ec544f3",
+      "src/perry-gateway.ts": "fc9cb4bddf6d9d4c3f6e3dfb5c3565377c6dc356b3956dd5505e18390d574134",
+      "src/i18n.ts": "10225693aa599fbffc96c4448f4b5296a25b826b0d78bfef004721506211c679"
+    }
+  }
+}

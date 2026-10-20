@@ -1,0 +1,58 @@
+{
+  "source": "actual integrated aiMark primary",
+  "read_only": true,
+  "receipts": [
+    {
+      "root": "/Users/bytedance/proj/Perry",
+      "seq": 1895,
+      "state_root": "/Users/bytedance/proj/Perry/perry",
+      "work": 490,
+      "current_version": "v4: 2026-09-15",
+      "phase": {
+        "id": "PH-004",
+        "name": "004-guided",
+        "status": "phase_active",
+        "started": "2026-09-15",
+        "day": null,
+        "kr_total": 12,
+        "cost_ceiling": ""
+      },
+      "counts": {
+        "objectives": 8,
+        "krs": 26,
+        "stretch": 3
+      },
+      "decisions": 28,
+      "unlinked": 103,
+      "native_metrics_only": true,
+      "unknown_fractions": 22,
+      "legacy_scalar_fallback_used": false
+    },
+    {
+      "root": "/Users/bytedance/proj/SkyTonight",
+      "seq": 264,
+      "state_root": "/Users/bytedance/proj/SkyTonight/doc/perry",
+      "work": 32,
+      "current_version": "v1: 2026-09-16",
+      "phase": {
+        "id": "PH-003",
+        "name": "003-experience-polish",
+        "status": "phase_active",
+        "started": "2026-09-21",
+        "day": null,
+        "kr_total": 6,
+        "cost_ceiling": ""
+      },
+      "counts": {
+        "objectives": 4,
+        "krs": 12,
+        "stretch": 0
+      },
+      "decisions": 0,
+      "unlinked": 0,
+      "native_metrics_only": true,
+      "unknown_fractions": 12,
+      "legacy_scalar_fallback_used": false
+    }
+  ]
+}

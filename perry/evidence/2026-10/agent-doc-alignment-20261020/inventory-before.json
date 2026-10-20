@@ -1,0 +1,854 @@
+[
+  {
+    "path": "AGENTS.md",
+    "lines": 61,
+    "sha256": "7c2a67acf70f27ee930c5aea0a93cf30a771b25d275b9aa7de7c6dce9c20c2ee",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "ARCHITECTURE.md",
+    "lines": 136,
+    "sha256": "e38b366f076d9e1958577c0abc36a1e3e9636722ff431967f1afb05764a172ef",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "INSTALL.md",
+    "lines": 94,
+    "sha256": "842af8e4b4c39ca0612ed1530633a7785f5a9048719a58b1e41d8bbec2190439",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "README.md",
+    "lines": 50,
+    "sha256": "b4e76d31e02909fb97b25e468dca16778b480a683deb3526144b60d487d8046f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "README_cn.md",
+    "lines": 9,
+    "sha256": "7d9341a2e59da7616cf13ecf6c3774da5e7f6894d0d6848d83d0b5670d815674",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "SKILL.md",
+    "lines": 158,
+    "sha256": "913723ccae0016a7f428d51c35e9bdd8d6b2af456a2fe96cba231e30c1e99822",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "decide/SKILL.md",
+    "lines": 79,
+    "sha256": "9ac455cfb02ddc607130741d3ed80b94010b57e0f74d0408dbe441e360ee34d3",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "decide/reference/decisions.md",
+    "lines": 68,
+    "sha256": "4065767488264c2667fd02aa815753d732b597706ecedecd5b3ef65c2e879b66",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "decide/templates/ADR_TEMPLATE.md",
+    "lines": 45,
+    "sha256": "308221bb927c2569f40588072b7d9a695f9b77d3dd2c08e407d73bf107ff52ae",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "decide/templates/README.md",
+    "lines": 7,
+    "sha256": "8f7f4c0be3e5f8beeb59f52fa9be8793c79d9fc193f73784565ffb7fae822d43",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "decide/templates/design_TEMPLATE.md",
+    "lines": 71,
+    "sha256": "ca3f7674d437a4bfb9a8ac7fbf9f27eb78337c82e68327b34c10889ca088df5e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/SKILL.md",
+    "lines": 91,
+    "sha256": "13a4b5427483b6ca3314820d913119afa2eab3d3254b43f72436df80197b19a6",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/elicitation.md",
+    "lines": 312,
+    "sha256": "c6203aff919deb2e327a0152255434b979666d59f5993004e3665a8b95b06d0a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/hooks.md",
+    "lines": 51,
+    "sha256": "93952eca288bf8feb7d6156ef3cb4977e63471a071403f27e5cac5d9a5c397d1",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/linkage.md",
+    "lines": 33,
+    "sha256": "d7d1a3f8af501a32998f4e05fc5aba6955504de1a2a1022c30cdb432a42a0847",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/phases.md",
+    "lines": 109,
+    "sha256": "2585ca1a61a72ae73b8d81ba4f811b47ac7867f36935544571d71b320ef61dd0",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/pivots.md",
+    "lines": 19,
+    "sha256": "2347b4b74692a2f7fd02973a628e5ad12a359894e162f6e42df9a3729b7f799d",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/planning.md",
+    "lines": 26,
+    "sha256": "2d34d7b559625a98fbe9db49ebfdc8ba0065650dba9256f99f09aef41b885a73",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/setup.md",
+    "lines": 36,
+    "sha256": "024248e4736aa1946636ab5f4d0c0a36680226ddc5acb136d6ec08494d7ea4f6",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/reference/weekly.md",
+    "lines": 19,
+    "sha256": "b695ac9adb41c2349719c900283bbcaf1eb1d0cf7b608829ca2ccead1fbf875c",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/templates/OKR_TEMPLATE.md",
+    "lines": 40,
+    "sha256": "c5992b973444bdccad81a5892e9ae5af2ea6588550f93fb7d76e5f3d4bb8e435",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/templates/README.md",
+    "lines": 8,
+    "sha256": "f25eb94966fbfa3be5252e4d7d3f26bb411cca2b6668bada81a20ec37c203697",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "goals/templates/phase_TEMPLATE.md",
+    "lines": 47,
+    "sha256": "485b565cb832193af3bbc846034168afcea958e4d4b96d74629a93cc4c3cd6ab",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "kernel/ARCHITECTURE.md",
+    "lines": 309,
+    "sha256": "a77ec2f410a878f4e5b30f15b46901b9ec107f6f782882f85c51319181d2974e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "kernel/architecture/sections/\u00a75-contracts.md",
+    "lines": 432,
+    "sha256": "739ac024f8768fd112852839755bae982b740d3dbd0237c1201060c9bd5328a2",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "modes/README.md",
+    "lines": 21,
+    "sha256": "8363fc943a3acb8ac3019f1d21d803420fb5fece5bc16ec983dd4d11fefe1024",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "modes/inquiry.md",
+    "lines": 20,
+    "sha256": "b978a2b8db9ede147f71e9eed30f83b102a9dfc914b5bb230f1f760faebb9b1d",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "modes/pipeline.md",
+    "lines": 26,
+    "sha256": "15f1ee55c1d7fcc4dc245e76db8782afa92a80af50efb4222de4b19c83da5e8c",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "modes/project.md",
+    "lines": 18,
+    "sha256": "50a8cad2470b3ba8ab72d8f8cb8c03f1ca24b13fceb764cc9b41c918e493d3d1",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "modes/queue.md",
+    "lines": 27,
+    "sha256": "2b97c9a43369adfe0bb91979a1f381b8f4df87503762744118964a820fc0a2f6",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/README.md",
+    "lines": 19,
+    "sha256": "64dff72a00b82b4c1fb48686f96196b7540ec919afdc0f2e770dcf2e61d57299",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/architecture-analysis.md",
+    "lines": 160,
+    "sha256": "955f11060c55e168f452f5dcf3c4d769a0996d360dc4cac52e3b9ca784bebad7",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/architecture.md",
+    "lines": 258,
+    "sha256": "37a93a9d04c1abc619d88012e7f289d2b7631fbc9f90129a00b5b8b2b07c7a91",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/incidents.md",
+    "lines": 174,
+    "sha256": "33e0148cabba1f2942bbf04f6dac0a71bb10cbfcb87a8a3a5cf0492edfc55717",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/pack.md",
+    "lines": 110,
+    "sha256": "49c703084f975c8a7b2455ea7567d478beffe49b59148baf3b0bca9e5c66dc16",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/releases.md",
+    "lines": 159,
+    "sha256": "6c846b5cfaf4cf4c68d65f7ac4c3ed62af678a5c14afc8e54c8fac7b7a580b3e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/roles/coding.md",
+    "lines": 26,
+    "sha256": "8832e31749288c5137089323cdc350200f708ee58728b4e3dbbaba98223f999e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/roles/research.md",
+    "lines": 25,
+    "sha256": "bc3d91a872abef6a53514d48569c49dcef11dedb841f566c5ef1396a2fa6a0ea",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/roles/review.md",
+    "lines": 26,
+    "sha256": "880a59dc47c183f700edb4a75e6ce6f88966e6ce8b34c449db940e0038b2e873",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/runbooks.md",
+    "lines": 190,
+    "sha256": "7f30a088ec2a5cd9a3f9ceb9cd2bf0309edac4f879207c7a97d845b06baa31b9",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/templates/ARCHITECTURE_TEMPLATE.md",
+    "lines": 110,
+    "sha256": "e7bd6e7144c9dc49c042a539dca668d7edd601d3ec4a5148599330cbd341a3c2",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/templates/README.md",
+    "lines": 14,
+    "sha256": "f4216914a6ae5d427661b65e894d409092f459a6e54b98c9c7162f74ec6a2493",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/templates/incident_TEMPLATE.md",
+    "lines": 49,
+    "sha256": "6c1d7ffe20717711ec478d87949238fc65d816cae430ce62b445b0a049118444",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/templates/incidents_INDEX_TEMPLATE.md",
+    "lines": 34,
+    "sha256": "86b0d96f54f561affdc8eb4edb6adb9f681c60dffb2312ac0009527dca10f272",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/templates/runbook_INDEX_TEMPLATE.md",
+    "lines": 33,
+    "sha256": "fba247510a55c4d030991caaa39ae79893df7894ec80cc47c044c50f8eba5320",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "packs/software-ops/templates/runbook_TEMPLATE.md",
+    "lines": 56,
+    "sha256": "ba0fd4462beb63e97f9954ba44c62b2a73c7397e4bba1729ead53c83a3f56e7f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/adoption-sources.md",
+    "lines": 171,
+    "sha256": "f25aab1b606a117ebb19ba45409a36aa3036652d75d557d33edf96ce3d17a887",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/adoption.md",
+    "lines": 60,
+    "sha256": "90540164d241ca5ba021341e185102be076dce14bba99e6a679e93ac00660ac5",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/config.md",
+    "lines": 65,
+    "sha256": "e86a0a7a680435d509e7da569deca2590a4ceb5d55cfc60b76275d34ff7a23f8",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/diagnose-explanations.md",
+    "lines": 21,
+    "sha256": "f63dc9db623a2dbfa7eee1148c795b1221c2164865cf2fcae63a02b3ea92a163",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/diagnose.md",
+    "lines": 59,
+    "sha256": "cd80e8799ae581341eada86a351625d0a4073ff03e5078c7050d7b7cd5822bb1",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/first-run.md",
+    "lines": 38,
+    "sha256": "e7efd3d84b9befadeb2a4e1b3b658aa6e4a4ebdd654bbcf56adb8adbbdfc559b",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/glossary.md",
+    "lines": 49,
+    "sha256": "3a89a9d0ebbcd570b276933b564236953d323bbe1b931e36f540f68ac50f379e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/hand-off-contract.md",
+    "lines": 114,
+    "sha256": "bf61e47e16520623c8b53ca00916fcacfad391efb2b433a9b83f34467797779b",
+    "role": "historical_explanation"
+  },
+  {
+    "path": "reference/host-capabilities.md",
+    "lines": 109,
+    "sha256": "a3e3e00f82101c40014c81418949162fea34bb6089b512c6b059cbd2a0a6943c",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/i18n.md",
+    "lines": 39,
+    "sha256": "9ec3795a5bc64a25acedfea39f73c4d564cbf1f8fba138b0afb66bde0c2d5ba5",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/input-quality-rubrics.md",
+    "lines": 44,
+    "sha256": "abbe2f484938d195ce5d08837cf2a6f76d26eec9266d85ed9dc94499dc444b44",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/input-quality.md",
+    "lines": 64,
+    "sha256": "182309b98d7e15e9d072b41995a2d49f8884c9b9f7e07c4bbb1873476a520d80",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/kernel.md",
+    "lines": 114,
+    "sha256": "68a565eba523833cbb04580015c60b7929c68e9b9d3c67018e84cee84b39395d",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/linkage-store.md",
+    "lines": 17,
+    "sha256": "5a04da000887cf73b03dd88d0eebf8e081a91ecae11e66b04ddbcb7b7347a1e8",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/new-projects.md",
+    "lines": 125,
+    "sha256": "4855dc293750fec35c1853ce6a22c1e57218168aa675ac892650784a3027c884",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/next.md",
+    "lines": 63,
+    "sha256": "6c968950b0bba69cf9f802b5373cde3a3f7a891d77da06bd0fd4cdfffa870315",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/okr-linkage.md",
+    "lines": 24,
+    "sha256": "9f4b192813a2d863e4a2ded01cf867f08c0bf51ae49b98fa3367ed8e2eebfc5f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/operating-rules.md",
+    "lines": 79,
+    "sha256": "3042d44034ccc1b185ad662bc944ad0cdf7e76c4c57f3ff7d31e7f8f38f2368a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/project-archetypes.md",
+    "lines": 355,
+    "sha256": "c168b154400561f1f3d32cdb1d33c6561c5e0d03c35a81d72a0eaef94d25aaf6",
+    "role": "historical_explanation"
+  },
+  {
+    "path": "reference/recovery.md",
+    "lines": 70,
+    "sha256": "a8ba69c80aaa4ad4133a2d8cd7f7aa5887981a900399415523414fe2a1efc0bf",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/retirement-checks.md",
+    "lines": 69,
+    "sha256": "81fa15dd11a827126e400c42a2ec51df40d9e1458872d38d178419f119816cb4",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/router-subcommands.md",
+    "lines": 38,
+    "sha256": "5f989ea52d7e6ab374120551f2cf69c3ab18601152eeccc2bb4cda2a73d9a67c",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/safety-policy.md",
+    "lines": 36,
+    "sha256": "82fd2fb66a4cf3f5d253d86cd91f97e18fc73fa2419c6f05e85ea19e626582e6",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/snapshot.md",
+    "lines": 80,
+    "sha256": "db686fc30fe87423adc09e9bfcc73e70c94e5abfe6655b5480a3cd9ef21829ca",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/startup.md",
+    "lines": 32,
+    "sha256": "e011417eb27fe24d41662fa9dffe644064268131bd4f5f077cd687b90e1d6fef",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/style.md",
+    "lines": 107,
+    "sha256": "b6372645b2220e904904be872fa1e884cd6266022b0c9f8fe5727b1e2bd2f39c",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/user-load.md",
+    "lines": 152,
+    "sha256": "b76d0f1e6f33d4b75463dab3bad0e21067bac521e1953bc6f93b74e75d13aff8",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "reference/version-compatibility.md",
+    "lines": 42,
+    "sha256": "b20c152011e0b982078a2936341f8ba1929b70e7b6b9fe6bf533ddaad562e650",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "release/ARCHITECTURE.md",
+    "lines": 81,
+    "sha256": "8b61fe51c6d2d0691d8aab6373d45f5462fcc58536cb3d86e08b118a9120789a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "release/README.md",
+    "lines": 105,
+    "sha256": "91c143c31625f206361676d5b4b012bd40b58277823bad42d97e71f78c7a65f4",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/README.md",
+    "lines": 29,
+    "sha256": "cd736f3e55660a092761e487be4c927466b6c13cf9cc7ce8a82f405e05b67889",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/internal/README.md",
+    "lines": 35,
+    "sha256": "b544c8a5bbe7f90a78ddf7657c94dcd08c0c71a4762763284b52aea85179468e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/internal/adoption_dossier_TEMPLATE.md",
+    "lines": 75,
+    "sha256": "f6123f3e3826f5f442ccd76483318452e803418bab8d6206bf6c74ed5d42ec0b",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/internal/diagnosis_TEMPLATE.md",
+    "lines": 81,
+    "sha256": "a64c34f6df813c101b3cb7db13daa179580cf5568430a74fe19a03c3c8a158e5",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/internal/hook_TEMPLATE.md",
+    "lines": 65,
+    "sha256": "1d4276f80cb31fc5a236782906534c403229143b758570d1be2d0fa3fb20eebd",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/process/README.md",
+    "lines": 21,
+    "sha256": "d5224d8a05671c5fe904845f582d520f75b7455615c9126f1ba031674c47abe5",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "templates/scaffolds/README.md",
+    "lines": 33,
+    "sha256": "77e7e3a7e92de18f65092487edad6d33dc670daf2a95264ed9fa2080215d15c0",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/knowledge-base/AGENTS.md",
+    "lines": 56,
+    "sha256": "6bd5ed3942fb1dd378cefd52ba4765260690ca82cc9c47b43c0f98ae3dd39667",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/knowledge-base/index.md",
+    "lines": 45,
+    "sha256": "1fe5a21d404d841b9a20fdd3b36b520b62353aa9fa711e32a0c723539ccd8420",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/knowledge-base/log.md",
+    "lines": 16,
+    "sha256": "fc5843556dc30d66b0172cbaeaef802bad33b0971dc4fa7a2af8e05c0d087a82",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/knowledge-base/raw/README.md",
+    "lines": 5,
+    "sha256": "df06fda9f8af4bac5898dcb95c682eac4c22c71946d4b5cccef684d15434cdc1",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/knowledge-base/wiki/README.md",
+    "lines": 4,
+    "sha256": "dbbc0719903cd2270de1a112208636b944a2374100eddf6a875894e0c77b2eac",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/AGENTS.md",
+    "lines": 60,
+    "sha256": "4004a64cedf38dda1c62689126347fddd1b2f791f0c17d510d6c84e7442cc76a",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/DECISIONS.md",
+    "lines": 29,
+    "sha256": "ce76ae3bffa67a1c205d1d9fd353aa65ec793e0d683f11fe62207c864e3db53a",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/INTAKE.md",
+    "lines": 34,
+    "sha256": "039bb07a3ffbd35cb76a237fc11d702e4c5ed4f2e969b8893f7ba01938e61d65",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/STATE.md",
+    "lines": 40,
+    "sha256": "49b15f8c2d8fff0e9cb8ba9997afae5be810659daa01f205d2df84569e45b3b7",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/deliverables/README.md",
+    "lines": 7,
+    "sha256": "84781a542edaaebb059510041de854a639d42730ae259147d9d532edd446784d",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/incidents/README.md",
+    "lines": 7,
+    "sha256": "328408ecd5c3b89ae08869dd9abc6f30c3b93934f997c8eadb523c2c13abb915",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/ops/runbooks/README.md",
+    "lines": 10,
+    "sha256": "12a158e898e9a8a6314b924b54cb6c4b0a63d33772c789dc8384ddf5039e6ce3",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/software/AGENTS.md",
+    "lines": 50,
+    "sha256": "0ce664395ffa044d1cd589f2a45477caf83f057e69f5fbb84056cdc6288935ec",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/software/DECISIONS.md",
+    "lines": 29,
+    "sha256": "ce76ae3bffa67a1c205d1d9fd353aa65ec793e0d683f11fe62207c864e3db53a",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "templates/scaffolds/software/STATE.md",
+    "lines": 40,
+    "sha256": "49b15f8c2d8fff0e9cb8ba9997afae5be810659daa01f205d2df84569e45b3b7",
+    "role": "standalone_scaffold"
+  },
+  {
+    "path": "tests/ARCHITECTURE.md",
+    "lines": 31,
+    "sha256": "8b39033bcec073e59fd7ebb88c52efb2ba68c130440e6b6ac685f53f9bd0ed6a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "tests/README.md",
+    "lines": 66,
+    "sha256": "0742c02742db9d91f89fea7eb4c4dc1ca1b1148a28cabad19371c4b1ab2ce889",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "tools/README.md",
+    "lines": 57,
+    "sha256": "4b67a05671e66a9278433ad1fd139c6328595a479f0ccad674879ff6a3f10e9a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "tools/architecture/README.md",
+    "lines": 154,
+    "sha256": "b8ccee5e76991082592b1b61ada532cf9b25c257a9d8ea21352f7958c213f2d7",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "tools/architecture/REVIEW-CRITERIA.md",
+    "lines": 50,
+    "sha256": "be05207c2c3c6d5ff1d5fa8ef48fbc85be74aaf0070f635a7a287b01f56712b7",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "tools/helper-contracts.md",
+    "lines": 140,
+    "sha256": "9242941178058ab5884ebd48db01b3e0d6898a43686391a9eb6a80c10e1db1b4",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "tools/reviewed-plan-migration.md",
+    "lines": 97,
+    "sha256": "366830996d11b7845199ef55a71a1f9198ee14d3cae59426422e148347eb3dce",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/SKILL.md",
+    "lines": 157,
+    "sha256": "247bcb38d4fb568d45d6ff768d8320ac69d4a0168a29becc94e6fb0583b7d9ff",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/add-task-notes.md",
+    "lines": 21,
+    "sha256": "c0c308631e4c86fedb7e45ea4466a562a2bdc032bd30c2ab2f89e81e5290584e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/add-task.md",
+    "lines": 80,
+    "sha256": "95983617c9c1909319f52fe2db26934af4e0b4252a2ccff0114052256db9519a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/autopilot.md",
+    "lines": 22,
+    "sha256": "3c8c1fb614342be92945f83c43d7ebb030dcc9bd11f206cff109164c0cb9a8e5",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/bootstrap.md",
+    "lines": 30,
+    "sha256": "67510db2a4f8eb5c7ae5682cb4ec67de447b74fafd4b9597d3de930ee7af3f8f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/budget-boundary.md",
+    "lines": 29,
+    "sha256": "6a1722a7e7bc8583cde67deaa6132962c1c7f889ccc33798cffac314319cf3e7",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/conversational.md",
+    "lines": 115,
+    "sha256": "6f694d67991a100393a16662cfe0ed1c4925baee6a369984da4337c9b90048fd",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/decisions-risk.md",
+    "lines": 22,
+    "sha256": "1896ca39e1d10f31cf4608ba87383f3cb53f9dd6c60bfd72c5ddd1267896d508",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/delegate.md",
+    "lines": 83,
+    "sha256": "14a5d28c56d4bede587f62474ebc989f84579eddfb1a1930d6d6a0a7b2941fda",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/digests.md",
+    "lines": 314,
+    "sha256": "4a7816fdc4b9b98417321ab73c3484136d03caf84a17cfdf0bd33a3a152954f6",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/dispatch-notes.md",
+    "lines": 43,
+    "sha256": "7952d3220a5c82e059c2e20b3305cc2e60c873bed8ae4d0f146975f8aa42dc3c",
+    "role": "historical_explanation"
+  },
+  {
+    "path": "work/reference/dispatch-preflight.md",
+    "lines": 158,
+    "sha256": "084e2fe87fd8cc5c3256a76e3f334657604e08af7915d744f01aa866e8c61f0a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/dispatch.md",
+    "lines": 285,
+    "sha256": "f81c017eedda7a833554815cf7b1ea9801468328bfe78483f9c33ae4a5ef1793",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/extending.md",
+    "lines": 66,
+    "sha256": "e58dd287cbb356566a3a5c1450970111118745a0d857138ce9f7f302f4e8292e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/git-boundaries.md",
+    "lines": 37,
+    "sha256": "d9cf396f595cc55e7fa4d1c2e7a8076109950febcd292cfeeea6396bec65bf02",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/health-check.md",
+    "lines": 96,
+    "sha256": "93dfc876b89196e93ab0ffe169ffd9edd939733dc6796448106f50f761483fd1",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/kernel.md",
+    "lines": 5,
+    "sha256": "9bf3224491b5fc72fdc16177d3b685bf58d7f453637d72f091d6d4807b3a451f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/lane-notes.md",
+    "lines": 57,
+    "sha256": "b2d68833b3b4103ae1824132200a5c662b92ccdc1ec6cd72cb2a6d72a74c281f",
+    "role": "historical_explanation"
+  },
+  {
+    "path": "work/reference/planning.md",
+    "lines": 28,
+    "sha256": "7fddc209445b689e48b854f5532b90f6cfe4b32fa28c7b3fa856f265684fe93e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/promotion.md",
+    "lines": 49,
+    "sha256": "9b9a15c08b2075bb719c82bd29f7ed50bc2282823184e2952f19d5bf8647f9f3",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/reporting-format.md",
+    "lines": 30,
+    "sha256": "2588e42f5b4459932ad3abccc21f7ca9173ac977cb18161a6fa9be14bacdd52a",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/review-constraints.md",
+    "lines": 197,
+    "sha256": "a27439e38dc8fd88662fc9f4ffb9e4419228a39d8d8e23ea1aad1ac32c23dc06",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/review.md",
+    "lines": 202,
+    "sha256": "b6c642323ee99001d128d7cba61be64c347b0d8636a58aaaa327e0634f1a815b",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/state-files.md",
+    "lines": 22,
+    "sha256": "37fbf6aaa67bd39d056c665bed5d1d085e597306a292dd880c33fe52d2aeb773",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/subcommands.md",
+    "lines": 89,
+    "sha256": "067597ef6ca158abc77e233e0a31d627fd4aa52068023a3020cdc64bd0232bbe",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/task-close.md",
+    "lines": 32,
+    "sha256": "f5253c71adab3f1f4560944a657b1ee93f4a97266fe9f71d1b4291a54017dcc0",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/reference/time-estimation.md",
+    "lines": 17,
+    "sha256": "949e8aca80e373816a0794aaa37eb793af30b8ef15c58a85f1ae24060bd9431f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/PROJECT_STATE_TEMPLATE.md",
+    "lines": 22,
+    "sha256": "9842e0da3f3d479ee51db5481dfe9aa571bc0d056b6f8895c1fa3b0f5dcaf428",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/README.md",
+    "lines": 13,
+    "sha256": "a6429b1f78335f71708e6c6b872548feefb79f6932765d6a29791834524cad27",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/digest_TEMPLATE.md",
+    "lines": 38,
+    "sha256": "3b853fbd4edc116354a0d4f6ea26acc53eed8ab2e1ec9912e615e9e647c4fa49",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/digest_paper_TEMPLATE.md",
+    "lines": 76,
+    "sha256": "8c06ed25f6de799cc5cfd53820ee676049567051e9a083a9d52a8690ae962054",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/evidence_TEMPLATE.md",
+    "lines": 51,
+    "sha256": "453e204bbeb4561580e2b2f9b814e7009145edbf298aea7c84a729175137c966",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/handoff_TEMPLATE.md",
+    "lines": 122,
+    "sha256": "9fa4edcf3c344bcecdc6b6d85b6fa85a25e92ed999e9af3ca861d2cdf0c58b5b",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/knowledge_INDEX_TEMPLATE.md",
+    "lines": 42,
+    "sha256": "ceac7f7a52d3494938315d26d40337663d53eb46cca5367d51f67528fbed4fba",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/knowledge_card_TEMPLATE.md",
+    "lines": 32,
+    "sha256": "ab0cfc64086fe3d95d5af9c8ce61af135409cf0503ed58d4ffd0be46f037a56f",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/role_card_TEMPLATE.md",
+    "lines": 52,
+    "sha256": "c50c272eeea571f4c77b70ddb9d238a0c0b8c8875ad121094205a3bfa7ec5a3e",
+    "role": "maintained_instruction_or_template"
+  },
+  {
+    "path": "work/templates/weekly_TEMPLATE.md",
+    "lines": 58,
+    "sha256": "cfc4a4b815113dc2a629ef65f0af74ac20a1a6562d4b538cd3496cbd63cbc63d",
+    "role": "maintained_instruction_or_template"
+  }
+]

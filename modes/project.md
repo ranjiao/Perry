@@ -2,7 +2,7 @@
 
 Project work delivers a bounded outcome. Goals owns objectives, KRs and phase
 intent; work owns task execution. Read the owning lane before mutation and use
-`work/reference/kernel.md` for native state. Do not create a mode-specific state
+`$PERRY_HOME/reference/kernel.md` for native state. Do not create a mode-specific state
 store, journal, board or markdown-derived current status.
 
 Before starting, identify a deliverable, written falsifiable acceptance criteria,

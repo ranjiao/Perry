@@ -19,7 +19,7 @@ python3 tools/architecture_cli.py --root /path/to/project --source-roots src \
   --html /tmp/project-architecture.html --json > /tmp/report.json
 ```
 
-For Perry use `--source-roots bin,viewer,kernel,release --exclude perry,tests,kernel/tests`.
+For Perry use `--source-roots bin,kernel,tools,release --exclude perry,tests,kernel/tests`.
 There is no model API or automatic semantic classification in the CLI. The host
 agent performs that step from evidence during the skill workflow. Generated
 analysis is a disposable snapshot output, not a hand-maintained input map.

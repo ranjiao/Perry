@@ -1,0 +1,524 @@
+{
+  "changes": [
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "attach add",
+      "effect": "written",
+      "events": [
+        1184
+      ],
+      "store_seq": 1184,
+      "warnings": [],
+      "result": {
+        "attachment": {
+          "item": "TASK-490",
+          "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+          "hash": null
+        }
+      },
+      "error": null
+    },
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "item update",
+      "effect": "written",
+      "events": [
+        1185
+      ],
+      "store_seq": 1185,
+      "warnings": [],
+      "result": {
+        "item": {
+          "id": "TASK-490",
+          "type": "task",
+          "state": "in_progress",
+          "fields": {
+            "evidence": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+            "next_action": "Completed local phase-E kernel activation; goals/decide/dashboard migration remains separately scoped.",
+            "owner": "Coding Agent",
+            "priority": "P1",
+            "reason": null,
+            "summary": "DESIGN-023 phase E. work/SKILL.md and its references are rewritten to call the kernel, and the old perry-task turns read-only in the same change. The store ADR and the rung ADR that ADR-025 schedules for this phase are written alongside, by the decide lane. The user approves the switch.",
+            "title": "DESIGN-023 E \u2014 cut the work lane over to the kernel",
+            "track": "main",
+            "verification": "V3",
+            "verified_by": null
+          },
+          "seq": 1185,
+          "created_at": "2026-09-24T11:42:09Z",
+          "updated_at": "2026-10-18T07:38:02Z",
+          "relations": [
+            {
+              "kind": "blocks",
+              "from": "TASK-485",
+              "to": "TASK-490"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-489",
+              "to": "TASK-490"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-188"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-189"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-371"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-492"
+            }
+          ],
+          "attachments": [
+            {
+              "ref": "DESIGN-023",
+              "hash": null
+            },
+            {
+              "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+              "hash": null
+            }
+          ],
+          "startable": false,
+          "blocked_by": [],
+          "rollup": null
+        }
+      },
+      "error": null
+    },
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "item move",
+      "effect": "written",
+      "events": [
+        1186
+      ],
+      "store_seq": 1186,
+      "warnings": [],
+      "result": {
+        "item": {
+          "id": "TASK-490",
+          "type": "task",
+          "state": "review",
+          "fields": {
+            "evidence": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+            "next_action": "Completed local phase-E kernel activation; goals/decide/dashboard migration remains separately scoped.",
+            "owner": "Coding Agent",
+            "priority": "P1",
+            "reason": null,
+            "summary": "DESIGN-023 phase E. work/SKILL.md and its references are rewritten to call the kernel, and the old perry-task turns read-only in the same change. The store ADR and the rung ADR that ADR-025 schedules for this phase are written alongside, by the decide lane. The user approves the switch.",
+            "title": "DESIGN-023 E \u2014 cut the work lane over to the kernel",
+            "track": "main",
+            "verification": "V3",
+            "verified_by": null
+          },
+          "seq": 1186,
+          "created_at": "2026-09-24T11:42:09Z",
+          "updated_at": "2026-10-18T07:38:02Z",
+          "relations": [
+            {
+              "kind": "blocks",
+              "from": "TASK-485",
+              "to": "TASK-490"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-489",
+              "to": "TASK-490"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-188"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-189"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-371"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-492"
+            }
+          ],
+          "attachments": [
+            {
+              "ref": "DESIGN-023",
+              "hash": null
+            },
+            {
+              "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+              "hash": null
+            }
+          ],
+          "startable": false,
+          "blocked_by": [],
+          "rollup": null
+        },
+        "transition": "submit",
+        "from_state": "in_progress",
+        "to_state": "review"
+      },
+      "error": null
+    },
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "item move",
+      "effect": "written",
+      "events": [
+        1187
+      ],
+      "store_seq": 1187,
+      "warnings": [],
+      "result": {
+        "item": {
+          "id": "TASK-490",
+          "type": "task",
+          "state": "done",
+          "fields": {
+            "evidence": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+            "next_action": "Completed local phase-E kernel activation; goals/decide/dashboard migration remains separately scoped.",
+            "owner": "Coding Agent",
+            "priority": "P1",
+            "reason": null,
+            "summary": "DESIGN-023 phase E. work/SKILL.md and its references are rewritten to call the kernel, and the old perry-task turns read-only in the same change. The store ADR and the rung ADR that ADR-025 schedules for this phase are written alongside, by the decide lane. The user approves the switch.",
+            "title": "DESIGN-023 E \u2014 cut the work lane over to the kernel",
+            "track": "main",
+            "verification": "V3",
+            "verified_by": null
+          },
+          "seq": 1187,
+          "created_at": "2026-09-24T11:42:09Z",
+          "updated_at": "2026-10-18T07:38:02Z",
+          "relations": [
+            {
+              "kind": "blocks",
+              "from": "TASK-485",
+              "to": "TASK-490"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-489",
+              "to": "TASK-490"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-188"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-189"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-371"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-492"
+            }
+          ],
+          "attachments": [
+            {
+              "ref": "DESIGN-023",
+              "hash": null
+            },
+            {
+              "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+              "hash": null
+            }
+          ],
+          "startable": false,
+          "blocked_by": [],
+          "rollup": null
+        },
+        "transition": "done",
+        "from_state": "review",
+        "to_state": "done"
+      },
+      "error": null
+    },
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "attach add",
+      "effect": "written",
+      "events": [
+        1188
+      ],
+      "store_seq": 1188,
+      "warnings": [],
+      "result": {
+        "attachment": {
+          "item": "TASK-491",
+          "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+          "hash": null
+        }
+      },
+      "error": null
+    },
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "item update",
+      "effect": "written",
+      "events": [
+        1189
+      ],
+      "store_seq": 1189,
+      "warnings": [],
+      "result": {
+        "item": {
+          "id": "TASK-491",
+          "type": "task",
+          "state": "review",
+          "fields": {
+            "evidence": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+            "next_action": "Completed local phase-E kernel activation; goals/decide/dashboard migration remains separately scoped.",
+            "owner": "Coding Agent",
+            "priority": "P1",
+            "reason": null,
+            "summary": "DESIGN-023 decision 11. aiMark (~/proj/aimark) calls perry-task in six places. It moves to the kernel's query in the same release as the work-lane cutover, so the kernel keeps no compatibility command.",
+            "title": "DESIGN-023 E2 \u2014 aiMark reads the kernel instead of perry-task",
+            "track": "main",
+            "verification": "V3",
+            "verified_by": null
+          },
+          "seq": 1189,
+          "created_at": "2026-09-24T11:42:09Z",
+          "updated_at": "2026-10-18T07:38:02Z",
+          "relations": [
+            {
+              "kind": "blocks",
+              "from": "TASK-489",
+              "to": "TASK-491"
+            }
+          ],
+          "attachments": [
+            {
+              "ref": "DESIGN-023",
+              "hash": null
+            },
+            {
+              "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+              "hash": null
+            }
+          ],
+          "startable": false,
+          "blocked_by": [],
+          "rollup": null
+        }
+      },
+      "error": null
+    },
+    {
+      "ok": true,
+      "surface": "1.0",
+      "command": "item move",
+      "effect": "written",
+      "events": [
+        1190
+      ],
+      "store_seq": 1190,
+      "warnings": [],
+      "result": {
+        "item": {
+          "id": "TASK-491",
+          "type": "task",
+          "state": "done",
+          "fields": {
+            "evidence": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+            "next_action": "Completed local phase-E kernel activation; goals/decide/dashboard migration remains separately scoped.",
+            "owner": "Coding Agent",
+            "priority": "P1",
+            "reason": null,
+            "summary": "DESIGN-023 decision 11. aiMark (~/proj/aimark) calls perry-task in six places. It moves to the kernel's query in the same release as the work-lane cutover, so the kernel keeps no compatibility command.",
+            "title": "DESIGN-023 E2 \u2014 aiMark reads the kernel instead of perry-task",
+            "track": "main",
+            "verification": "V3",
+            "verified_by": null
+          },
+          "seq": 1190,
+          "created_at": "2026-09-24T11:42:09Z",
+          "updated_at": "2026-10-18T07:38:02Z",
+          "relations": [
+            {
+              "kind": "blocks",
+              "from": "TASK-489",
+              "to": "TASK-491"
+            }
+          ],
+          "attachments": [
+            {
+              "ref": "DESIGN-023",
+              "hash": null
+            },
+            {
+              "ref": "evidence/2026-10/TASK-490-formal-switch-20261018.md",
+              "hash": null
+            }
+          ],
+          "startable": false,
+          "blocked_by": [],
+          "rollup": null
+        },
+        "transition": "done",
+        "from_state": "review",
+        "to_state": "done"
+      },
+      "error": null
+    }
+  ],
+  "export": {
+    "ok": true,
+    "surface": "1.0",
+    "command": "export",
+    "effect": "written",
+    "events": [],
+    "store_seq": 1190,
+    "warnings": [],
+    "result": {
+      "dir": "/Users/bytedance/proj/Perry/perry/export",
+      "files": {
+        "items.jsonl": {
+          "lines": 601,
+          "bytes": 543337,
+          "sha256": "329c950aa9c0c27054d805cf232bf637c9e34802011d7a8726738d3923cf0613"
+        },
+        "events.jsonl": {
+          "lines": 1190,
+          "bytes": 955106,
+          "sha256": "e510336675618a201396e2adcca948e056e1bd93721677fdad07b4652006e8ae"
+        }
+      },
+      "last_export_seq": 1190
+    },
+    "error": null
+  },
+  "current_open_tasks": {
+    "ok": true,
+    "surface": "1.0",
+    "command": "query",
+    "effect": "read",
+    "events": [],
+    "store_seq": 1190,
+    "warnings": [],
+    "result": {
+      "items": [
+        {
+          "id": "TASK-188",
+          "type": "task",
+          "state": "not_started",
+          "fields": {
+            "evidence": null,
+            "next_action": null,
+            "owner": "Coding Agent",
+            "priority": "P1",
+            "reason": null,
+            "summary": "DESIGN-010's gate, and the reason step 5 may not simply follow. The scout is run by hand on ten real rows and its specs and refusals are scored against what the PMO actually decided for those same rows on 2026-08-21, which is recorded. If the scout would have dispatched a row the PMO refused, the design is wrong and the loop is not built.",
+            "title": "D010 step 4 \u2014 the scout, run by hand on ten real rows and scored against what the PMO actually decided",
+            "track": "main",
+            "verification": "V4",
+            "verified_by": null
+          },
+          "seq": 1099,
+          "created_at": "2026-08-28T03:06:05Z",
+          "updated_at": "2026-09-24T11:42:09Z",
+          "relations": [
+            {
+              "kind": "blocks",
+              "from": "TASK-187",
+              "to": "TASK-188"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-188",
+              "to": "TASK-189"
+            },
+            {
+              "kind": "blocks",
+              "from": "TASK-490",
+              "to": "TASK-188"
+            }
+          ],
+          "attachments": [
+            {
+              "ref": "DESIGN-010",
+              "hash": null
+            }
+          ],
+          "startable": true,
+          "blocked_by": [],
+          "rollup": null
+        }
+      ],
+      "total": 21,
+      "returned": 1,
+      "truncated": true,
+      "next_after": "TASK-188",
+      "counts": [
+        {
+          "key": {
+            "state": "blocked",
+            "priority": "P1"
+          },
+          "n": 2
+        },
+        {
+          "key": {
+            "state": "not_started",
+            "priority": "P1"
+          },
+          "n": 10
+        },
+        {
+          "key": {
+            "state": "not_started",
+            "priority": "P2"
+          },
+          "n": 6
+        },
+        {
+          "key": {
+            "state": "review",
+            "priority": "P1"
+          },
+          "n": 2
+        },
+        {
+          "key": {
+            "state": "review",
+            "priority": "P2"
+          },
+          "n": 1
+        }
+      ]
+    },
+    "error": null
+  },
+  "legacy_canonical_unchanged_after_closure": true
+}

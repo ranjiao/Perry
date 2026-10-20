@@ -5,7 +5,7 @@ It is skill data, never a kernel command or a semantic classifier. Hook prose
 explains intent; backticked prose no longer supplies the machine list. Role
 escalation rules can only add to the project policy.
 
-Use `state/safety_POLICY_TEMPLATE.json` as a proposal, review the actual project
+Use `templates/internal/safety_POLICY_TEMPLATE.json` as a proposal, review the actual project
 operations and preserve every existing boundary when migrating. Restore database
 operations for a SQLite-backed project. Do not silently prune a rule because the
 current task does not use it. Record the actual reviewed decision in

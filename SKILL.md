@@ -32,17 +32,21 @@ Legacy sibling skills were withdrawn to avoid host namespace collisions; `setup`
 | Lane | Reached as | Loaded from | Subject |
 |---|---|---|---|
 | **`goals`** | `/perry goals …` (alias `okr`) | `$PERRY_HOME/goals/SKILL.md` | objectives, phases, KRs, weekly proposals |
-| **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | board, journal, cadence, dispatch, status |
+| **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | task/ask/risk items, execution, reviews, dispatch and handoffs |
 | **`decide`** | `/perry decide …` (alias `design`) | `$PERRY_HOME/decide/SKILL.md` | RFCs, design docs, locked decisions, ADRs |
 
 Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and root-owned preferences and `.perry/safety.json`.
 
 > **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Translate that agent shorthand when quoting a user command.
 >
-> `templates/process/` contains JSON applied through the kernel, not copied
-> document scaffolds. Names use live vocabulary.
+> `templates/process/` contains JSON applied through the kernel;
+> `templates/scaffolds/` contains standalone artifact starting points. For a new
+> project's state owner, mode and pack choices, read `reference/new-projects.md`.
+> Native setup never copies a scaffold's parallel state registers.
+> Shared rules live in `reference/`; each lane keeps its own `reference/` and
+> `templates/`. Software-specific templates live in `packs/software-ops/templates/`.
 >
-> The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, rendered output; `*/state/*_TEMPLATE.md`, `state/*_TEMPLATE.md` and `templates/`, copied verbatim into the user's repo; `setup`, install banner; `CHANGELOG.md`/`release/`; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
+> The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, rendered output; `*/templates/*_TEMPLATE.md` and `templates/`, copied verbatim into the user's repo; `setup`, install banner; `CHANGELOG.md`/`release/`; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
 >
 > The vocabulary carve-out is a skill review checklist. New shipped surfaces must be classified here when introduced.
 
@@ -65,7 +69,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | Lane | Only writer of | Proposes, never writes |
 |---|---|---|
 | **`goals`** (`goals/`) | objective, KR, check and phase items; OKR/phase narrative attachments; drafts in `plans/` | weekly tasks, handed to `work` |
-| **`work`** (`work/`) | task, ask and risk items; `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
+| **`work`** (`work/`) | task, ask and risk items; `evidence/`, `weekly/`, `handoff/`, **`.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | design and ADR items; `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
 **Two changes from the previous contract, and why neither needed a second signature; why the sign-off is recorded at this precision**: `reference/hand-off-contract.md`.
@@ -102,13 +106,16 @@ owning lane. An explicit user request takes priority over a suggested next step.
    For an explicit action load the owning lane in full and proceed with its
    gates. Do not ask the user to select work they already named.
 
-Host detection and language reads run once per operation. Refresh safety after
+Host detection is cached once per session; language/preferences reads follow the operation route. Refresh safety after
 an external change, and refresh affected native projections after every write or
 failed write. Never present an earlier capture as current.
 
 ## First-time setup
 
-When `/perry` runs in a project with no Perry state files at all **and step 2 found neither a recovery hazard nor an interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
+Only bootstrap a genuinely new project after safety has cleared and the root
+procedure has established there is no prior native state or unresolved migration.
+Missing documents alone do not prove that a native store is absent. A nonterminal
+dossier/diagnosis requires its recorded resume choice before setup.
 
 Read `reference/first-run.md § The procedure` and follow its six steps in order: the namespace check runs before writes, preferences go to the root-owned hook prose and reviewed safety policy, then native init records the agreed document root.
 
@@ -146,7 +153,7 @@ Reasoning and examples: `reference/style.md § Style rules`.
 ## User-prompt convention, per-project hooks, auto-update
 
 - **Host-native choice UI** over free text whenever a choice has **2-4 distinct options** (`reference/host-capabilities.md § Prompt rendering`). Cap open decisions at three. It is **not** a permission grant. `reference/style.md § User-prompt convention (AskUserQuestion)`.
-- **Per-project hooks** live at `<project_root>/.perry/hook.md`; hook blocks go in the *children's* SKILL.md files, so this router stays project-agnostic. `reference/style.md § Per-project hooks (optional)`
+- **Per-project hooks** live only in the project's `.perry/hook.md`; root and lanes read them. Never add project-specific blocks to shipped SKILL.md files. `reference/style.md § Per-project hooks (optional)`
 - **Auto-update** is step 0: `reference/style.md § Auto-update`.
 
 ## See also

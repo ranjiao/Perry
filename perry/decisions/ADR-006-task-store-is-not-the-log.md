@@ -1,10 +1,10 @@
 # ADR-006 — The task store is not the event log
 
-> Status: active
+> Status: superseded
 > Type: Design
 > Date: 2026-08-18
 > Deciders: Ran Jiao
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: ADR-026
 > Sunset: —
 
 ## Context

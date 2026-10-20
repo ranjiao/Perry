@@ -1,0 +1,1 @@
+Retire the finite remaining legacy source/check surface under the actual user-approved 423 exact drops and R0096 Context/Loads grammar narrowing. Keep May touch/Must escalate safety and all retained generic kernel guards. Preserve the source audit as a proposal inventory, separate from actual approval records and final H/V5 acceptance.

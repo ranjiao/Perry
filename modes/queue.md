@@ -22,6 +22,5 @@ next action. A warning does not authorize dropping requests or changing promises
 
 Verification follows the actual consequence and written criterion, with
 independent review/human signoff where required. Follow
-`reference/operating-rules.md`; ordinary legacy mode/SLA regex checks are proposed
-retirements, never fabricated current passes. Retain outstanding obligations in
+`reference/operating-rules.md`; legacy mode/SLA regex checks are retired, never fabricated current passes. Retain outstanding obligations in
 the handoff and follow `reference/next.md` after writes.

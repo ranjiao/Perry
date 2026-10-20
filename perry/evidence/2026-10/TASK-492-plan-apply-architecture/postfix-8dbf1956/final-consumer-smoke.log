@@ -1,0 +1,2 @@
+{"name":"Perry","seq":1850,"work":490,"goals":{"objectives":8,"krs":26,"stretch":3},"phase":{"id":"PH-004","name":"004-guided","status":"phase_active","started":"2026-09-15","day":null,"kr_total":12,"cost_ceiling":""},"decisions":27,"unlinked":103,"version":"v4: 2026-09-15"}
+{"name":"SkyTonight","seq":264,"work":32,"goals":{"objectives":4,"krs":12,"stretch":0},"phase":{"id":"PH-003","name":"003-experience-polish","status":"phase_active","started":"2026-09-21","day":null,"kr_total":6,"cost_ceiling":""},"decisions":0,"unlinked":0,"version":"v1: 2026-09-16"}

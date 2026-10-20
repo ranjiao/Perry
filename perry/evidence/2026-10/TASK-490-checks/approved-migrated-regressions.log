@@ -1,0 +1,159 @@
+
+✗ test_a_write_refuses_where_nothing_is_installed.py — 16 of 10 test(s) failed
+  ! unittest counted 16 failed test(s) and the id parser named 5 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestAWriteInAnUndeclaredGroup.test_the_write_lands_in_the_tasks_own_section
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_a_pre_adr_019_project_is_told_to_write_the_config_store_first
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_dry_run_gets_the_same_refusal
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_reviewers_reproduction_run_from_the_directory
+    FAIL   test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_table_covers_every_declared_write
+  … 147 earlier line(s) elided of 172; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 213, in test_dry_run_gets_the_same_refusal
+    self.assertGreaterEqual(checked, 27 * len(SHAPES))
+AssertionError: 39 not greater than or equal to 81
+
+======================================================================
+FAIL: test_the_reviewers_reproduction_run_from_the_directory (test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_reviewers_reproduction_run_from_the_directory)
+F1 as filed: no `--root`, from inside the copy, `PERRY_PROJECT` unset.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 235, in test_the_reviewers_reproduction_run_from_the_directory
+    self.assertIn(GATE, out.stderr)
+AssertionError: 'is not an installed Perry project' not found in 'perry-task ask is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_the_table_covers_every_declared_write (test_a_write_refuses_where_nothing_is_installed.TestEveryWriteRefusesWhereNothingIsInstalled.test_the_table_covers_every_declared_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_a_write_refuses_where_nothing_is_installed.py", line 180, in test_the_table_covers_every_declared_write
+    self.assertGreaterEqual(len([k for k in self.table
+AssertionError: 0 not greater than or equal to 27
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.276s
+
+FAILED (failures=16)
+
+✗ test_host_support.py — 1 of 35 test(s) failed
+    FAIL   test_host_support.TestOpenCodeDispatchLimit.test_concurrent_registers_do_not_exceed_opencode_cap
+  … 35 earlier line(s) elided of 60; the last 25 follow — re-run this module alone for all of it
+test_a_marker_older_than_any_measured_cycle_is_flagged_before_reaping (test_host_support.TestTheMarkerOutlivesARealCycle.test_a_marker_older_than_any_measured_cycle_is_flagged_before_reaping)
+The cost of the higher TTL, made visible. A crashed agent now holds ... ok
+test_a_reap_is_announced_and_names_the_slot_it_took (test_host_support.TestTheMarkerOutlivesARealCycle.test_a_reap_is_announced_and_names_the_slot_it_took)
+Item 3. The defect ran for hours because nothing said anything, so ... ok
+test_every_counting_path_announces_a_reap_not_just_list (test_host_support.TestTheMarkerOutlivesARealCycle.test_every_counting_path_announces_a_reap_not_just_list)
+`register` and `check` clean before counting too, and `register` is ... ok
+test_the_default_is_the_top_of_the_window_the_measurements_left (test_host_support.TestTheMarkerOutlivesARealCycle.test_the_default_is_the_top_of_the_window_the_measurements_left)
+The number is derived, not chosen, and the derivation is checked ... ok
+test_the_old_one_hour_ttl_is_what_reaped_it (test_host_support.TestTheMarkerOutlivesARealCycle.test_the_old_one_hour_ttl_is_what_reaped_it)
+The failure itself, pinned to the number rather than to the code, so ... ok
+
+======================================================================
+FAIL: test_concurrent_registers_do_not_exceed_opencode_cap (test_host_support.TestOpenCodeDispatchLimit.test_concurrent_registers_do_not_exceed_opencode_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_host_support.py", line 267, in test_concurrent_registers_do_not_exceed_opencode_cap
+    self.assert_cap_held(home, results, cap=2)
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_host_support.py", line 211, in assert_cap_held
+    self.assertEqual(
+AssertionError: 3 != 2 : the cap is what must decide a contended round: of the contenders that reached the cap check, exactly min(cap, decided) may win; cap=2 won=3 refused-by-cap=15 never-reached-the-cap-check=2
+
+----------------------------------------------------------------------
+Ran 35 tests in 19.172s
+
+FAILED (failures=1)
+
+✗ test_risks_store.py — 1 of 45 test(s) failed
+    FAIL   test_risks_store.TestTheReadersAreOneFunction.test_clearing_a_risk_a_human_retired_is_refused
+  … 62 earlier line(s) elided of 87; the last 25 follow — re-run this module alone for all of it
+**Stated in `cmd_risks_write` and tested here.** `risk-add` / ... ok
+test_the_import_is_idempotent (test_risks_store.TestTheOneWayImport.test_the_import_is_idempotent)
+Two runs, the same bytes. `RISK_STORED` fixes the key order for ... ok
+test_the_import_writes_a_record_per_register_row (test_risks_store.TestTheOneWayImport.test_the_import_writes_a_record_per_register_row) ... ok
+test_clearing_a_risk_a_human_retired_is_refused (test_risks_store.TestTheReadersAreOneFunction.test_clearing_a_risk_a_human_retired_is_refused)
+The concrete cost of the fourth copy. `cmd_risk_clear` knew three ... FAIL
+test_the_bullet_and_placeholder_rules_are_one_object (test_risks_store.TestTheReadersAreOneFunction.test_the_bullet_and_placeholder_rules_are_one_object) ... ok
+test_the_columns_are_one_list (test_risks_store.TestTheReadersAreOneFunction.test_the_columns_are_one_list) ... ok
+test_the_register_header_predicate_is_one_object (test_risks_store.TestTheReadersAreOneFunction.test_the_register_header_predicate_is_one_object) ... ok
+test_the_writer_asks_the_store_which_table_is_the_register (test_risks_store.TestTheReadersAreOneFunction.test_the_writer_asks_the_store_which_table_is_the_register)
+`bin/perry-task § risk_section_shape` used to scan the section ... ok
+
+======================================================================
+FAIL: test_clearing_a_risk_a_human_retired_is_refused (test_risks_store.TestTheReadersAreOneFunction.test_clearing_a_risk_a_human_retired_is_refused)
+The concrete cost of the fourth copy. `cmd_risk_clear` knew three
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_risks_store.py", line 332, in test_clearing_a_risk_a_human_retired_is_refused
+    self.assertIn("already cleared", json.dumps(out))
+AssertionError: 'already cleared' not found in '{"refused": "perry-task risk-clear is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}'
+
+----------------------------------------------------------------------
+Ran 45 tests in 3.207s
+
+FAILED (failures=1)
+
+✗ test_router_budget.py — 2 of 9 test(s) failed
+    FAIL   test_router_budget.TestByteBudget.test_every_budgeted_file_is_within_its_cap
+    FAIL   test_router_budget.TestSectionCitationsResolve.test_every_section_citation_names_a_section_that_exists
+  … 28 earlier line(s) elided of 53; the last 25 follow — re-run this module alone for all of it
+
+======================================================================
+FAIL: test_every_section_citation_names_a_section_that_exists (test_router_budget.TestSectionCitationsResolve.test_every_section_citation_names_a_section_that_exists)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_router_budget.py", line 295, in test_every_section_citation_names_a_section_that_exists
+    self.assertEqual(
+AssertionError: Lists differ: ['work/reference/dispatch-preflight.md:140[181 chars]iew'] != []
+
+First list contains 3 additional elements.
+First extra element 0:
+'work/reference/dispatch-preflight.md:140 → dispatch.md § Architecture review'
+
++ []
+- ['work/reference/dispatch-preflight.md:140 → dispatch.md § Architecture review',
+-  'work/reference/dispatch-preflight.md:151 → dispatch.md § Architecture review',
+-  'work/reference/review.md:550 → dispatch.md § Architecture review'] : a citation names a section that does not exist. Either the heading was renamed or removed and the citation was not updated, or the citation names the wrong file:
+    work/reference/dispatch-preflight.md:140 → dispatch.md § Architecture review
+    work/reference/dispatch-preflight.md:151 → dispatch.md § Architecture review
+    work/reference/review.md:550 → dispatch.md § Architecture review
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.296s
+
+FAILED (failures=2)
+
+✗ test_shipped_vocabulary.py — 2 of 53 test(s) failed
+  ! unittest counted 2 failed test(s) and the id parser named 1 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_shipped_vocabulary.TestEveryCommandTheReadmeShowsExists.test_neither_readme_shows_a_command_that_does_not_exist
+  … 98 earlier line(s) elided of 123; the last 25 follow — re-run this module alone for all of it
+
+- ['`work incident` — the `work` lane declares no `incident`']
++ [] : README.md advertises commands the lanes do not declare:
+    `work incident` — the `work` lane declares no `incident`
+
+======================================================================
+FAIL: test_neither_readme_shows_a_command_that_does_not_exist (test_shipped_vocabulary.TestEveryCommandTheReadmeShowsExists.test_neither_readme_shows_a_command_that_does_not_exist) (doc='README_cn.md')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_shipped_vocabulary.py", line 1083, in test_neither_readme_shows_a_command_that_does_not_exist
+    self.assertEqual(
+AssertionError: Lists differ: ['`work incident` — the `work` lane declares no `incident`'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'`work incident` — the `work` lane declares no `incident`'
+
+- ['`work incident` — the `work` lane declares no `incident`']
++ [] : README_cn.md advertises commands the lanes do not declare:
+    `work incident` — the `work` lane declares no `incident`
+
+----------------------------------------------------------------------
+Ran 53 tests in 3.979s
+
+FAILED (failures=2)
+
+29 modules · 691 tests · 53.5s · 4 workers
+
+durations: 166 recorded · 166 on disk · 165 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+✗ 5 of 29 MODULE(S) red
+✗ 22 of 691 TEST(S) failed

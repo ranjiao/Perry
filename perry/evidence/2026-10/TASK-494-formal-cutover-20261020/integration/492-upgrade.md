@@ -1,0 +1,1 @@
+Before live use, back up each actual native store and source documents, validate a fresh reviewed plan and source hashes, then perform the documented additive native CLI migration. Do not replace a populated store or seed fabricated history. Preserve frozen legacy material. Integrate required consumers with the source switch; the release itself performs no live migration.

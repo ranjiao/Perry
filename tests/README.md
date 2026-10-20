@@ -1,4 +1,4 @@
-# Candidate acceptance suite
+# Native and helper acceptance suite
 
 `bash tests/run` runs the complete **new** source suite: the entire native
 `kernel/tests/run.py` suite and every `tests/test_*.py` helper test. The kernel
@@ -9,8 +9,7 @@ No dependencies, network services or project activation are needed.
 
 This is not a passing result for the removed legacy full/slow corpus. The
 immutable-base inventory is [test-disposition.json](test-disposition.json).
-Each source path has its original SHA and proposed disposition. These are
-source-retirement proposals; none records user approval. Safety checks now
+Each source path has its original SHA and proposed disposition. These preserve historical source-retirement proposals; actual user approval and final V5 are separate dated cutover records. Safety checks now
 combine native structural guards, explicit skill procedures and the red
 fixtures in `test_document_checks.py`. A lexical document check cannot decide
 whether evidence is true or whether a human actually approved an operation.

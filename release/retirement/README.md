@@ -1,3 +1,11 @@
+> Historical source-stage inventory. The proposal labels and original pending
+> statements below are retained for provenance, not as a current blocker list.
+> Actual user approvals and final local activation/V5 acceptance are recorded in
+> `perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
+> Current source layout is documented in the root README. Archived F preparation
+> inputs live in [pre-cutover-notes/](pre-cutover-notes/); the removed viewer is
+> documented in [viewer.md](viewer.md). Inventory JSON/TSV bytes remain unchanged.
+
 # DESIGN-023 H retirement candidate
 
 This is a finite source proposal at immutable base

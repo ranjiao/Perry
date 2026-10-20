@@ -22,7 +22,7 @@ native state is in the shared kernel store; narratives remain under `perry/`.
    is non-empty, ask; never resume automatically. Native query failure is a
    setup/migration condition, never an empty board or legacy fallback.
 4. Use `bin/perry query` for task counts/status and `bin/perry events` for
-   history. Read `work/reference/kernel.md`; never infer state from historical files.
+   history. Read `reference/kernel.md`; never infer state from historical files.
 5. Read only the current phase and the selected task's spec, evidence, and
    relevant locked design. Do not preload all designs, ADRs, or journal files.
 
@@ -56,6 +56,6 @@ native state is in the shared kernel store; narratives remain under `perry/`.
   authority. Never merge your own implementation.
 - Before starting a Perry phase or integrating product work, read [release rules](release/README.md).
 - Green on your own base is not green merged — `tests/merge-check --help`.
-- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `python3 tools/context_budget.py`. That file goes under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"` — derived, never a shared directory you namespace inside; five clobbers in two days, one across two sessions. `work/reference/dispatch.md § Where the agent puts a scratch file`.
+- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `python3 tools/context_budget.py`. Derive the project bucket under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"`, then allocate one unique external run directory with `mktemp -d` and retain its exact path; basename alone is not unique. `work/reference/dispatch.md § Where the agent puts a scratch file`.
 
 Keep this startup protocol under roughly 60 lines; do not duplicate skill or state records.

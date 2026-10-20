@@ -4,6 +4,10 @@
 > DESIGN-003 § 5.6, § 4 decision 7. Bundled with Perry and active by default —
 > nothing about the out-of-the-box experience changes for an existing user.
 
+For new-project combinations, see `reference/new-projects.md`. This pack is
+Agent guidance: it neither copies `templates/scaffolds/software/` nor applies
+`templates/process/perry.json`. Selection follows `reference/config.md`.
+
 A **pack** supplies a domain's defaults, never its content: mode defaults, stage
 vocabulary, artifact templates, acceptance rubrics, the high-stakes list, and a
 display glossary. Perry supplies the office; a pack supplies the practice.
@@ -14,6 +18,7 @@ display glossary. Perry supplies the office; a pack supplies the practice.
 |---|---|
 | **Default mode** | `project` |
 | **Applies when** | The track produces software — a codebase, a service, an installed tool |
+| **Artifact templates** | `templates/` within this pack; architecture, runbooks and incidents; selected lazily |
 | **Procedures** | `architecture.md`, `runbooks.md`, `incidents.md`, opt-in `releases.md` |
 | **Subcommands** | `architecture init / review / diff`, `architecture-audit`, `runbook-check`, `incident <slug> / close / list / archive` |
 | **State it introduces** | `ARCHITECTURE.md`, `architecture/audit-history/`, `runbook/`, `incidents/` — all lazily created, none claimed unless used |

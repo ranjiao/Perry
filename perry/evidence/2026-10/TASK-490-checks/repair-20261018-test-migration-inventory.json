@@ -1,0 +1,1250 @@
+{
+  "commit": "da04f3f71ad29de5f12d4999a22a400ad9c2d178",
+  "base": "e890317f",
+  "scope": "Declared AST test methods only; full runner counts also include inherited/dynamic tests and subtests. Renamed tests appear as remove/add. This inventory is a review aid, not behavioral acceptance.",
+  "deleted_test_modules": [],
+  "modules": [
+    {
+      "path": "kernel/tests/test_input_classes.py",
+      "before_declared_tests": 19,
+      "after_declared_tests": 19,
+      "removed_test_names": [
+        "TestOtherChannels.test_a_working_directory_that_is_gone"
+      ],
+      "added_test_names": [
+        "TestOtherChannels.test_cli_handles_a_directory_removed_after_interpreter_start"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_actor_required.py",
+      "before_declared_tests": 18,
+      "after_declared_tests": 16,
+      "removed_test_names": [
+        "TestAWriteRecordsItsActor.test_the_event_carries_the_actor_given",
+        "TestEveryWriterRefusesWithoutAnOwner.test_each_writer_refuses_absent_empty_and_blank",
+        "TestEveryWriterRefusesWithoutAnOwner.test_the_same_argv_writes_once_the_actor_is_given",
+        "TestTheLinkageRecordHasNoDefault.test_a_nonblank_actor_is_recorded_without_rewriting_it",
+        "TestTheLinkageRecordHasNoDefault.test_add_kr_records_the_actor_given",
+        "TestTheLinkageRecordHasNoDefault.test_an_event_with_no_actor_is_refused_not_defaulted",
+        "TestTheWritingSetIsDeclared.test_every_writer_accepts_the_flag_it_requires"
+      ],
+      "added_test_names": [
+        "TestNativeWritesRequireAnOwner.test_actor_is_recorded_with_its_session_on_create_and_move",
+        "TestNativeWritesRequireAnOwner.test_actor_never_reopens_a_retired_command",
+        "TestNativeWritesRequireAnOwner.test_create_refuses_absent_empty_blank_and_sessionless_actors",
+        "TestTheLegacyLinkageHelperHasNoDefault.test_an_event_with_no_actor_is_refused_not_defaulted",
+        "TestTheWritingSetIsDeclared.test_the_frozen_surface_has_no_actor_required_writer"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_add_declares_unlinked.py",
+      "before_declared_tests": 29,
+      "after_declared_tests": 5,
+      "removed_test_names": [
+        "TestAStoreLessProjectRefusesTheDeclaration.test_a_kr_on_a_store_less_project_is_still_accepted",
+        "TestAStoreLessProjectRefusesTheDeclaration.test_the_control_the_same_fixture_can_file_a_row",
+        "TestAStoreLessProjectRefusesTheDeclaration.test_the_declaration_is_refused_when_there_is_no_store",
+        "TestAStoreLessProjectRefusesTheDeclaration.test_the_refusal_creates_no_store",
+        "TestSilenceIsStillNeverAsked.test_a_row_with_neither_flag_is_refused",
+        "TestSilenceIsStillNeverAsked.test_rows_already_filed_are_not_retroactively_declared",
+        "TestSilenceIsStillNeverAsked.test_silence_writes_no_linkage_record_at_all",
+        "TestSilenceIsStillNeverAsked.test_with_no_register_silence_still_files_and_warns",
+        "TestTheContradictionIsRefused.test_a_blank_kr_alone_is_still_refused_for_its_own_reason",
+        "TestTheContradictionIsRefused.test_both_flags_together_are_refused",
+        "TestTheContradictionIsRefused.test_it_is_refused_on_presence_not_on_value",
+        "TestTheContradictionIsRefused.test_the_refusal_says_the_declaration_cannot_be_withdrawn",
+        "TestTheDeclarationIsNotASecondTransaction.test_a_crash_before_the_marker_lands_writes_nothing",
+        "TestTheDeclarationIsNotASecondTransaction.test_after_the_canonical_set_lands_the_declaration_has_its_row",
+        "TestTheDeclarationIsNotASecondTransaction.test_the_declaration_never_survives_without_its_row",
+        "TestTheDeclarationIsNotASecondTransaction.test_the_marker_does_not_outlive_recovery",
+        "TestTheOneSequence.test_a_declared_row_does_not_warn_that_it_reads_never_asked",
+        "TestTheOneSequence.test_no_edge_record_is_written_for_a_declared_row",
+        "TestTheOneSequence.test_the_add_event_carries_kr_null_and_no_declaration",
+        "TestTheOneSequence.test_the_declared_row_counts_as_answered_and_the_kr_rises",
+        "TestTheOneSequence.test_the_journal_tells_the_three_states_apart",
+        "TestTheOneSequence.test_the_record_carries_the_declaring_actor",
+        "TestTheOneSequence.test_the_record_is_the_shape_the_reader_already_read",
+        "TestTheOneSequence.test_the_success_line_names_the_store_it_wrote",
+        "TestUnlinkedBelongsToAddAlone.test_it_is_refused_on_another_subcommand",
+        "TestUnlinkedBelongsToAddAlone.test_the_control_the_same_subcommand_works_without_it"
+      ],
+      "added_test_names": [
+        "TestRetiredUnlinkedDeclarations.test_every_answer_shape_refuses_without_goal_or_task_changes",
+        "TestRetiredUnlinkedDeclarations.test_the_goals_lane_still_owns_an_explicit_unlinked_declaration"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_add_refuses_without_an_answer.py",
+      "before_declared_tests": 48,
+      "after_declared_tests": 3,
+      "removed_test_names": [
+        "TestAStoreLessProjectStillFiles.test_add_still_works_with_no_register",
+        "TestAStoreLessProjectStillFiles.test_it_still_warns",
+        "TestAStoreLessProjectStillFiles.test_the_warning_does_not_advise_a_command_that_refuses",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_an_answered_row_still_files",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_an_unparseable_register_is_refused",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_it_does_not_claim_the_between_phases_window",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_it_says_what_is_actually_wrong_and_who_diagnoses_it",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_nothing_was_written",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_the_gap_and_the_unreadable_store_are_told_apart",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_unlinked_between_phases_keeps_its_own_sentence",
+        "TestAnUnreadableRegisterIsItsOwnAnswer.test_unlinked_on_an_unreadable_register_says_it_could_not_be_read",
+        "TestBothRemediesStillWork.test_kr_is_accepted_and_counted",
+        "TestBothRemediesStillWork.test_unlinked_is_accepted_and_counted",
+        "TestNothingWasWritten.test_no_add_event_was_appended",
+        "TestNothingWasWritten.test_no_id_was_burned",
+        "TestNothingWasWritten.test_no_row_was_filed",
+        "TestTheBlankRefusalIsReconciled.test_blank_kr_is_still_refused",
+        "TestTheBlankRefusalIsReconciled.test_it_names_the_empty_variable_hazard",
+        "TestTheBlankRefusalIsReconciled.test_it_no_longer_advises_omitting_the_flag",
+        "TestTheBlankRefusalIsReconciled.test_it_points_at_the_flag_on_this_command",
+        "TestTheContradictionIsUntouched.test_both_flags_still_refused",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_a_blank_pointer_is_not_read_as_a_phase",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_a_fabricated_kr_is_still_accepted_in_the_gap",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_a_store_less_project_still_says_the_store_is_missing",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_every_window_spelling_files_the_row_with_a_warning",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_every_window_spelling_is_really_what_it_says",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_in_every_window_spelling_the_row_files_while_unlinked_is_refused",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_in_the_window_the_honest_answer_is_refused_and_the_row_still_files",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_gap_files_the_row_instead_of_refusing",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_gap_still_warns",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_gate_still_refuses_where_the_register_answers",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_honest_answer_is_not_refused_while_the_row_is_filed",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_phase_match_is_load_bearing",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_warning_does_not_claim_the_store_is_missing",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_window_files_the_row_with_a_warning",
+        "TestTheGateKeysOffThePhaseNotTheFile.test_the_window_fixture_really_is_blank",
+        "TestTheRefusalDoesNotSilentlyDeclare.test_omission_does_not_enter_the_population",
+        "TestTheRefusalDoesNotSilentlyDeclare.test_omission_is_not_a_declaration",
+        "TestTheRefusalIsDeliberatelyTrackIndependent.test_a_non_main_track_is_refused_too",
+        "TestTheRefusalIsDeliberatelyTrackIndependent.test_the_control_exits_zero_on_the_same_track",
+        "TestTheRefusalIsDeliberatelyTrackIndependent.test_the_metric_is_unmoved_either_way_which_is_the_cost",
+        "TestTheRefusalIsNotVacuous.test_neither_flag_is_refused",
+        "TestTheRefusalIsNotVacuous.test_the_refusal_is_about_the_kr_question",
+        "TestTheRefusalIsNotVacuous.test_the_refusal_names_which_one_means_serves_no_kr",
+        "TestTheRefusalMakesNoVisibilityClaim.test_the_friction_it_keeps_is_the_true_one",
+        "TestTheRefusalMakesNoVisibilityClaim.test_the_lane_page_makes_no_visibility_claim_either",
+        "TestTheRefusalMakesNoVisibilityClaim.test_the_message_claims_no_standing_visibility",
+        "TestTheRefusalMakesNoVisibilityClaim.test_the_named_reader_is_phase_scoped"
+      ],
+      "added_test_names": [
+        "TestRetiredAddPrecedesGoalValidation.test_native_create_needs_its_written_fields_and_does_not_burn_an_id",
+        "TestRetiredAddPrecedesGoalValidation.test_store_absence_phase_windows_and_corruption_do_not_reopen_add",
+        "TestRetiredAddPrecedesGoalValidation.test_unknown_linkage_stays_unknown_and_the_procedure_hands_it_to_goals"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_add_writes_the_edge.py",
+      "before_declared_tests": 25,
+      "after_declared_tests": 9,
+      "removed_test_names": [
+        "TestAProjectWithNoStore.test_add_kr_does_not_create_the_store",
+        "TestAProjectWithNoStore.test_the_event_still_records_the_answer",
+        "TestAProjectWithNoStore.test_the_row_files_and_the_answer_is_not_silently_dropped",
+        "TestRouteAndIntakeInheritNeverAsked.test_intake_then_route_writes_no_linkage_record",
+        "TestRouteAndIntakeInheritNeverAsked.test_route_leaves_the_row_never_asked",
+        "TestTheEdgeIsNotASecondTransaction.test_a_crash_before_any_rename_writes_no_edge",
+        "TestTheEdgeIsNotASecondTransaction.test_the_edge_never_survives_without_its_row",
+        "TestTheEdgeIsNotASecondTransaction.test_the_marker_does_not_outlive_recovery",
+        "TestTheOneSequence.test_the_add_event_carries_the_kr",
+        "TestTheOneSequence.test_the_edge_record_is_written_once_and_says_via_add",
+        "TestTheOneSequence.test_the_new_row_reports_linked",
+        "TestTheOneSequence.test_the_success_line_names_the_store_it_wrote",
+        "TestWithoutAKr.test_it_warns_on_stderr",
+        "TestWithoutAKr.test_no_record_of_any_kind_is_written",
+        "TestWithoutAKr.test_the_event_carries_kr_null_not_a_missing_key",
+        "TestWithoutAKr.test_the_row_is_created_and_not_refused",
+        "TestWithoutAKr.test_the_row_reports_never_asked_and_not_declared_unlinked",
+        "TestWithoutAKr.test_there_is_no_never_asked_kind"
+      ],
+      "added_test_names": [
+        "TestNativeCreateDoesNotWriteGoalRegisters.test_create_and_attach_leave_linkage_and_legacy_history_unchanged",
+        "TestNativeCreateDoesNotWriteGoalRegisters.test_kr_is_not_a_native_field_or_an_implicit_linkage_declaration"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_ask_is_a_node.py",
+      "before_declared_tests": 20,
+      "after_declared_tests": 20,
+      "removed_test_names": [
+        "TestTheLiveShapeStopsBeingAFinding.test_the_writer_still_accepts_the_shape_it_documents"
+      ],
+      "added_test_names": [
+        "TestTheLiveShapeStopsBeingAFinding.test_native_ask_blocks_until_answered_and_relation_remains"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_bin_argument_contract.py",
+      "before_declared_tests": 58,
+      "after_declared_tests": 56,
+      "removed_test_names": [
+        "TestAddWritesTheDesignEdge.test_a_design_with_no_document_is_refused",
+        "TestAddWritesTheDesignEdge.test_a_row_opened_without_the_flag_keeps_its_shape",
+        "TestAddWritesTheDesignEdge.test_the_edge_lands_in_the_store"
+      ],
+      "added_test_names": [
+        "TestRetiredDesignFlags.test_design_flags_never_reopen_add_or_write_an_implicit_edge"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_board_less_reads_and_writes.py",
+      "before_declared_tests": 30,
+      "after_declared_tests": 27,
+      "removed_test_names": [
+        "TestEveryWriteLandsWithNoBoard.test_a_write_is_the_same_with_and_without_the_file",
+        "TestEveryWriteLandsWithNoBoard.test_each_write_lands_its_record_event_and_journal_line",
+        "TestEveryWriteLandsWithNoBoard.test_the_write_table_covers_every_declared_write",
+        "TestTheRetiredBoardHintStaysOffTheJsonChannel.test_a_json_write_with_a_held_board_prints_nothing_on_stderr",
+        "TestTheRetiredBoardHintStaysOffTheJsonChannel.test_the_hint_says_import_before_delete",
+        "TestTheRetiredBoardHintStaysOffTheJsonChannel.test_the_same_write_without_json_names_the_file"
+      ],
+      "added_test_names": [
+        "TestRetiredWritesNeedNoBoardAndWriteNothing.test_held_board_hint_still_explains_safe_import_before_delete",
+        "TestRetiredWritesNeedNoBoardAndWriteNothing.test_historical_write_vectors_refuse_with_or_without_a_held_board",
+        "TestRetiredWritesNeedNoBoardAndWriteNothing.test_write_table_and_retired_surface_cover_the_same_commands"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_cadence.py",
+      "before_declared_tests": 54,
+      "after_declared_tests": 33,
+      "removed_test_names": [
+        "TestCadenceAdd.test_a_registration_is_not_a_run",
+        "TestCadenceAdd.test_an_aperiodic_frequency_is_recorded_with_no_due_date",
+        "TestCadenceAdd.test_an_id_is_never_reissued_after_its_row_is_removed",
+        "TestCadenceAdd.test_ids_are_minted_above_a_boards_existing_cadence_numbering",
+        "TestCadenceAdd.test_it_mints_stamps_and_writes_all_three",
+        "TestCadenceAdd.test_it_refuses_a_frequency_it_cannot_schedule_from",
+        "TestCadenceAdd.test_it_refuses_without_a_title_or_a_frequency",
+        "TestCadenceAdd.test_next_due_is_computed_from_the_frequency_not_from_today",
+        "TestCadenceAdd.test_on_backdates_the_history_and_the_due_date_follows",
+        "TestCadenceAdd.test_the_section_is_created_after_the_priority_tables",
+        "TestCadenceDone.test_a_sub_grouped_register_is_written_the_way_it_is_read",
+        "TestCadenceDone.test_frequency_can_be_corrected_in_the_same_write",
+        "TestCadenceDone.test_it_recomputes_next_due_from_the_rows_own_frequency",
+        "TestCadenceDone.test_it_records_the_run_and_the_evidence",
+        "TestCadenceDone.test_it_refuses_a_row_whose_frequency_it_cannot_read",
+        "TestCadenceDone.test_it_refuses_an_id_that_is_not_in_the_register",
+        "TestCadenceDone.test_it_refuses_without_evidence",
+        "TestCadenceDone.test_it_writes_the_board_the_journal_and_the_event",
+        "TestCadenceDone.test_the_run_defaults_to_today",
+        "TestOverdueReport.test_a_done_run_clears_the_overdue_finding",
+        "TestOverdueReport.test_a_periodic_row_with_an_unreadable_due_cell_is_a_finding",
+        "TestOverdueReport.test_a_row_due_today_is_not_yet_overdue",
+        "TestOverdueReport.test_an_aperiodic_row_is_never_overdue_and_is_not_a_finding",
+        "TestOverdueReport.test_an_unreadable_frequency_is_reported_rather_than_dropped",
+        "TestOverdueReport.test_an_unreadable_frequency_reaches_the_human_surface",
+        "TestOverdueReport.test_the_dashboard_line_appears_only_when_there_is_a_register"
+      ],
+      "added_test_names": [
+        "TestOverdueReport.test_dashboard_reports_a_register_only_when_it_exists",
+        "TestOverdueReport.test_fresh_historical_snapshot_clears_an_overdue_finding",
+        "TestOverdueReport.test_today_future_and_aperiodic_are_not_overdue",
+        "TestOverdueReport.test_unreadable_due_and_frequency_remain_distinct_findings",
+        "TestRetiredCadenceWrites.test_add_and_done_refuse_for_empty_imported_and_absent_sections"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_cadence_store.py",
+      "before_declared_tests": 32,
+      "after_declared_tests": 27,
+      "removed_test_names": [
+        "TestTheWritesLandInTheStore.test_a_hand_deletion_under_an_add_destroys_and_reports_nothing",
+        "TestTheWritesLandInTheStore.test_a_repeated_id_in_the_store_is_refused_by_its_lint_rule",
+        "TestTheWritesLandInTheStore.test_a_row_deleted_from_the_file_alone_is_not_a_retirement",
+        "TestTheWritesLandInTheStore.test_a_write_is_the_same_with_and_without_the_file",
+        "TestTheWritesLandInTheStore.test_add_lands_the_record_the_event_and_the_journal_with_no_board",
+        "TestTheWritesLandInTheStore.test_an_aperiodic_frequency_is_stored_as_given",
+        "TestTheWritesLandInTheStore.test_done_recomputes_the_due_date_and_leaves_every_other_cell_alone"
+      ],
+      "added_test_names": [
+        "TestRetiredCadenceWritesPreserveTheStore.test_add_done_and_schedule_refuse_without_mutating_any_file",
+        "TestRetiredCadenceWritesPreserveTheStore.test_duplicate_cadence_ids_are_still_diagnosed_by_the_linter"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_compact_payload.py",
+      "before_declared_tests": 34,
+      "after_declared_tests": 34,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_design_handoff.py",
+      "before_declared_tests": 25,
+      "after_declared_tests": 23,
+      "removed_test_names": [
+        "TestTheEdgeSurvivesTheNextWrite.test_a_row_that_has_already_closed_can_still_be_linked",
+        "TestTheEdgeSurvivesTheNextWrite.test_a_whole_store_rebuild_does_not_clear_the_edge",
+        "TestTheEdgeSurvivesTheNextWrite.test_an_unrelated_write_does_not_clear_the_edge",
+        "TestTheEdgeSurvivesTheNextWrite.test_closing_the_linked_row_does_not_clear_the_edge",
+        "TestTheEdgeSurvivesTheNextWrite.test_it_can_be_linked_with_the_event_log_deleted",
+        "TestTheEdgeSurvivesTheNextWrite.test_linking_does_not_move_the_record_in_the_store"
+      ],
+      "added_test_names": [
+        "TestLegacyDesignEdgeCarry.test_import_rebuild_preserves_the_archived_edge",
+        "TestLegacyDesignEdgeCarry.test_retired_design_link_leaves_archived_history_unchanged",
+        "TestNativeDesignAttachments.test_attachment_survives_updates_and_close_on_either_side_of_close",
+        "TestNativeDesignAttachments.test_unrelated_native_item_updates_do_not_change_an_attachment"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_duplicate_ids_are_refused.py",
+      "before_declared_tests": 27,
+      "after_declared_tests": 27,
+      "removed_test_names": [
+        "TestAControlBoardWritesExactlyAsBefore.test_a_clean_ask_board_still_writes",
+        "TestAControlBoardWritesExactlyAsBefore.test_a_clean_board_still_writes",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_a_board_carrying_such_a_line_still_writes",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_asks_asked_on_the_same_date_write_normally",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_risks_opened_on_the_same_day_write_normally",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_risks_with_the_same_status_and_prose_write_normally"
+      ],
+      "added_test_names": [
+        "TestAControlBoardWritesExactlyAsBefore.test_a_clean_ask_board_still_imports",
+        "TestAControlBoardWritesExactlyAsBefore.test_a_clean_board_still_imports",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_a_board_carrying_such_a_line_still_imports",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_asks_asked_on_the_same_date_import_normally",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_risks_opened_on_the_same_day_import_normally",
+        "TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_risks_with_the_same_status_and_prose_import_normally"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_empty_config_store.py",
+      "before_declared_tests": 16,
+      "after_declared_tests": 16,
+      "removed_test_names": [
+        "EmptyStoreWriters.test_perry_task_add_writes_on_an_empty_store"
+      ],
+      "added_test_names": [
+        "EmptyStoreWriters.test_perry_task_add_is_frozen_even_on_an_empty_store"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_goals_kr_revisions.py",
+      "before_declared_tests": 56,
+      "after_declared_tests": 56,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_handed_back_root.py",
+      "before_declared_tests": 26,
+      "after_declared_tests": 26,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_intake_store.py",
+      "before_declared_tests": 48,
+      "after_declared_tests": 48,
+      "removed_test_names": [
+        "TestTheCostOfNIsReportedRatherThanSilent.test_a_hand_deleted_row_no_longer_moves_n_for_a_write",
+        "TestTheCostOfNIsReportedRatherThanSilent.test_a_sweep_moves_n_and_the_store_is_what_says_so"
+      ],
+      "added_test_names": [
+        "TestTheCostOfNIsReportedRatherThanSilent.test_retired_resolve_keeps_stored_numbering_despite_a_hand_deleted_row",
+        "TestTheCostOfNIsReportedRatherThanSilent.test_retired_sweep_preserves_the_legacy_reader_numbering"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_knowledge_promotion.py",
+      "before_declared_tests": 38,
+      "after_declared_tests": 38,
+      "removed_test_names": [
+        "TestARealCloseProducesACard.test_a_closed_task_id_still_resolves_as_a_source",
+        "TestARealCloseProducesACard.test_close_then_promote_then_lint"
+      ],
+      "added_test_names": [
+        "TestAnArchivedCloseProducesACard.test_a_closed_task_id_still_resolves_as_a_source",
+        "TestAnArchivedCloseProducesACard.test_close_then_promote_then_lint"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_linkage_store_readers.py",
+      "before_declared_tests": 36,
+      "after_declared_tests": 36,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_one_heading_predicate.py",
+      "before_declared_tests": 5,
+      "after_declared_tests": 5,
+      "removed_test_names": [
+        "TestTheWriterDoesNotDuplicateTheSection.test_risk_add_on_a_bolded_heading_writes_into_the_existing_section",
+        "TestTheWriterDoesNotDuplicateTheSection.test_the_earlier_risks_are_still_addressable_afterwards"
+      ],
+      "added_test_names": [
+        "TestTheWriterDoesNotDuplicateTheSection.test_retired_clear_preserves_the_earlier_risk_identity",
+        "TestTheWriterDoesNotDuplicateTheSection.test_retired_risk_add_preserves_the_imported_bold_heading"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_one_line_break_rule.py",
+      "before_declared_tests": 18,
+      "after_declared_tests": 17,
+      "removed_test_names": [
+        "TestTheRefusalNamesTheFlag.test_the_fixture_row_is_reachable_before_the_refusal_is_asserted",
+        "TestTheRefusalNamesTheFlag.test_two_flags_do_not_produce_the_same_message"
+      ],
+      "added_test_names": [
+        "TestTheRefusalNamesTheFlag.test_frozen_writers_refuse_before_table_cell_validation"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_perry_task_writes_are_what_it_writes.py",
+      "before_declared_tests": 6,
+      "after_declared_tests": 3,
+      "removed_test_names": [
+        "TestEachWriteChangesWhatItDeclares.test_every_case_ran",
+        "TestEachWriteChangesWhatItDeclares.test_every_declared_write_is_measured",
+        "TestEachWriteChangesWhatItDeclares.test_writes_is_the_union_of_what_its_cases_changed",
+        "TestOneDeclaration.test_board_md_is_in_no_entry",
+        "TestOneDeclaration.test_every_mutating_subcommand_declares_and_no_read_does",
+        "TestOneDeclaration.test_register_events_and_writes_name_the_same_writers"
+      ],
+      "added_test_names": [
+        "TestTheFrozenSurfaceIsMeasured.test_actual_changed_files_match_the_empty_declaration",
+        "TestTheFrozenSurfaceIsMeasured.test_dormant_register_events_are_not_live_write_declarations",
+        "TestTheFrozenSurfaceIsMeasured.test_every_subcommand_declares_no_writes"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_prioritize.py",
+      "before_declared_tests": 31,
+      "after_declared_tests": 12,
+      "removed_test_names": [
+        "TestAClosedRowKeepsThePriorityItWasMovedTo.test_the_closed_row_reports_where_it_was_moved_to",
+        "TestAClosedRowKeepsThePriorityItWasMovedTo.test_the_field_never_disagrees_with_its_own_timeline",
+        "TestARungPassedAsTheCheckIsRefused.test_a_real_check_that_merely_mentions_a_rung_is_accepted",
+        "TestARungPassedAsTheCheckIsRefused.test_every_rung_token_is_refused_as_a_check",
+        "TestARungPassedAsTheCheckIsRefused.test_the_refusal_names_the_flag_that_would_have_worked",
+        "TestClosingWithoutStartingIsVisible.test_closing_a_started_row_says_nothing",
+        "TestClosingWithoutStartingIsVisible.test_closing_an_unstarted_row_says_so",
+        "TestClosingWithoutStartingIsVisible.test_it_warns_and_does_not_refuse",
+        "TestClosingWithoutStartingIsVisible.test_the_payload_carries_it_so_a_front_end_can_show_it",
+        "TestEveryEventSaysWhatItsPairMeans.test_the_docs_rebuttal_counts_what_the_map_holds",
+        "TestEveryEventSaysWhatItsPairMeans.test_the_stored_event_says_the_same_word_the_payload_does",
+        "TestItMoves.test_a_dry_run_writes_nothing",
+        "TestItMoves.test_every_other_cell_survives_the_move",
+        "TestItMoves.test_from_and_to_are_the_section_and_the_event_says_so",
+        "TestItMoves.test_it_emits_an_event_so_the_move_is_not_drift",
+        "TestItMoves.test_the_move_is_one_row_leaving_and_one_arriving",
+        "TestItMoves.test_the_row_moves_and_keeps_its_id",
+        "TestItRefuses.test_a_move_to_where_it_already_is_is_refused",
+        "TestItRefuses.test_a_refusal_writes_nothing",
+        "TestItRefuses.test_a_row_that_is_not_on_the_board_is_refused",
+        "TestItRefuses.test_an_unknown_priority_is_refused",
+        "TestItRefuses.test_naming_no_destination_is_refused",
+        "TestTheIndexIsCheckedBeforeAnythingIsDeleted.test_a_widener_that_inserts_is_refused_and_deletes_nothing",
+        "TestWideningReachesTheDestination.test_the_narrow_destination_gains_the_columns_and_no_cell_is_lost"
+      ],
+      "added_test_names": [
+        "TestLegacyPriorityRead.test_retired_prioritize_keeps_the_store_and_journal_unchanged",
+        "TestLegacyPriorityRead.test_store_priority_and_historical_event_field_still_agree",
+        "TestNativePriorityChange.test_invalid_priority_and_stale_write_do_not_change_priority",
+        "TestNativePriorityChange.test_priority_changes_alone_without_moving_state_relations_or_attachments",
+        "TestNativePriorityChange.test_terminal_priority_is_correctable_without_reopening"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_purge.py",
+      "before_declared_tests": 47,
+      "after_declared_tests": 14,
+      "removed_test_names": [
+        "TestABlankLineInTheLogIsTolerated.test_a_purge_still_lands_on_a_gapped_log",
+        "TestABlankLineInTheLogIsTolerated.test_a_write_still_lands_on_a_gapped_log",
+        "TestABlankLineInTheLogIsTolerated.test_the_log_is_never_rewritten_by_any_of_this",
+        "TestItIsReconstructible.test_the_event_carries_the_record_verbatim",
+        "TestItIsReconstructible.test_the_journal_says_the_record_was_removed",
+        "TestItIsReconstructible.test_the_store_can_be_rebuilt_from_the_log_alone",
+        "TestItRefusesALiveReference.test_a_cited_evidence_document_that_names_it_is_refused",
+        "TestItRefusesALiveReference.test_a_commitment_pointer_is_refused_and_named",
+        "TestItRefusesALiveReference.test_a_depends_on_edge_is_refused_and_named",
+        "TestItRefusesALiveReference.test_a_linkage_edge_that_names_it_is_refused",
+        "TestItRefusesALiveReference.test_a_next_action_that_cites_it_is_refused",
+        "TestItRefusesALiveReference.test_a_parent_pointer_is_refused_and_named",
+        "TestItRefusesALiveReference.test_an_agent_assignment_that_names_it_is_refused",
+        "TestItRefusesALiveReference.test_the_goals_store_linked_field_is_refused",
+        "TestItRemovesTheRecord.test_a_dry_run_writes_nothing",
+        "TestItRemovesTheRecord.test_it_leaves_the_list_payload",
+        "TestItRemovesTheRecord.test_no_other_record_is_touched",
+        "TestItRemovesTheRecord.test_order_is_not_renumbered",
+        "TestItRemovesTheRecord.test_the_board_is_not_disturbed",
+        "TestItRemovesTheRecord.test_the_record_leaves_the_store",
+        "TestRefusals.test_a_removal_with_no_reason_is_refused",
+        "TestRefusals.test_an_id_the_store_does_not_carry_is_refused",
+        "TestRefusals.test_an_open_row_is_refused_and_the_refusal_names_drop",
+        "TestTheContractShapeIsUnchanged.test_every_surviving_task_carries_the_same_keys",
+        "TestTheContractShapeIsUnchanged.test_the_contract_version_does_not_move",
+        "TestTheContractShapeIsUnchanged.test_the_page_says_a_record_can_leave_the_store",
+        "TestTheDerivationHonoursIt.test_a_closed_row_that_was_not_purged_still_survives_a_rebuild",
+        "TestTheDerivationHonoursIt.test_a_rebuild_from_the_board_does_not_resurrect_it",
+        "TestTheDerivationHonoursIt.test_it_produces_no_drift",
+        "TestTheDerivationHonoursIt.test_the_id_is_not_reissued",
+        "TestWhatIsNotALiveReference.test_a_cited_source_file_naming_it_does_not_refuse",
+        "TestWhatIsNotALiveReference.test_a_document_nothing_cites_does_not_refuse",
+        "TestWhatIsNotALiveReference.test_an_evidence_filename_that_starts_with_the_id_does_not_refuse",
+        "TestWhatIsNotALiveReference.test_the_boundary_is_a_hyphen_on_both_sides",
+        "TestWhatIsNotALiveReference.test_the_event_log_naming_it_does_not_refuse",
+        "TestWhatIsNotALiveReference.test_the_journal_naming_it_does_not_refuse",
+        "TestWhatIsNotALiveReference.test_the_purged_rows_own_fields_do_not_refuse"
+      ],
+      "added_test_names": [
+        "TestABlankLineInTheLogIsTolerated.test_retired_writes_preserve_every_gap_without_normalizing_history",
+        "TestArchivedPurgeRead.test_import_does_not_resurrect_an_archived_purged_id",
+        "TestNativeTerminalRetention.test_done_and_dropped_records_remain_queryable_and_never_free_their_ids",
+        "TestNativeTerminalRetention.test_retired_purge_preserves_open_terminal_unknown_and_referenced_ids"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_queue_sla.py",
+      "before_declared_tests": 32,
+      "after_declared_tests": 32,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_register_minters.py",
+      "before_declared_tests": 15,
+      "after_declared_tests": 5,
+      "removed_test_names": [
+        "TestANumberIsRetiredNotFreed.test_deleting_the_row_does_not_free_the_number",
+        "TestANumberIsRetiredNotFreed.test_it_survives_losing_the_event_log",
+        "TestANumberIsRetiredNotFreed.test_it_survives_losing_the_journal",
+        "TestANumberIsRetiredNotFreed.test_the_boundary_an_id_the_tool_never_minted",
+        "TestBothRiskCallSites.test_risk_add_continues_from_what_the_migration_allocated",
+        "TestBothRiskCallSites.test_risk_migrate_allocates_above_a_retired_number",
+        "TestEverySourceIsRead.test_a_family_does_not_count_another_familys_numbers",
+        "TestEverySourceIsRead.test_an_empty_project_starts_at_001",
+        "TestEverySourceIsRead.test_cadence_counts_the_long_spelling",
+        "TestEverySourceIsRead.test_state_root_markdown_outside_the_journal_is_not_read",
+        "TestEverySourceIsRead.test_the_board_is_the_canonical_half",
+        "TestEverySourceIsRead.test_the_event_log_is_read",
+        "TestEverySourceIsRead.test_the_journal_is_read",
+        "TestOneMechanism.test_a_null_id_in_the_log_is_survivable"
+      ],
+      "added_test_names": [
+        "TestNativeIdentityComesFromTheStore.test_each_native_family_has_its_own_monotone_sequence",
+        "TestNativeIdentityComesFromTheStore.test_legacy_prose_and_events_cannot_raise_a_native_id_counter",
+        "TestOneMechanism.test_a_null_id_is_tolerated_by_the_retained_legacy_minter",
+        "TestRetiredRiskCallSites.test_add_and_migrate_never_consume_a_legacy_id"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_register_store_invariant.py",
+      "before_declared_tests": 47,
+      "after_declared_tests": 23,
+      "removed_test_names": [
+        "TestAHandEditToAHeldBoardReachesNoStore.test_no_section_shape_on_a_held_board_changes_what_a_write_stores",
+        "TestAHandEditToAHeldBoardReachesNoStore.test_rows_tidied_off_a_held_board_do_not_move_n",
+        "TestExplicitRemovalStillWorks.test_intake_sweep_may_shrink_the_intake_store",
+        "TestExplicitRemovalStillWorks.test_purge_may_shrink_the_task_store",
+        "TestExplicitRemovalStillWorks.test_resolve_intake_is_not_blocked_and_does_not_in_fact_shrink",
+        "TestTheCarryForwardJoin.test_a_row_replaced_by_hand_does_not_hand_its_discharge_to_the_newcomer",
+        "TestTheExemptionIsBounded.test_intake_sweep_may_not_shrink_by_more_than_the_rows_it_swept",
+        "TestTheExemptionIsBounded.test_intake_sweep_may_shrink_by_exactly_the_rows_it_swept",
+        "TestTheExemptionIsBounded.test_purge_removes_the_one_record_it_names_and_leaves_the_other",
+        "TestTheExemptionIsBounded.test_resolve_intake_may_not_shrink_a_store_it_removes_nothing_from",
+        "TestTheFixturesAreTheShapeUnderTest.test_the_queue_track_reaches_cmd_adds_queue_branch",
+        "TestTheFourDoors.test_door_four_a_register_command_may_not_rebuild_its_section_from_one_row",
+        "TestTheFourDoors.test_door_one_a_row_tidied_off_the_board_by_hand_refuses_the_next_write",
+        "TestTheFourDoors.test_door_three_no_section_shape_on_any_register_may_empty_a_present_store",
+        "TestTheFourDoors.test_door_three_the_foreign_shape_is_refused_on_every_register",
+        "TestTheFourDoors.test_door_two_a_duplicate_request_tidied_out_refuses_rather_than_fabricating",
+        "TestTheOrdinaryWriteReachesItsStore.test_ask_and_risk_add_reach_their_stores_too",
+        "TestTheOrdinaryWriteReachesItsStore.test_intake_on_a_project_with_no_store_creates_it_and_holds_the_row",
+        "TestTheOrdinaryWriteReachesItsStore.test_the_lint_prints_a_drift_verdict_rather_than_unchecked",
+        "TestTheOrdinaryWriteReachesItsStore.test_the_success_line_names_the_register_store_only_when_one_is_written",
+        "TestTheReproduction.test_a_dry_run_previews_the_refusal_rather_than_the_write",
+        "TestTheReproduction.test_a_refused_register_write_writes_nothing_at_all",
+        "TestTheReproduction.test_an_ordinary_add_on_a_queue_track_cannot_empty_a_present_intake_store",
+        "TestTheReproduction.test_the_refusal_names_the_store_and_a_way_forward",
+        "TestTheStoreIsReadHonestly.test_a_corrupt_line_in_a_register_store_is_a_refusal_not_a_traceback"
+      ],
+      "added_test_names": [
+        "TestRetiredWritersCannotShrinkRegisters.test_every_register_keeps_its_canonical_bytes_after_a_held_row_is_deleted"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_register_substitution.py",
+      "before_declared_tests": 25,
+      "after_declared_tests": 12,
+      "removed_test_names": [
+        "TestResolveIntakeIsInsideItsBoundAndStillReports.test_resolve_intake_reports_the_records_the_swap_destroyed",
+        "TestTheCapIsOnTheOutputAndNeverOnTheCount.test_seven_losses_are_counted_seven_and_listed_five",
+        "TestTheIdentityIsAMultiset.test_one_of_a_duplicated_pair_deleted_by_hand_is_reported",
+        "TestTheInvariantIsStillACountRule.test_a_dry_run_previews_the_report_and_writes_nothing",
+        "TestTheInvariantIsStillACountRule.test_a_shrink_is_still_refused_on_the_same_board",
+        "TestTheInvariantIsStillACountRule.test_the_substitution_report_never_changes_the_exit_code",
+        "TestTheLocalizedBoardReportsTheSameWay.test_a_substitution_on_the_localized_queue_is_reported",
+        "TestTheLostRecordsAreRecoverable.test_a_clean_write_leaves_no_substituted_field_on_its_event",
+        "TestTheLostRecordsAreRecoverable.test_the_event_carries_the_whole_lost_record",
+        "TestTheLostRecordsAreRecoverable.test_the_json_payload_carries_the_report_for_a_caller_with_no_stream",
+        "TestTheLostRecordsAreRecoverable.test_the_named_way_back_is_a_subcommand_that_exists",
+        "TestTheReportIsSilentWhenNothingWasDestroyed.test_a_sweep_over_a_substitution_reports_only_the_excess",
+        "TestTheReportIsSilentWhenNothingWasDestroyed.test_an_intake_sweep_removes_records_and_is_not_a_finding",
+        "TestTheReportIsSilentWhenNothingWasDestroyed.test_no_ordinary_command_on_an_in_sync_board_reports_anything",
+        "TestTheSubstitutionIsReportedOnEveryRegister.test_an_ordinary_write_names_every_record_it_destroys",
+        "TestTheSubstitutionIsReportedOnEveryRegister.test_the_report_names_the_lost_records_themselves",
+        "TestTheSubstitutionIsReportedOnEveryRegister.test_the_report_names_the_register_and_the_way_back"
+      ],
+      "added_test_names": [
+        "TestRetainedSubstitutionUnits.test_identity_loss_is_computed_and_reported_without_performing_a_write",
+        "TestRetainedSubstitutionUnits.test_report_caps_display_but_not_the_loss_count",
+        "TestRetainedSubstitutionUnits.test_retired_commands_cannot_apply_a_count_preserving_substitution",
+        "TestTheLostRecordsAreRecoverable.test_frozen_json_refusal_preserves_every_substituted_record"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_retired_tolerance.py",
+      "before_declared_tests": 6,
+      "after_declared_tests": 6,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_risks.py",
+      "before_declared_tests": 75,
+      "after_declared_tests": 45,
+      "removed_test_names": [
+        "TestClearedRisksStopCounting.test_cleared_rows_stay_on_the_board",
+        "TestColumnsResolveByName.test_a_localized_board_migrates_and_the_next_risk_joins_the_register",
+        "TestConversionIsAskedForNotPerformed.test_a_second_risk_migrate_refuses_and_writes_nothing",
+        "TestConversionIsAskedForNotPerformed.test_an_empty_section_is_not_asked_about",
+        "TestConversionIsAskedForNotPerformed.test_dry_run_shows_every_row_and_writes_nothing",
+        "TestConversionIsAskedForNotPerformed.test_risk_add_leaves_a_held_bullet_section_as_the_user_wrote_it",
+        "TestConversionIsAskedForNotPerformed.test_risk_add_no_longer_reports_a_migration_it_did_not_do",
+        "TestConversionIsAskedForNotPerformed.test_risk_migrate_refuses_a_board_that_has_already_migrated",
+        "TestConversionIsAskedForNotPerformed.test_risk_migrate_refuses_when_there_is_nothing_to_convert",
+        "TestConversionIsAskedForNotPerformed.test_the_conversion_is_its_own_event_and_its_own_journal_line",
+        "TestConversionIsAskedForNotPerformed.test_the_frozen_list_contract_never_sees_a_migration",
+        "TestIdsAreMintedNotInvented.test_ids_are_not_reissued_after_a_risk_is_cleared",
+        "TestMigrationLosesNothing.test_a_placeholder_bullet_is_not_migrated_into_a_risk",
+        "TestMigrationLosesNothing.test_a_struck_through_bullet_carries_its_stated_date_across",
+        "TestMigrationLosesNothing.test_every_bullet_survives_verbatim",
+        "TestMigrationLosesNothing.test_migration_does_not_invent_an_opened_date",
+        "TestMigrationLosesNothing.test_migration_preserves_every_verdict",
+        "TestOneNormalizationForAHeaderCell.test_risk_add_appends_to_the_table_that_is_already_there",
+        "TestOneNormalizationForAHeaderCell.test_risk_migrate_does_not_offer_to_migrate_a_migrated_board",
+        "TestOneNormalizationForAHeaderCell.test_the_decorated_header_is_still_one_table_afterwards",
+        "TestOneRegisterNotTwo.test_migrating_does_not_raise_the_count",
+        "TestOneRuleForWhatABulletIs.test_the_writer_sees_the_same_bullets_the_reader_does",
+        "TestRiskRowsAreNotTaskRows.test_a_risk_id_never_collides_with_a_task_id",
+        "TestRiskRowsAreNotTaskRows.test_list_does_not_pick_up_risks_as_tasks",
+        "TestRiskRowsAreNotTaskRows.test_the_event_log_does_not_turn_questions_into_tasks",
+        "TestTheToolOwnsTheComputedCells.test_every_write_is_board_journal_and_event",
+        "TestTheToolOwnsTheComputedCells.test_risk_add_refuses_without_a_statement",
+        "TestTheToolOwnsTheComputedCells.test_risk_add_stamps_opened_and_mints_the_id",
+        "TestTheToolOwnsTheComputedCells.test_risk_clear_refuses_a_risk_that_is_already_cleared",
+        "TestTheToolOwnsTheComputedCells.test_risk_clear_refuses_without_a_reason",
+        "TestTheWriterAsksTheReadersQuestion.test_no_risk_column_is_ever_added_to_a_legend",
+        "TestTheWriterAsksTheReadersQuestion.test_risk_migrate_refuses_it_too",
+        "TestTheWriterAsksTheReadersQuestion.test_the_bullets_under_a_legend_are_still_there_afterwards",
+        "TestTheWriterResolvesTheIdColumnByName.test_a_localized_header_clears_the_same",
+        "TestTheWriterResolvesTheIdColumnByName.test_a_new_row_lands_in_the_right_columns_too",
+        "TestTheWriterResolvesTheIdColumnByName.test_risk_clear_finds_a_row_the_reader_can_see",
+        "TestTheWriterResolvesTheIdColumnByName.test_the_cleared_cell_lands_in_the_status_column",
+        "TestTheWriterResolvesTheIdColumnByName.test_the_user_input_queue_still_answers_by_id"
+      ],
+      "added_test_names": [
+        "TestNativeRiskLifecycle.test_a_second_clear_refuses_and_preserves_the_first_reason",
+        "TestNativeRiskLifecycle.test_concern_and_clear_reason_are_required_without_partial_effects",
+        "TestNativeRiskLifecycle.test_create_clear_and_fresh_risk_retain_distinct_ids",
+        "TestNativeRiskLifecycle.test_retired_risk_commands_preserve_bullets_tables_legends_and_placeholders",
+        "TestRetainedRiskConversionUnits.test_archived_risks_asks_and_section_events_never_become_tasks",
+        "TestRetainedRiskConversionUnits.test_cleared_date_and_placeholders_are_preserved_by_conversion",
+        "TestRetainedRiskConversionUnits.test_conversion_preserves_bullets_verdicts_and_missing_dates",
+        "TestRetainedRiskConversionUnits.test_foreign_legend_refuses_without_mutating_the_in_memory_board"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_role_on_rows.py",
+      "before_declared_tests": 11,
+      "after_declared_tests": 6,
+      "removed_test_names": [
+        "TestAProjectThatHasDeclaredRoles.test_a_declared_role_lands_in_the_cell_and_the_payload",
+        "TestAProjectThatHasDeclaredRoles.test_a_refusal_writes_nothing",
+        "TestAProjectThatHasDeclaredRoles.test_a_role_with_no_card_is_refused_and_points_at_the_shipped_ones",
+        "TestAProjectThatHasDeclaredRoles.test_a_roleless_row_is_refused",
+        "TestAProjectThatHasDeclaredRoles.test_the_refusal_lists_the_roles_that_exist",
+        "TestGoal7AProjectWithNoRoles.test_a_role_passed_anyway_is_filed_not_refused",
+        "TestGoal7AProjectWithNoRoles.test_add_does_not_ask_for_a_role",
+        "TestGoal7AProjectWithNoRoles.test_no_refusal_ever_mentions_roles",
+        "TestGoal7AProjectWithNoRoles.test_the_board_gains_no_role_column",
+        "TestGoal7AProjectWithNoRoles.test_the_payload_still_carries_the_key_as_empty"
+      ],
+      "added_test_names": [
+        "TestLegacyRoleReader.test_role_is_explicit_or_empty_in_the_frozen_payload",
+        "TestRolesStayHostMetadata.test_a_role_cannot_be_smuggled_into_a_native_task_field",
+        "TestRolesStayHostMetadata.test_dispatch_still_loads_role_cards_as_host_context",
+        "TestRolesStayHostMetadata.test_native_create_needs_no_role_even_when_a_host_card_exists",
+        "TestRolesStayHostMetadata.test_retired_add_cannot_write_with_or_without_a_role_card"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_row_integrity.py",
+      "before_declared_tests": 26,
+      "after_declared_tests": 26,
+      "removed_test_names": [
+        "TestTheWriterRefusesAndWritesNothing.test_a_single_line_next_action_containing_a_pipe_is_written"
+      ],
+      "added_test_names": [
+        "TestTheWriterRefusesAndWritesNothing.test_even_a_renderable_pipe_cell_cannot_reopen_the_old_writer"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_same_action_linkage.py",
+      "before_declared_tests": 78,
+      "after_declared_tests": 78,
+      "removed_test_names": [
+        "ABlankKrIsRefusedBeforeItReachesTheEvent.test_a_padded_kr_is_stripped_rather_than_refused",
+        "ABlankKrIsRefusedBeforeItReachesTheEvent.test_kr_is_still_not_mandatory_because_unlinked_answers_too",
+        "TheUnlinkedAtAddPathHasAWriter.test_perry_task_add_accepts_the_unlinked_flag_and_it_lands",
+        "TheUnlinkedAtAddPathHasAWriter.test_the_fixture_can_actually_file_a_row"
+      ],
+      "added_test_names": [
+        "ABlankKrIsRefusedBeforeItReachesTheEvent.test_a_valid_padded_kr_cannot_reopen_the_retired_writer",
+        "ABlankKrIsRefusedBeforeItReachesTheEvent.test_an_unlinked_answer_cannot_reopen_the_retired_writer",
+        "TheUnlinkedAtAddPathHasAWriter.test_fixture_still_serves_its_existing_attribution",
+        "TheUnlinkedAtAddPathHasAWriter.test_retired_unlinked_add_preserves_the_legacy_register"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_store_is_the_write_target.py",
+      "before_declared_tests": 33,
+      "after_declared_tests": 9,
+      "removed_test_names": [
+        "TestAStatusTheStoreCannotHold.test_a_dry_run_uses_store_truth_and_writes_nothing",
+        "TestAStatusTheStoreCannotHold.test_every_other_row_is_unaffected",
+        "TestAStatusTheStoreCannotHold.test_the_write_replaces_projection_prose_with_store_truth",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_a_write_to_a_section_that_is_not_a_task_table",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_add",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_done",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_drop",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_next_and_retitle",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_prioritize",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_start",
+        "TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_status",
+        "TestOneTaskTableDefinition.test_a_second_table_after_prose_is_stored_and_rendered_losslessly",
+        "TestOneTaskTableDefinition.test_widening_preserves_both_tables_and_targets_the_second_row",
+        "TestRowOrderIsRecorded.test_a_new_row_lands_last_in_its_section_and_records_that",
+        "TestRowOrderIsRecorded.test_a_row_that_left_the_board_records_no_order",
+        "TestRowOrderIsRecorded.test_a_write_does_not_reorder_the_board",
+        "TestRowOrderIsRecorded.test_the_renderer_reports_a_board_that_disagrees_with_the_store",
+        "TestRowOrderIsRecorded.test_the_store_records_the_authored_order_not_the_id_order",
+        "TestStoreEditsRemainAuthoritativeAfterTask090.test_a_store_only_created_edit_is_preserved",
+        "TestStoreEditsRemainAuthoritativeAfterTask090.test_an_unrelated_write_preserves_and_renders_the_store_edit",
+        "TestTheStoreAndTheJournalAreThePair.test_a_lost_event_costs_history_and_not_the_record",
+        "TestTheStoreAndTheJournalAreThePair.test_both_land_together",
+        "TestTheStoreIsWhatIsWritten.test_a_dry_run_writes_nothing_and_still_plans_the_store",
+        "TestTheStoreIsWhatIsWritten.test_the_payload_counts_what_the_projection_could_not_fill",
+        "TestTheStoreIsWhatIsWritten.test_the_write_names_the_existing_canonical_store"
+      ],
+      "added_test_names": [
+        "TestFrozenWritesLeaveTheAuthoritativeStoreAlone.test_every_retired_mutation_preserves_edited_fields_and_authored_order"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_stranded_rows.py",
+      "before_declared_tests": 41,
+      "after_declared_tests": 35,
+      "removed_test_names": [
+        "TestOneStatementOfEachCheck.test_both_list_paths_call_the_one_implementation",
+        "TestOneStatementOfEachCheck.test_the_next_action_loop_is_no_longer_written_out_at_a_call_site",
+        "TestTheContractAnnouncedAllOfIt.test_triage_step_zero_point_five_lists_all_three",
+        "TestThresholdsAgree.test_the_idle_threshold_is_the_ceiling_the_ttl_was_chosen_under",
+        "TestThresholdsAgree.test_the_reader_and_the_writer_state_the_same_default",
+        "TestThresholdsAgree.test_the_schema_note_states_the_default_it_was_calibrated_against",
+        "TestThresholdsAgree.test_the_ttl_outlasts_the_longest_cycle_this_project_has_measured"
+      ],
+      "added_test_names": [
+        "TestTheContractAnnouncedAllOfIt.test_native_triage_reads_blockers_and_evidence_before_changes"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_summary_is_asked_for.py",
+      "before_declared_tests": 28,
+      "after_declared_tests": 25,
+      "removed_test_names": [
+        "TestAddRefusesWithoutASummary.test_add_accepts_a_fragment_and_a_value_with_no_sentence",
+        "TestAddRefusesWithoutASummary.test_add_refuses_a_summary_that_is_only_the_title_again",
+        "TestAddRefusesWithoutASummary.test_add_refuses_when_summary_is_absent",
+        "TestAddRefusesWithoutASummary.test_the_control_a_good_summary_is_accepted_and_stored",
+        "TestOnePlaceDefinesWhatASummaryIs.test_the_writer_and_the_linter_agree_over_a_corpus",
+        "TestTheRewriteWriterHoldsTheSameLine.test_clear_is_deliberately_not_gated",
+        "TestTheRewriteWriterHoldsTheSameLine.test_summary_refuses_a_second_title"
+      ],
+      "added_test_names": [
+        "TestNativeSummaryIsRequired.test_create_refuses_a_missing_or_blank_summary_without_an_event",
+        "TestNativeSummaryIsRequired.test_nonblank_prose_is_stored_without_linguistic_judgment",
+        "TestNativeSummaryUpdate.test_update_and_clear_are_explicit_and_preserve_other_fields",
+        "TestOnePlaceDefinesWhatASummaryIs.test_the_legacy_predicate_and_the_linter_agree_over_a_corpus"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_task_summary.py",
+      "before_declared_tests": 8,
+      "after_declared_tests": 5,
+      "removed_test_names": [
+        "TaskSummaryContract.test_dedicated_update_and_clear_touch_only_summary",
+        "TaskSummaryContract.test_every_unrelated_task_writer_preserves_the_sentinel",
+        "TaskSummaryContract.test_legacy_record_stays_empty_after_the_next_write",
+        "TaskSummaryContract.test_pipeline_stage_mutation_preserves_the_sentinel",
+        "TaskSummaryContract.test_summary_is_verbatim_prose_not_an_identifier_surface",
+        "TaskSummaryContract.test_summary_update_preserves_store_record_order"
+      ],
+      "added_test_names": [
+        "TaskSummaryContract.test_frozen_summary_and_stage_writers_preserve_the_whole_legacy_store",
+        "TaskSummaryContract.test_native_unrelated_mutations_preserve_summary_through_close",
+        "TaskSummaryContract.test_native_update_clear_and_unicode_are_verbatim"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_task_writer_contracts.py",
+      "before_declared_tests": 68,
+      "after_declared_tests": 50,
+      "removed_test_names": [
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_board_with_several_families_is_not_guessed_at",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_family_with_no_numbers_is_not_given_one",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_multi_segment_prefix_is_allowed",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_single_family_board_mints_into_its_own_family",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_task_board_still_mints_task",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_an_adopted_id_is_never_reissued_either",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_ids_in_the_non_task_registers_are_not_a_family",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_beats_what_the_board_would_have_adopted",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_names_the_family_outright",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_refuses_a_family_the_tool_mints_for_another_register",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_refuses_a_whole_id",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_route_mints_from_the_same_rule_add_does",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_route_takes_prefix_too",
+        "TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_the_number_continues_the_family_rather_than_restarting_it",
+        "TestLaneProceduresCallTheTool.test_add_task_calls_the_tool",
+        "TestLaneProceduresCallTheTool.test_close_task_calls_the_tool",
+        "TestLaneProceduresCallTheTool.test_every_command_the_procedures_quote_actually_runs",
+        "TestLaneProceduresCallTheTool.test_no_migrated_procedure_still_describes_the_hand_edit",
+        "TestLaneProceduresCallTheTool.test_routing_goes_through_the_tool",
+        "TestLaneProceduresCallTheTool.test_the_procedures_say_what_a_refusal_means",
+        "TestLaneProceduresCallTheTool.test_the_stage_invariant_names_the_tool"
+      ],
+      "added_test_names": [
+        "TestFrozenReaderRetainsAdoptedIdFamilies.test_multiple_and_multisegment_ids_are_read_without_renumbering",
+        "TestFrozenReaderRetainsAdoptedIdFamilies.test_native_ids_come_from_the_work_template_not_surrounding_markdown",
+        "TestNativeLaneProcedures.test_creation_close_and_triage_name_native_operations"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_task_writer_core.py",
+      "before_declared_tests": 68,
+      "after_declared_tests": 27,
+      "removed_test_names": [
+        "TestADeclaredBlankRungIsNotARung.test_a_declared_rung_still_beats_the_modes_default",
+        "TestADeclaredBlankRungIsNotARung.test_declaring_the_track_changes_nothing_a_row_carries",
+        "TestADeclaredBlankRungIsNotARung.test_every_blank_spelling_falls_back_to_the_modes_default",
+        "TestADeclaredBlankRungIsNotARung.test_what_done_stamps_is_what_done_would_accept",
+        "TestALocalizedBoard.test_a_transition_actually_moves_the_cell",
+        "TestALocalizedBoard.test_add_populates_the_row_rather_than_emptying_it",
+        "TestALocalizedBoard.test_drift_is_clean_on_a_board_the_tool_wrote_in_chinese",
+        "TestAtomicThreeWayWrite.test_a_refusal_writes_nothing",
+        "TestAtomicThreeWayWrite.test_add_writes_all_three",
+        "TestAtomicThreeWayWrite.test_concurrent_writes_do_not_lose_rows",
+        "TestAtomicThreeWayWrite.test_dry_run_touches_nothing",
+        "TestAtomicThreeWayWrite.test_locking_leaves_nothing_in_the_project",
+        "TestAtomicThreeWayWrite.test_the_event_may_be_lost_but_never_the_row",
+        "TestEveryStatusHasAToolPath.test_a_queue_add_creates_the_intake_register",
+        "TestEveryStatusHasAToolPath.test_add_honours_arrived_rather_than_silently_ignoring_it",
+        "TestEveryStatusHasAToolPath.test_blocked_and_review_have_a_tool_path",
+        "TestEveryStatusHasAToolPath.test_blocked_without_a_named_dependency_is_refused",
+        "TestEveryStatusHasAToolPath.test_dispatch_and_autopilot_carry_the_invariant",
+        "TestEveryStatusHasAToolPath.test_drop_requires_a_reason_and_leaves_no_orphan",
+        "TestEveryStatusHasAToolPath.test_every_accepted_command_runs_and_is_advertised",
+        "TestEveryStatusHasAToolPath.test_resolve_intake_covers_the_other_two_outcomes",
+        "TestEveryStatusHasAToolPath.test_status_refuses_the_closing_transitions",
+        "TestEveryStatusHasAToolPath.test_the_schema_enum_is_what_the_tool_accepts",
+        "TestLifecycle.test_done_takes_the_rung_from_the_tracks_default",
+        "TestLifecycle.test_start_moves_status_and_records_both_ends",
+        "TestLifecycle.test_starting_twice_is_refused",
+        "TestLifecycle.test_the_event_log_is_disposable",
+        "TestOneCellWriterNotFour.test_each_is_its_own_event",
+        "TestOneCellWriterNotFour.test_each_refusal_says_what_that_subcommand_is_for",
+        "TestOneCellWriterNotFour.test_each_refuses_a_no_op",
+        "TestOneCellWriterNotFour.test_each_writes_its_own_cell_and_no_other",
+        "TestOneCellWriterNotFour.test_evidence_repairs_a_cell_without_closing_the_row",
+        "TestOneCellWriterNotFour.test_only_next_refuses_a_finished_row",
+        "TestOnePriorityValidator.test_a_valid_priority_still_routes",
+        "TestOnePriorityValidator.test_add_and_route_refuse_identically",
+        "TestOnePriorityValidator.test_route_refuses_an_unknown_priority_rather_than_crashing",
+        "TestOnePriorityValidator.test_the_refusal_says_what_to_type_instead",
+        "TestRetitle.test_an_empty_title_is_refused",
+        "TestRetitle.test_it_is_its_own_event",
+        "TestRetitle.test_it_rewrites_the_title_and_touches_nothing_else",
+        "TestRetitle.test_the_journal_records_what_it_used_to_be_called",
+        "TestRetitle.test_the_same_title_is_refused",
+        "TestTheDelimiterIsACharacterPeopleWrite.test_the_cell_survives_the_whole_write_path",
+        "TestTheRungIsWritableAndCorrectable.test_add_and_done_answer_the_same_way",
+        "TestTheRungIsWritableAndCorrectable.test_add_writes_the_rung_it_was_given",
+        "TestTheRungIsWritableAndCorrectable.test_an_unknown_rung_is_refused_not_dropped",
+        "TestTheRungIsWritableAndCorrectable.test_it_is_its_own_event",
+        "TestTheRungIsWritableAndCorrectable.test_rung_corrects_an_open_row",
+        "TestTheRungIsWritableAndCorrectable.test_the_refusal_does_not_offer_a_rung_it_will_refuse",
+        "TestTheRungIsWritableAndCorrectable.test_the_same_rung_is_refused",
+        "TestTheRungIsWritableAndCorrectable.test_v0_is_refused_by_name",
+        "TestWhatTheToolComputes.test_a_bad_rung_is_refused_before_anything_is_written",
+        "TestWhatTheToolComputes.test_a_closed_task_keeps_its_number",
+        "TestWhatTheToolComputes.test_a_closed_tasks_number_survives_deleting_the_event_log",
+        "TestWhatTheToolComputes.test_done_without_evidence_is_refused",
+        "TestWhatTheToolComputes.test_ids_are_minted_and_never_collide",
+        "TestWhatTheToolComputes.test_timestamps_are_observed_not_asserted",
+        "TestWhatTheToolComputes.test_v0_is_refused_by_name"
+      ],
+      "added_test_names": [
+        "TestEveryNativeStateHasAPath.test_dispatch_and_autopilot_use_native_cas_and_evidence",
+        "TestEveryNativeStateHasAPath.test_work_states_and_reasons_are_explicit",
+        "TestNativeAtomicity.test_concurrent_real_cli_creates_do_not_lose_or_duplicate_ids",
+        "TestNativeAtomicity.test_create_is_one_event_and_failed_multifield_update_changes_nothing",
+        "TestNativeAtomicity.test_native_writes_preserve_legacy_journal_and_event_bytes",
+        "TestNativeFieldUpdates.test_each_field_changes_alone_and_records_its_key",
+        "TestNativeIdsAndValidation.test_closed_ids_are_retained_and_never_reissued",
+        "TestNativeIdsAndValidation.test_done_needs_evidence_and_leaves_the_item_live_on_refusal",
+        "TestNativeIdsAndValidation.test_invalid_rungs_and_priorities_leave_no_event_or_item",
+        "TestNativeLifecycle.test_close_from_not_started_and_from_review_both_retain_the_item",
+        "TestNativeLifecycle.test_start_twice_refuses_without_adding_an_event",
+        "TestNativePriority.test_create_and_update_share_the_closed_priority_enum",
+        "TestNativeRetitle.test_update_changes_only_the_named_field_and_noop_adds_no_event",
+        "TestNativeRungCorrection.test_selected_rung_is_stored_and_correctable_without_closing",
+        "TestNativeRungIsChosenAtCreate.test_create_refuses_missing_and_blank_rungs_without_mode_defaults",
+        "TestNativeUnicode.test_unicode_and_delimiters_survive_create_update_close",
+        "TestTheDelimiterIsACharacterPeopleWrite.test_a_pipe_survives_native_fields_and_the_legacy_reader"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_task_writer_dependencies.py",
+      "before_declared_tests": 34,
+      "after_declared_tests": 15,
+      "removed_test_names": [
+        "TestAClosedRowKeepsItsName.test_a_no_op_repair_is_still_refused",
+        "TestAClosedRowKeepsItsName.test_an_id_nothing_knows_is_still_refused",
+        "TestAClosedRowKeepsItsName.test_every_event_this_tool_writes_carries_a_title",
+        "TestAClosedRowKeepsItsName.test_no_other_cell_writer_reaches_a_row_off_the_board",
+        "TestAClosedRowKeepsItsName.test_retitle_repairs_a_row_the_board_has_let_go_of",
+        "TestAClosedRowKeepsItsName.test_the_repair_does_not_reorder_the_store",
+        "TestAClosedRowKeepsItsName.test_the_repair_is_recorded_as_a_retitle_and_carries_the_new_name",
+        "TestAClosedRowKeepsItsName.test_the_repair_leaves_the_row_closed_at_its_rung",
+        "TestADependencyIsQueryable.test_a_blocked_row_with_no_declared_edge_is_named",
+        "TestADependencyIsQueryable.test_a_cell_a_project_wrote_in_its_own_language_is_read",
+        "TestADependencyIsQueryable.test_a_cycle_is_refused_at_write_time",
+        "TestADependencyIsQueryable.test_a_cycle_only_on_the_projection_is_not_task_truth",
+        "TestADependencyIsQueryable.test_a_dependency_may_point_at_a_closed_task",
+        "TestADependencyIsQueryable.test_a_row_cannot_depend_on_itself",
+        "TestADependencyIsQueryable.test_a_satisfied_dependency_leaves_blocked_by_and_stays_in_depends_on",
+        "TestADependencyIsQueryable.test_add_depends_writes_a_cell_and_not_only_journal_prose",
+        "TestADependencyIsQueryable.test_an_id_this_payload_does_not_carry_counts_as_unsatisfied",
+        "TestADependencyIsQueryable.test_blocked_by_names_the_unfinished_half_and_blocks_is_the_reverse",
+        "TestADependencyIsQueryable.test_blocked_is_satisfied_by_on_as_well_as_by_reason",
+        "TestADependencyIsQueryable.test_blocked_with_neither_on_nor_reason_is_still_refused",
+        "TestADependencyIsQueryable.test_blocks_is_computed_before_the_track_and_all_filters",
+        "TestADependencyIsQueryable.test_clear_records_that_a_row_waits_on_nothing",
+        "TestADependencyIsQueryable.test_declaring_the_same_edge_twice_is_refused_as_a_no_op",
+        "TestADependencyIsQueryable.test_prose_in_the_dependency_flag_is_refused",
+        "TestADependencyIsQueryable.test_startable_is_false_for_a_closed_row",
+        "TestADependencyIsQueryable.test_startable_is_false_for_a_row_whose_own_status_says_it_is_waiting",
+        "TestADependencyIsQueryable.test_startable_is_true_for_open_unblocked_work",
+        "TestADependencyIsQueryable.test_the_cell_is_what_the_reader_reads",
+        "TestADependencyIsQueryable.test_the_edge_is_one_hop_and_not_the_transitive_closure",
+        "TestADependencyIsQueryable.test_the_edge_survives_deleting_the_event_log"
+      ],
+      "added_test_names": [
+        "TestAClosedRowKeepsItsName.test_native_terminal_title_can_be_corrected_without_reopening",
+        "TestLegacyDependencyReader.test_closed_dependencies_stay_declared_but_stop_blocking",
+        "TestLegacyDependencyReader.test_one_hop_and_cycle_reports_survive_legacy_import",
+        "TestLegacyDependencyReader.test_reverse_edges_and_unknown_edges_are_both_reported",
+        "TestLegacyDependencyReader.test_reverse_edges_are_computed_before_track_filtering",
+        "TestLegacyDependencyReader.test_status_waits_and_unknown_dependencies_remain_distinct",
+        "TestNativeDependencies.test_add_and_remove_are_idempotent_and_preserve_history",
+        "TestNativeDependencies.test_an_edge_can_be_added_to_an_already_terminal_item",
+        "TestNativeDependencies.test_blocking_relation_is_visible_on_both_ends_and_survives_satisfaction",
+        "TestNativeDependencies.test_dependencies_are_one_hop",
+        "TestNativeDependencies.test_self_cycle_and_unknown_ids_refuse_without_a_partial_edge"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_task_writer_intake.py",
+      "before_declared_tests": 44,
+      "after_declared_tests": 31,
+      "removed_test_names": [
+        "TestAnIntakeRowTakesExactlyOneOutcome.test_a_placeholder_outcome_is_not_a_discharge",
+        "TestAnIntakeRowTakesExactlyOneOutcome.test_resolving_a_routed_row_is_refused",
+        "TestAnIntakeRowTakesExactlyOneOutcome.test_resolving_twice_is_refused",
+        "TestAnIntakeRowTakesExactlyOneOutcome.test_routing_twice_is_refused",
+        "TestCorrectingANextAction.test_an_empty_next_is_refused",
+        "TestCorrectingANextAction.test_it_is_classified_as_a_task_event",
+        "TestCorrectingANextAction.test_it_is_its_own_event_not_a_status_change",
+        "TestCorrectingANextAction.test_rewriting_to_the_same_text_is_refused",
+        "TestCorrectingANextAction.test_the_cell_is_rewritten_and_the_status_is_untouched",
+        "TestDropRecordsWhereTheRowDied.test_a_project_mode_row_carries_an_empty_stage_rather_than_no_key",
+        "TestDropRecordsWhereTheRowDied.test_the_journal_line_and_the_event_carry_the_stage",
+        "TestIntakeIsReadableAndSweepable.test_sweep_moves_discharged_rows_to_the_journal_with_their_outcome",
+        "TestIntakeIsReadableAndSweepable.test_sweeping_with_nothing_discharged_is_refused",
+        "TestUserInputQueueHasAWriter.test_a_question_with_no_text_is_refused",
+        "TestUserInputQueueHasAWriter.test_an_answered_row_leaves_the_pending_count",
+        "TestUserInputQueueHasAWriter.test_an_imported_queue_keeps_its_ids_and_the_new_ask_is_dated",
+        "TestUserInputQueueHasAWriter.test_answering_records_the_answer_and_the_date",
+        "TestUserInputQueueHasAWriter.test_answering_twice_is_refused",
+        "TestUserInputQueueHasAWriter.test_answering_without_the_answer_is_refused",
+        "TestUserInputQueueHasAWriter.test_ask_mints_an_id_and_stamps_the_date",
+        "TestUserInputQueueHasAWriter.test_idle_is_computed_from_asked_not_read_from_a_typed_cell",
+        "TestUserInputQueueHasAWriter.test_ids_are_not_reused_after_an_answer",
+        "TestUserInputQueueHasAWriter.test_the_section_is_created_after_the_priority_tables"
+      ],
+      "added_test_names": [
+        "TestCorrectingANativeNextAction.test_correction_and_clear_leave_state_unchanged_and_no_op_has_no_event",
+        "TestCorrectingANativeNextAction.test_historical_next_event_remains_a_task_event",
+        "TestIntakeIsReadableAndSweepable.test_sweep_is_frozen_even_when_archived_rows_are_discharged",
+        "TestNativeAskLifecycle.test_archived_asked_dates_drive_pending_age_and_answers_leave_count",
+        "TestNativeAskLifecycle.test_frozen_ask_commands_cannot_write_a_parallel_queue",
+        "TestNativeAskLifecycle.test_question_answer_and_dependency_are_native_and_auditable",
+        "TestNativeAskLifecycle.test_question_is_required_and_refusal_does_not_consume_id",
+        "TestNativeDropAudit.test_drop_records_prior_state_and_reason_without_a_journal_write",
+        "TestNativeIntakeRouting.test_legacy_route_resolve_and_sweep_never_rewrite_archived_intake",
+        "TestNativeIntakeRouting.test_routing_updates_one_item_instead_of_minting_a_second_identity"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_task_writer_modes.py",
+      "before_declared_tests": 59,
+      "after_declared_tests": 8,
+      "removed_test_names": [
+        "TestANarrowSectionIsWidenedWhicheverFlagNamedIt.test_add_by_priority_widens_it_the_way_add_by_group_does",
+        "TestANarrowSectionIsWidenedWhicheverFlagNamedIt.test_the_intake_drain_runs_on_a_narrow_pre_existing_board",
+        "TestANarrowSectionIsWidenedWhicheverFlagNamedIt.test_the_two_flags_produce_the_same_header",
+        "TestANarrowSectionIsWidenedWhicheverFlagNamedIt.test_widening_pads_the_rows_that_were_already_there",
+        "TestDecoratedHeaders.test_a_row_can_be_added_to_a_project_imported_from_bolded_headers",
+        "TestDecoratedHeaders.test_an_existing_row_is_still_findable",
+        "TestDecoratedHeaders.test_the_header_is_left_exactly_as_the_project_wrote_it",
+        "TestEveryWriterThatFilesARowReadsGroup.test_a_group_is_not_silently_upgraded_to_a_priority",
+        "TestEveryWriterThatFilesARowReadsGroup.test_a_priority_board_routes_exactly_as_before",
+        "TestEveryWriterThatFilesARowReadsGroup.test_a_second_drain_still_works",
+        "TestEveryWriterThatFilesARowReadsGroup.test_add_and_route_reach_the_same_section_from_the_same_flag",
+        "TestEveryWriterThatFilesARowReadsGroup.test_route_files_the_row_under_the_projects_own_heading",
+        "TestEveryWriterThatFilesARowReadsGroup.test_route_reports_the_section_it_filed_into",
+        "TestEveryWriterThatFilesARowReadsGroup.test_route_still_refuses_a_priority_that_is_not_one",
+        "TestEveryWriterThatFilesARowReadsGroup.test_the_intake_row_is_discharged_by_a_grouped_route",
+        "TestEveryWriterThatFilesARowReadsGroup.test_the_intake_table_survives_the_drain",
+        "TestEveryWriterThatFilesARowReadsGroup.test_the_routed_row_still_carries_its_clock",
+        "TestModeAwareWrites.test_a_bad_stage_is_refused_at_creation_too",
+        "TestModeAwareWrites.test_a_commitment_reaches_the_board",
+        "TestModeAwareWrites.test_a_stage_move_restamps_the_clock",
+        "TestModeAwareWrites.test_a_stage_outside_the_tracks_vocabulary_is_refused",
+        "TestModeAwareWrites.test_intake_creates_the_section_that_nothing_created",
+        "TestModeAwareWrites.test_moving_to_the_same_stage_is_refused",
+        "TestModeAwareWrites.test_routing_a_row_that_does_not_exist_is_refused",
+        "TestModeAwareWrites.test_routing_carries_the_arrival_date",
+        "TestModeAwareWrites.test_routing_into_a_project_track_is_refused",
+        "TestModeAwareWrites.test_routing_records_where_the_intake_row_went",
+        "TestModeAwareWrites.test_the_generated_board_still_lints",
+        "TestModeColumns.test_a_pipeline_track_gets_stage_and_its_clock",
+        "TestModeColumns.test_a_project_track_stamps_no_mode_fields",
+        "TestModeColumns.test_a_queue_track_gets_arrived_not_stage_since",
+        "TestModeColumns.test_adding_a_column_preserves_every_existing_row",
+        "TestModeColumns.test_an_inquiry_track_gets_parent",
+        "TestModeColumns.test_an_undeclared_track_is_refused",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_a_stage_move_restamps_the_clock_on_such_a_board",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_add_on_a_pipeline_track_stamps_the_stage_clock",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_route_accepts_the_date_the_intake_row_lacks",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_routing_a_hand_typed_intake_row_does_not_traceback",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_routing_into_a_pipeline_track_carries_the_arrival_date",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_routing_one_into_a_queue_track_is_refused_not_crashed",
+        "TestModeColumnsOnBoardsPerryDidNotBuild.test_the_columns_are_created_on_a_board_that_never_had_them",
+        "TestOneRuleOneImplementation.test_a_project_with_no_track_register_still_reports_project_mode",
+        "TestOneRuleOneImplementation.test_add_and_route_are_born_at_the_same_stage_in_every_mode",
+        "TestOneRuleOneImplementation.test_mode_is_derived_from_the_track_register",
+        "TestOneRuleOneImplementation.test_mode_survives_the_event_log_being_deleted",
+        "TestRoutingRespectsTheTracksMode.test_a_pipeline_row_enters_at_the_first_stage",
+        "TestRoutingRespectsTheTracksMode.test_a_pipeline_row_gets_the_clock_its_mode_reads",
+        "TestRoutingRespectsTheTracksMode.test_a_queue_row_keeps_the_arrival_date",
+        "TestRoutingRespectsTheTracksMode.test_a_queue_row_still_skips_the_intake_stage",
+        "TestTheStageClockHasOneWriter.test_a_stage_move_still_restamps_it",
+        "TestTheStageClockHasOneWriter.test_stage_creates_the_column_it_writes_into",
+        "TestTheStageClockHasOneWriter.test_start_does_not_restamp_the_stage_clock",
+        "TestWritingToAProjectsOwnSections.test_a_narrower_section_gains_the_columns_rather_than_losing_the_data",
+        "TestWritingToAProjectsOwnSections.test_a_priority_board_is_unaffected",
+        "TestWritingToAProjectsOwnSections.test_group_files_the_row_under_the_projects_own_heading"
+      ],
+      "added_test_names": [
+        "TestLegacyModeReadFixtures.test_all_four_declared_modes_and_their_stored_columns_survive_without_events",
+        "TestLegacyModeReadFixtures.test_custom_group_is_not_invented_as_a_priority",
+        "TestNativeModesAreRemoved.test_intake_is_a_task_track_without_stage_or_queue_clocks",
+        "TestNativeModesAreRemoved.test_stage_route_and_intake_commands_cannot_recreate_the_old_method"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_track_move.py",
+      "before_declared_tests": 30,
+      "after_declared_tests": 4,
+      "removed_test_names": [
+        "TestABoardWithItsOwnHeadings.test_the_cells_land_under_a_projects_own_heading",
+        "TestAnEventPerMove.test_a_dry_run_writes_nothing",
+        "TestAnEventPerMove.test_every_move_appends_exactly_one_track_event",
+        "TestAnEventPerMove.test_the_event_says_where_from_and_where_to",
+        "TestAnEventPerMove.test_the_events_feed_carries_it",
+        "TestAnEventPerMove.test_the_pair_reaches_the_timeline_labelled_track",
+        "TestBothDirectionsOfTheFieldQuestion.test_a_staged_non_queue_destination_gets_stage_since_and_no_arrived",
+        "TestBothDirectionsOfTheFieldQuestion.test_an_existing_arrived_is_carried_never_restamped",
+        "TestBothDirectionsOfTheFieldQuestion.test_arrived_on_a_destination_that_cannot_read_it_is_refused",
+        "TestBothDirectionsOfTheFieldQuestion.test_off_a_queue_track_the_clock_is_cleared",
+        "TestBothDirectionsOfTheFieldQuestion.test_onto_a_queue_track_the_clock_starts",
+        "TestBothDirectionsOfTheFieldQuestion.test_the_move_survives_a_re_render",
+        "TestBothDirectionsOfTheFieldQuestion.test_the_stage_is_restamped_on_a_queue_to_queue_move",
+        "TestBothDirectionsOfTheFieldQuestion.test_what_was_cleared_is_recorded_on_both_surviving_surfaces",
+        "TestSixRowsMove.test_nothing_else_about_the_row_moves",
+        "TestSixRowsMove.test_perry_state_reports_them_under_the_tracks_stage_counts",
+        "TestSixRowsMove.test_six_existing_rows_reach_the_declared_queue_track",
+        "TestSixRowsMove.test_the_board_renders_arrived_and_stage_for_every_moved_row",
+        "TestSixRowsMove.test_the_stage_is_the_one_the_other_two_entrances_use",
+        "TestTheProjectionAgreesAfterAMove.test_and_none_after_a_move_that_clears_the_clock",
+        "TestTheProjectionAgreesAfterAMove.test_perry_lint_reports_no_store_drift_after_a_move",
+        "TestTheRefusalIsByName.test_a_move_to_the_track_the_row_is_already_on_is_refused",
+        "TestTheRefusalIsByName.test_a_stage_outside_the_destinations_vocabulary_is_refused",
+        "TestTheRefusalIsByName.test_it_creates_nothing",
+        "TestTheRefusalIsByName.test_it_names_the_file_the_declaration_lives_in",
+        "TestTheRefusalIsByName.test_it_names_the_track_and_lists_the_declared_ones",
+        "TestTheRefusalIsByName.test_track_without_a_track_is_refused_rather_than_a_no_op",
+        "TestTheSubcommandIsWiredEverywhereItHasToBe.test_it_is_dispatchable_and_classified_as_a_task_event",
+        "TestTheSubcommandIsWiredEverywhereItHasToBe.test_the_pair_declares_what_it_refers_to",
+        "TestTheSubcommandIsWiredEverywhereItHasToBe.test_the_write_carries_the_clock_fields_with_the_track"
+      ],
+      "added_test_names": [
+        "TestLegacyTrackRead.test_frozen_track_writer_preserves_legacy_clock_and_group",
+        "TestNativeTrackMove.test_closed_item_track_can_be_corrected_without_reopening",
+        "TestNativeTrackMove.test_move_changes_track_alone_and_preserves_relationships",
+        "TestNativeTrackMove.test_unknown_legacy_tracks_refuse_without_clock_or_event"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_track_register_source.py",
+      "before_declared_tests": 33,
+      "after_declared_tests": 33,
+      "removed_test_names": [],
+      "added_test_names": [],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_v5_signoff.py",
+      "before_declared_tests": 36,
+      "after_declared_tests": 23,
+      "removed_test_names": [
+        "TestAnEmptySignatureIsRefused.test_a_bare_close_that_never_engaged_the_path_is_unchanged",
+        "TestAnEmptySignatureIsRefused.test_an_empty_offered_item_is_refused",
+        "TestAnEmptySignatureIsRefused.test_nothing_selected_and_no_free_text_is_refused",
+        "TestAnEmptySignatureIsRefused.test_pressing_return_at_the_prompt_is_what_this_costs",
+        "TestAnEmptySignatureIsRefused.test_the_refused_close_wrote_nothing",
+        "TestFreeTextIsAdditive.test_free_text_alone_is_a_signature",
+        "TestFreeTextIsAdditive.test_free_text_lands_beside_the_selection",
+        "TestFreeTextIsAdditive.test_the_free_text_is_not_run_through_the_drafting_guard",
+        "TestHistoryIsNotRewritten.test_signing_another_row_does_not_rewrite_the_one_before_it",
+        "TestHistoryIsNotRewritten.test_the_new_record_does_not_claim_to_be_the_old_one",
+        "TestTheOfferIsBuiltNotComposed.test_the_same_selection_records_the_same_thing_from_either_spelling",
+        "TestTheRecordIsASelection.test_every_item_is_labelled_with_its_provenance",
+        "TestTheRecordIsASelection.test_name_and_date_are_filled_in_not_typed",
+        "TestTheRecordIsASelection.test_the_labels_survive_verbatim_into_the_written_record",
+        "TestTheRecordIsASelection.test_the_row_still_closes_at_v5",
+        "TestTheRecordIsASelection.test_the_signature_rides_in_the_event_too",
+        "TestTheRecordIsASelection.test_the_two_selected_are_recorded_as_checked",
+        "TestTheRecordIsASelection.test_the_two_unselected_are_recorded_as_accepted_on_report",
+        "TestThreeDispositionsNotTwo.test_not_looked_at_is_a_disposition_of_its_own",
+        "TestThreeDispositionsNotTwo.test_not_looked_at_is_never_a_default",
+        "TestThreeDispositionsNotTwo.test_one_item_cannot_carry_two_dispositions",
+        "TestV1toV4ClosesAreUntouched.test_a_v3_close_writes_exactly_what_it_wrote_before"
+      ],
+      "added_test_names": [
+        "TestHistoryIsNotRewritten.test_rendering_a_second_signature_preserves_the_first_block",
+        "TestNativeHumanBoundary.test_v3_closure_does_not_invent_a_human_signature",
+        "TestNativeHumanBoundary.test_v5_needs_a_human_actor_and_keeps_the_signed_evidence",
+        "TestRetainedDispositionUnits.test_not_looked_at_is_explicit_and_never_a_default",
+        "TestRetainedEmptySignatureUnits.test_an_empty_offered_fact_is_refused",
+        "TestRetainedEmptySignatureUnits.test_nothing_checked_and_no_user_words_is_refused",
+        "TestRetainedFreeTextUnits.test_user_words_join_the_selection_without_being_drafted_by_perry",
+        "TestRetainedSelectionRecordUnits.test_selection_keeps_every_fact_and_its_provenance",
+        "TestTheOfferIsBuiltNotComposed.test_retired_close_refuses_either_selection_spelling_without_changes"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_wip_and_stages.py",
+      "before_declared_tests": 21,
+      "after_declared_tests": 21,
+      "removed_test_names": [
+        "TestTheReaderAndTheWriterAgreeAboutStages.test_the_writer_births_a_row_inside_what_the_reader_reports"
+      ],
+      "added_test_names": [
+        "TestTheReaderAndTheWriterAgreeAboutStages.test_retired_add_cannot_recreate_staged_work"
+      ],
+      "new_skip_decorators": []
+    },
+    {
+      "path": "tests/test_work_modes.py",
+      "before_declared_tests": 85,
+      "after_declared_tests": 84,
+      "removed_test_names": [
+        "TestEveryModeColumnHasAWriter.test_a_stage_move_stamps_the_clock_in_the_same_edit",
+        "TestEveryModeColumnHasAWriter.test_intake_staleness_is_measured_in_days_not_triages",
+        "TestEveryModeColumnHasAWriter.test_routing_out_of_intake_carries_the_arrival_date",
+        "TestEveryModeColumnHasAWriter.test_the_procedure_tells_the_agent_to_set_the_mode_columns",
+        "TestEveryModeColumnHasAWriter.test_the_work_lane_no_longer_writes_decisions",
+        "TestTheTrackRegisterIsReadFromTheStore.test_perry_task_accepts_a_track_only_the_store_declares"
+      ],
+      "added_test_names": [
+        "TestNativeWorkProcedureBoundary.test_add_uses_native_fields_relations_and_attachments",
+        "TestNativeWorkProcedureBoundary.test_decisions_stay_owned_by_decide",
+        "TestNativeWorkProcedureBoundary.test_removed_mode_fields_cannot_silently_enter_native_items",
+        "TestNativeWorkProcedureBoundary.test_triage_declares_the_retired_controls_and_uses_item_operations",
+        "TestTheTrackRegisterIsReadFromTheStore.test_native_track_is_the_locked_work_enum"
+      ],
+      "new_skip_decorators": []
+    }
+  ]
+}

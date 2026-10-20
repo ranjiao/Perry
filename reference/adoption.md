@@ -12,6 +12,9 @@ Agree depth (`quick`, `standard`, `deep`) and selected subjects (goals, tasks,
 design/decisions, knowledge, architecture) before writing. Keep a dated ordinary
 Markdown dossier under `.perry/adoption/` with stage, step, source roots, selected
 scope, observations, candidate IDs, declarations and declined candidates.
+Start from `templates/internal/adoption_dossier_TEMPLATE.md`; fill actual values,
+omit an inactive step and retain the existing recovery labels. The dossier is
+workflow evidence, not a parallel native state writer.
 Check interrupted work before starting another run. Show the existing stage and
 ask before resuming; `--resume` does not authorize a different depth or scope.
 Do not silently reinterpret malformed frontmatter or abandon a stale dossier.

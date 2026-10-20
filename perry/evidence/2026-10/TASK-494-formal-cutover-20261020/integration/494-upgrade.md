@@ -1,0 +1,1 @@
+Review the immutable retirement disposition, actual approval records and new source acceptance suite. Update old bin/schema/viewer/test consumers to the retained native CLI, skill procedures and tools/. Historical state and evidence stay preserved. Live reconciliation and named human H/V5 sign-off remain separate; no publication is performed.

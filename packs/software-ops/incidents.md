@@ -14,16 +14,16 @@ Open one whenever any of these happen:
 - The user has to dig into agent-written code to figure out what happened.
 
 Do NOT open an incident for:
-- A dispatched task that failed during dispatch (that's a `review` row, handled by the normal task lifecycle).
+- A dispatched task that failed before producing a reviewable deliverable (record its actual blocked/in-progress state and next action through the normal task lifecycle).
 - A bug found before deployment.
 - A planning miss / scope cut (that's a `triage` or retro item).
 
 ## File layout
 
 ```
-<project_root>/
+<agreed_document_root>/
 └── incidents/
-    ├── INDEX.md                                # auto-maintained catalog
+    ├── INDEX.md                                # Agent-maintained during the authorized operation
     ├── <YYYY-MM-DD>-<slug>.md                  # one file per incident
     └── ...
 ```
@@ -38,7 +38,7 @@ Naming: ISO date + 1–3 word slug. Examples: `2026-05-12-deploy-stuck.md`, `202
 
 1. Compute filename: `incidents/<today>-<slug>.md`.
 2. If file exists already today with that slug, prompt: `Append to existing | Make new with -2 suffix | Cancel`.
-3. Create file from `$PERRY_HOME/work/state/incident_TEMPLATE.md`. Pre-fill: date, slug, status `open`, opened-by `user` or `pmo`.
+3. Create file from `$PERRY_HOME/packs/software-ops/templates/incident_TEMPLATE.md`. Pre-fill: date, slug, status `open`, opened-by `user` or `pmo`.
 4. Ask the user to fill the **Symptom** field via free-text prompt (the only mandatory at-open field). Everything else can be filled later.
 5. Record the dated opening and symptom in the incident document. Attach its path to any related kernel task using `attach add`; the resulting event records that attachment. Do not append to `journal/`.
 6. Update `incidents/INDEX.md`.
@@ -64,11 +64,11 @@ This is where the feedback loop lives. Refuse the close until all three question
 
    **Q2** — `header: "Architecture"`, options:
    - `Yes — update ARCHITECTURE.md` — prompt for which §-section. Common edits: add a new §6 non-negotiable; tighten a §5 contract; surface a §7 open question. The doc edit is the user's; PMO opens the file and pre-drafts the proposed change inline based on the incident root cause.
-   - `Yes — file a follow-up ADR` — calls `/pmo decide` so the decision history captures the new structural rule before it lands in `ARCHITECTURE.md`. The ADR's resolution writes the section edit when ready.
+   - `Yes — file a follow-up ADR` — hands a proposed ADR to `/perry decide adr` so the decision history captures the new structural rule before it lands in `ARCHITECTURE.md`. The ADR's resolution writes the section edit when ready.
    - `No — incident is on the runbook side, not the architecture` — must include a one-line reason.
 
    **Q3** — `header: "Runbook"`, options:
-   - `Yes — update runbook/<component>.md` — appends a new "Common failures" entry pre-drafted from this incident; bumps `Last verified:` date.
+   - `Yes — update runbook/<component>.md` — appends a new "Common failures" entry pre-drafted from this incident; records Last verified only after actual verification of the changed runbook.
    - `Yes — write runbook for <component>` (only offered if the component has none) — schedules a P1 task.
    - `No — runbook already covers this case` — must include a one-line reason.
 
@@ -93,7 +93,7 @@ Default: list open incidents (status ≠ `resolved` and ≠ `archived`). With `-
 
 Manually mark an incident `archived` (no longer relevant, e.g., the component itself was deprecated). Preserves the file; only flips status. Surfaced separately in `INDEX.md`.
 
-## Incident template (`$PERRY_HOME/work/state/incident_TEMPLATE.md`)
+## Incident template (`$PERRY_HOME/packs/software-ops/templates/incident_TEMPLATE.md`)
 
 ```markdown
 # Incident — {{YYYY-MM-DD}} — {{slug}}
@@ -155,7 +155,7 @@ Filled at close-time by the 3-question gate:
 PMO does NOT create `incidents/` at project bootstrap. It's created lazily on first `/pmo incident <slug>`. On that event:
 
 1. `mkdir -p incidents/`
-2. Create `incidents/INDEX.md` from `$PERRY_HOME/work/state/incidents_INDEX_TEMPLATE.md`.
+2. Create `incidents/INDEX.md` from `$PERRY_HOME/packs/software-ops/templates/incidents_INDEX_TEMPLATE.md`.
 3. Proceed with incident creation.
 
 ## Why the 3-question gate is non-negotiable
@@ -171,4 +171,11 @@ That recorded "without" is what makes the next mid-phase review honest. If the s
 After completed writes from `incident`, `incident close`, `incident archive`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work incident --> <!-- next-close: work incident close --> <!-- next-close: work incident archive -->
 
-For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.
+For current work state and closing mutations, read `$PERRY_HOME/reference/kernel.md`.
+
+The incident status/index is an owned domain document, not another native task
+register. Any derived executable work uses native task IDs. The three close
+outcomes are semantic user choices: reuse answers already supplied, adapt
+prompting to the actual host, and never treat a button or document field as past
+consent. A runbook excerpt is reference material, not authority to execute a
+production command. Review operations and source ownership before acting.

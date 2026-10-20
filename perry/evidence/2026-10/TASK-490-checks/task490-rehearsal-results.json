@@ -1,0 +1,348 @@
+[
+  {
+    "project": "perry",
+    "imported_task_count": 489,
+    "query_total": 23,
+    "calls": [
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item create",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item create",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item create",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "rel add",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item get",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item get",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "attach add",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item update",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 1,
+        "effect": "refused",
+        "error": "guard_refused"
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "rel remove",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "events",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item update",
+        "code": 1,
+        "effect": "refused",
+        "error": "stale_write"
+      },
+      {
+        "command": "export",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      }
+    ],
+    "all_expected_outcomes": true
+  },
+  {
+    "project": "sky",
+    "imported_task_count": 32,
+    "query_total": 1,
+    "calls": [
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "query",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item create",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item create",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item create",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "rel add",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item get",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item get",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "attach add",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item update",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 1,
+        "effect": "refused",
+        "error": "guard_refused"
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "item move",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "rel remove",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      },
+      {
+        "command": "events",
+        "code": 0,
+        "effect": "read",
+        "error": null
+      },
+      {
+        "command": "item update",
+        "code": 1,
+        "effect": "refused",
+        "error": "stale_write"
+      },
+      {
+        "command": "export",
+        "code": 0,
+        "effect": "written",
+        "error": null
+      }
+    ],
+    "all_expected_outcomes": true
+  }
+]

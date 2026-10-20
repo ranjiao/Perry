@@ -1,0 +1,6 @@
+{
+  "snapshot": "6a44dae1e00863e9dc16aa6d81b2f1bb509298e898646242e9ed259188d35a42",
+  "summary": "Pre-edit baseline of Python units/imports. Read root/bin/kernel target boundaries and inspected legacy writer main/recovery path and kernel CLI. No semantic completeness or non-Python compliance claim; target documents pinned without inventing machine rules.",
+  "target_change_requested": false,
+  "findings": []
+}

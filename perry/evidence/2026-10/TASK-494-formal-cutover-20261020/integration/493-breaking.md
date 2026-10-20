@@ -1,0 +1,1 @@
+Legacy perry-state/next renderers and current-state fallbacks are retired. Snapshot payloads and helper paths change; consumers must follow the native query contract rather than read the frozen legacy registers.

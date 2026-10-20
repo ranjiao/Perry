@@ -1,13 +1,15 @@
 # Reporting, coordination and phase handoffs
 
-All work-state reads and writes use `kernel.md`. Query complete task/ask/risk
+All work-state reads and writes use `$PERRY_HOME/reference/kernel.md`. Query complete task/ask/risk
 results as needed, inspect events for the relevant time range, and attach only
 supporting documents that a reader can actually open. Legacy journals remain
 historical documents; the work lane no longer appends to them.
 
 ## `status` / `friday-review`
 
-Use `reporting-format.md` to save `weekly/<ISO-week>.md`. Distinguish implementation,
+A narrow status request is read-only. For an explicitly requested weekly report or
+friday-review, use `reporting-format.md` and save `weekly/<ISO-week>.md` only
+within the approved reporting scope. Distinguish implementation,
 tests, independent review, human acceptance and integration. Query totals and
 states; do not claim every returned row represents every stored row when truncated.
 

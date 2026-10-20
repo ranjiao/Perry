@@ -1,0 +1,127 @@
+{
+  "stage": "delivery",
+  "task": "TASK-490",
+  "snapshot": "25dec3c480080e23eab1fc6490399166ca197acab5d203d53e8aa5080fa2a7c0",
+  "status": "attention",
+  "open_report": true,
+  "reasons": [
+    "new_unresolved_checks",
+    "semantic_drift",
+    "target_change_requested"
+  ],
+  "target_changes": [],
+  "review": {
+    "snapshot": "25dec3c480080e23eab1fc6490399166ca197acab5d203d53e8aa5080fa2a7c0",
+    "summary": "The isolated branch retires legacy writes and recovery side effects on reads. Kernel tests and two imported-project rehearsals passed. Full legacy repository gate failed and is not waived. Governing bin target still describes the old work writer; target edits and live cutover are not accepted.",
+    "target_change_requested": true,
+    "findings": [
+      {
+        "reason": "Phase-E implementation intentionally retires the legacy work writer, while the pinned bin target still calls perry-task the lane writer. Prepare a target-document revision for user confirmation before integration; do not claim full acceptance.",
+        "target": "bin/ARCHITECTURE.md:31-33",
+        "evidence": [
+          "bin/perry-task::main@8690"
+        ]
+      }
+    ]
+  },
+  "new_blind_spots": [
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-kernel-migrate\", \"isinstance(payload, dict)\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-kernel-migrate:689:32",
+        "call:bin/perry-kernel-migrate:691:35"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-kernel-migrate\", \"payload.get(\\\"refused\\\")\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-kernel-migrate:689:62"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-task\", \"{\\n            \\\"add\\\": \\\"item create\\\", \\\"ask\\\": \\\"item create\\\",\\n            \\\"risk-add\\\": \\\"item create\\\", \\\"intake\\\": \\\"item create\\\",\\n            \\\"answer\\\": \\\"item move\\\",\\n            \\\"risk-clear\\\": \\\"item move\\\", \\\"start\\\": \\\"item move\\\",\\n            \\\"status\\\": \\\"item move\\\", \\\"done\\\": \\\"item move\\\", \\\"drop\\\": \\\"item move\\\",\\n            \\\"depends\\\": \\\"rel add / rel remove\\\", \\\"design-link\\\": \\\"attach add\\\",\\n            \\\"evidence\\\": \\\"item update / attach add\\\", \\\"purge\\\": \\\"item move\\\",\\n            \\\"stage\\\": \\\"describe\\\", \\\"cadence-add\\\": \\\"descri\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-task:8723:22"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-task\", \"print(json.dumps({\\\"refused\\\": message}, ensure_ascii=False))\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-task:8741:12"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-task\", \"print(message, file=sys.stderr)\"]",
+      "count": 1,
+      "evidence": [
+        "call:bin/perry-task:8742:8"
+      ]
+    },
+    {
+      "kind": "call",
+      "detail": "[\"bin/perry-task\", \"_transaction_path(state_root).exists()\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"bin/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"bin/lib/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"bin/perry_architecture/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"kernel/perry_kernel/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"release/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "skipped",
+      "detail": "[\"viewer/__pycache__/\"]",
+      "count": 1,
+      "evidence": []
+    },
+    {
+      "kind": "rule",
+      "detail": "[\"kernel-no-process\", \"excluded path overlaps rule scope: kernel/perry_kernel/__pycache__/\", []]",
+      "count": 1,
+      "evidence": []
+    }
+  ],
+  "baseline": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/start-20261015T110335Z-9f43813978",
+  "baseline_sha256": "2ce7e86351724c3fd0cfd15b83b7f0e3e0be699faccf235368aa530223fe18cf",
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/delivery-20261015T113145Z-676804fc0a/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-490-architecture/TASK-490/delivery-20261015T113145Z-676804fc0a",
+  "summary": "\u9700\u8981\u8ba8\u8bba\u67b6\u6784\u68c0\u67e5\u7ed3\u679c",
+  "bundle_sha256": "be75606646e7fb8dfb63a69e56e058c429b5e30193addc3c820ba35f67e8ad9b",
+  "html_sha256": "a8c0488547be98507394566d4e52a862abbdc16ce448e9bcf72b4b45a7f75669",
+  "fresh": true,
+  "verification_limit": "Fresh evidence, not semantic approval or independent review."
+}

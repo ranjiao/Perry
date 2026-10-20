@@ -1,0 +1,19 @@
+{
+  "effect": "plan",
+  "counts": {
+    "phase": 3,
+    "objective": 8,
+    "kr": 24,
+    "check": 24,
+    "design": 1
+  },
+  "warnings": [
+    "phase:003-experience-polish:kr:P003-O1-KR1: scalar target/current retained as legacy facts; no direction or measurement inferred",
+    "phase:003-experience-polish:kr:P003-O1-KR2: scalar target/current retained as legacy facts; no direction or measurement inferred",
+    "phase:003-experience-polish:kr:P003-O1-KR3: scalar target/current retained as legacy facts; no direction or measurement inferred",
+    "phase:003-experience-polish:kr:P003-O2-KR1: scalar target/current retained as legacy facts; no direction or measurement inferred",
+    "phase:003-experience-polish:kr:P003-O2-KR2: scalar target/current retained as legacy facts; no direction or measurement inferred",
+    "phase:003-experience-polish:kr:P003-O2-KR3: scalar target/current retained as legacy facts; no direction or measurement inferred"
+  ],
+  "requirements": []
+}

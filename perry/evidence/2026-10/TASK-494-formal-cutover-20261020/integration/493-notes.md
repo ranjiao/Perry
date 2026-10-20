@@ -1,0 +1,1 @@
+Root and lane snapshots, current-state facts, next-step reasoning and shared references use native kernel queries with pagination and explicit unknown/error handling. Startup and high-stakes/ownership safety checks remain skill-side procedures and retained helpers; next-step meaning remains agent work, with no extra kernel method concepts.

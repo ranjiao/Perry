@@ -11,6 +11,8 @@ Agree depth (`quick` report only; `standard` interview/prescription; `deep` adds
 document triage), selected context/docs/concurrency/tracking subjects and source
 roots. Keep a dated Markdown diagnosis under `.perry/diagnose/` with stage, step,
 scope, measurements, findings, user answers, prescriptions and declined items.
+Use `templates/internal/diagnosis_TEMPLATE.md`; measurements stay unknown until
+observed, and an inactive step is omitted rather than filled with an example.
 Resume only after the interrupted-run choice; changed scope requires a recorded
 decision. `--dry-run` stops before executing prescriptions.
 Bounded frontmatter uses `diagnosis: 1`, `stage` = scan | read | interview |
@@ -32,7 +34,10 @@ values block startup. Recheck is a later explicit operation, not a new stage.
 3. **Interview:** ask at most six concrete outcome questions; confirmed user
    requirements override a heuristic. Explain the mechanism behind each issue:
    what consumes attention, what would improve, and what evidence supports it.
-4. **Prescribe:** give the smallest finite change set within the user's stated
+4. **Prescribe:** use `new-projects.md` to distinguish standalone scaffolds from
+   native process data. Select individual files from `templates/scaffolds/`;
+   native projects must not receive parallel STATE/INTAKE/DECISIONS registers.
+   Give the smallest finite change set within the user's stated
    maintenance tolerance. Include zero findings and pure subtraction when apt.
    Each row cites a finding, source/measurement, expected outcome, ownership and
    rollback. No generic process expansion or automatic migration.
@@ -49,6 +54,6 @@ values block startup. Recheck is a later explicit operation, not a new stage.
 Use `diagnose-explanations.md` as a reading checklist, not a scoring engine.
 Check instruction load, document discoverability, concurrency/isolation,
 goals/checks/decisions, ID/title readability, namespace collisions, mode fit and
-process cost. Ordinary old regex scores/thresholds are proposed retirements
-pending final human acceptance; do not report their absent outputs as passes.
+process cost. Old regex scores/thresholds were retired under the accepted H list. Inspect
+meaning and actual evidence; never report absent old outputs as current passes.
 Follow `next.md` after completed writes.

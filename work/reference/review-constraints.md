@@ -53,33 +53,12 @@ could not have fixed it.
 
 ## Your scratch files are yours alone
 
-A round writes harnesses, mutant tables and captured output. **Put them under
-the one scratch derivation Perry has: `$PERRY_HOME/work/reference/dispatch.md §
-The tree the agent works in`, the block headed `perry-scratch-derivation`.**
-Re-derive it in each command rather than remembering a name. Its uniqueness
-comes from the worktree directory, not from anything you add, which is why it
-survives across commands and a log path you report is still there when someone
-opens it.
-
-There is deliberately no second recipe on this page. The first version of this
-section had one, built from `git rev-parse --short HEAD` and `$$`: both are
-contributed by the caller, which is the thing that block says must not be the
-mechanism, and `$$` changes on every shell invocation — so the log path the next
-section promises would not have survived to the next command. It was a second
-spelling of a byte-pinned rule, marked *do not edit without re-reading
-TASK-421*, and the V4 round caught it (TASK-472).
-
-Two incidents, one shape. The `pkill` incident above began as "an unexpected
-tree name in its own output", which was a **shared-path collision**. On
-2026-09-20 it happened again with no signal sent: two review rounds ran
-concurrently, the second overwrote the first's harness in a shared scratch
-directory **while a mutant was live in the tree**, and the first round only
-knew because it restored from `git show` and checked. Nothing escaped, and
-nothing about the collision was visible in either round's own output.
-
-A mutation round is the worst case for this: between planting and restoring,
-the tree is deliberately wrong, and a harness that changes underneath you can
-make a survivor look like a kill or the reverse.
+Use `dispatch.md § Where the agent puts a scratch file`: derive the project
+bucket and allocate a fresh external run directory with mktemp. Preserve the
+exact path across commands and in the verdict; do not reallocate between a
+mutation and its verification. Basename alone cannot distinguish managed
+worktrees with identical project directory names. External scratch does not
+permit mutation of the reviewed checkout; destructive checks still use copies.
 
 ## Batch what is independent; sequence what is not
 
@@ -132,7 +111,7 @@ round costs.
 
 ## Do not run the write side against what you are reviewing
 
-Native mutations (`item`, `rel`, `attach`, `template`, `init`, `import`, `replay`)
+Native mutations (`item`, `rel`, `attach`, `template`, `init`, `import`)
 change the project under review. Never invoke them against its actual store.
 Read current state using native `query`, `item get`, `events` and `describe`.
 Every mutation demonstration uses an explicit temporary `--store` with

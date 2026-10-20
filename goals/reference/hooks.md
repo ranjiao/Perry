@@ -1,6 +1,8 @@
 # OKR per-project hooks
 
-Loaded when configuring `.perry/hook.md` for a project, or when `init` /
+The root procedure owns agreed hook edits; goals proposes its preferences and
+reads the actual hook. Do not edit shipped skill pages or write the root hook
+from this lane. Load this page when `init` /
 `plan-phase` needs to know whether the project declares OKR-specific defaults.
 
 Generic by default; hooks are pure additions, not overrides. Most solo projects
@@ -28,8 +30,7 @@ If the project is **<your project name>**:
 - Canonical Objective tracks: <2–3 named tracks with one-line descriptions
   that fit your domain; e.g., "Learn / Build / Validate" or any other set>.
 - Roadmap source-of-truth: <file that anchors phase/week mapping, if any>.
-- Operating Principles to seed (drop these into `OKR.md` Operating Principles
-  on `okr init`):
+- Operating Principles to retain in the approved goal narrative attachment:
   - <invariant the system must hold>
   - <invariant the system must hold>
 - Anti-Goals to seed:
@@ -43,9 +44,10 @@ If the project is **<your project name>**:
   - <metric + target + deadline>
 ```
 
-## The one hook section that is not optional
+## Safety source
 
-`.perry/hook.md § High-stakes operations` is a **safety gate**, not
-configuration — `/pmo dispatch` refuses specs that match it and `/pmo autopilot`
-refuses to run without it. PMO bootstrap writes a conservative default list. See
-`work/reference/extending.md`. OKR only reads the hook; it never writes it.
+The root-owned `.perry/safety.json` supplies the reviewed policy, with role
+additions forming an additive union. Hook prose is context, not the machine
+list. Goals preserves existing restrictions and follows the root procedure for
+changes; native goal approval never authorizes a high-stakes external action.
+Read `$PERRY_HOME/reference/safety-policy.md` and `config.md`.

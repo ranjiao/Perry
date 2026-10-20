@@ -2,10 +2,15 @@
 
 PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / work documents.
 
+This is an Agent skill procedure, not a native CLI or background service.
+Resolve the configured document root; inputs and knowledge paths below are
+relative to that root. Existing source ownership and user authority still apply.
+The kernel has no digest item or automatic source-age/referrer classifier.
+
 ## Two directories — clear separation
 
 ```
-<project_root>/
+<agreed_document_root>/
 ├── inputs/                              # raw drop zone — user puts anything here
 │   ├── 2025-12-09-vendor-acme-contract.pdf  # waiting to be digested
 │   ├── pasted-error-budget-thresholds.md    # user paste, not yet processed
@@ -20,7 +25,7 @@ PMO's mechanism for handling **external input documents** the user provides (PDF
     │   └── kubernetes-best-practices-2024-digest.md
     ├── _shared/                         # cross-topic / project-constitution
     │   └── USER-002-constraints-digest.md
-    └── INDEX.md                         # auto-maintained
+    └── INDEX.md                         # Agent-maintained during the approved operation
 ```
 
 **Lifecycle**: `inputs/` → `/pmo digest <path>` → both source + digest move to `knowledge/<topic>/`. `inputs/` is transient; ideally empty after every digest pass.
@@ -41,7 +46,7 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 
 ### Pre-flight
 
-1. Source exists at `inputs/<path>`. Refuse if path is anywhere else (use `mv` first).
+1. Resolve the source under the agreed inputs root and inspect ownership. A source elsewhere requires an explicitly authorized copy/staging plan; never move a foreign or user-owned original merely to satisfy this layout.
 2. Hash the source (SHA-256). Used later to detect source changes.
 3. Detect file kind: `.md` / `.txt` (read directly), `.pdf` (use Read tool's PDF support), `.xlsx` / `.csv` (Read), screenshot images (Read).
 
@@ -63,17 +68,17 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 ### Move + commit
 
 9. Choose target folder: `knowledge/<topic>/`. Create the subfolder if new.
-10. Move the source file: `git mv inputs/<source> knowledge/<topic>/<source>` (or plain `mv` if source is gitignored).
+10. With actual approval of the exact source/destination and checked collisions, move the owned staged source into knowledge. Preserve user originals, attached historical sources and untracked work; retain hashes and the actual operation in the digest.
 11. Write the final digest: `knowledge/<topic>/<basename>-digest.md` (using the verified content).
 12. Update `knowledge/INDEX.md` (see `## INDEX.md` below).
-13. Record the source, destination, topics and verified facts in the digest itself. If this fulfils a task, attach the digest with kernel `attach add` and update that task through `kernel.md`. Do not append a work journal entry.
+13. Record the source, destination, topics and verified facts in the digest itself. If this fulfils a task, attach the digest with kernel `attach add` and update that task through `$PERRY_HOME/reference/kernel.md`. Do not append a work journal entry.
 14. Reply to user with the digest path + topic + 1-line summary.
 
 ### Refresh existing digest
 
 `/pmo digest knowledge/<topic>/<existing-digest>.md --refresh`:
 - Re-hash the source. If unchanged, exit "no refresh needed".
-- If changed: re-read source, diff against existing digest, surface ONLY the changed sections via AskUserQuestion (don't re-verify everything).
+- If changed, or the user requests a new interpretation/template, re-read the affected source and surface changed claims. An unchanged hash alone does not prove continued relevance or acceptance.
 - Per Q6c (user can hand-edit), respect any sections marked `<!-- user-edited -->` — do NOT overwrite without explicit AskUserQuestion confirmation.
 - Update `Source SHA-256` and `Last digested` fields.
 
@@ -83,12 +88,12 @@ Every digest run classifies the source into one of **two** types. The classifica
 
 ### The two types
 
-- **`project-context`** (default) — anything the user drops in to give PMO project background: vendor contracts, internal docs, constraints lists, screenshots, user notes, regulatory text. Uses `state/digest_TEMPLATE.md`. Typical length < 5000 words.
-- **`research-style`** — academic papers, industry tech reports, white papers, formal technical notes. Uses `state/digest_paper_TEMPLATE.md` (extended schema with Method / Results / Limitations / Reproducibility / Applicability / Followup citations). Typical length ≥ 8 pages.
+- **`project-context`** (default) — anything the user drops in to give PMO project background: vendor contracts, internal docs, constraints lists, screenshots, user notes, regulatory text. Uses `work/templates/digest_TEMPLATE.md`. Typical length < 5000 words.
+- **`research-style`** — academic papers, industry tech reports, white papers, formal technical notes. Uses `work/templates/digest_paper_TEMPLATE.md` (extended schema with Method / Results / Limitations / Reproducibility / Applicability / Followup citations). Typical length ≥ 8 pages.
 
 ### Classification signals
 
-Compute weighted evidence from the source. **Each signal toward `research-style` = +1 point. ≥3 points → high-confidence `research-style`. 0–1 points → high-confidence `project-context`. 2 points → ambiguous, ask user.**
+Compute weighted evidence from the source. These are Agent selection heuristics, not native guards or a mechanical semantic classifier. **Each signal toward `research-style` = +1 point. ≥3 points → high-confidence `research-style`. 0–1 points → high-confidence `project-context`. 2 points → ambiguous, ask user.**
 
 | Signal | Counts toward `research-style` if … |
 |---|---|
@@ -117,7 +122,7 @@ Both schemas share: front-matter (Id / Source / SHA / Status / Topics / Referenc
 
 They differ in **body sections** to match what's worth capturing about each type.
 
-### Project-context schema (template at `state/digest_TEMPLATE.md`)
+### Project-context schema (template at `work/templates/digest_TEMPLATE.md`)
 
 ```markdown
 # Digest — <source filename>
@@ -131,7 +136,7 @@ They differ in **body sections** to match what's worth capturing about each type
 > Superseded by: <filename or —>
 > Topics: <comma-separated>
 > Verification level: standard | strict
-> Referenced by: <auto-grep result; updated at INDEX rebuild>
+> Referenced by: <observed references, method/date/coverage; unknown when unmeasured>
 
 **`Id:` is the citation handle, and it is minted once.** Take the next unused
 `SRC-<n>` across all of `knowledge/`, never reuse one, and never renumber. A
@@ -159,7 +164,7 @@ derived from position, topic or filename, all of which move. Before a write, the
 - §2 ...
 ```
 
-### Research-style schema (template at `state/digest_paper_TEMPLATE.md`)
+### Research-style schema (template at `work/templates/digest_paper_TEMPLATE.md`)
 
 For academic papers and industry technical reports. Replaces the project-context body with sections that capture what's worth knowing about research:
 
@@ -190,13 +195,13 @@ If a digest of a paper would fit comfortably into the project-context schema, th
 
 ## `knowledge/INDEX.md` — the catalog
 
-PMO maintains this file automatically. Updated on every `/pmo digest`, archive operation, and full rebuild during `end-phase-retro`.
+The work Agent updates this authored catalog during an approved digest/archive operation. A retro may request a bounded refresh; no background indexer or automatic header parser maintains it. Preserve unrelated entries and report unknown/stale counts.
 
 ```markdown
 # Knowledge index — <project name>
 
 > Last updated: <YYYY-MM-DD>
-> Active: <count> · Eternal: <count> · Stale: <count> · Archived: <count>
+> Counts: <actual bounded inspection and date, or unknown>
 
 ## Eternal (project constitution; never archived)
 
@@ -253,15 +258,15 @@ Files **never move on archive** — only the header field changes. Avoids breaki
 
 ### Archive-candidate detection (Q7=a, Q8=one-shot)
 
-Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
+When an authorized review actually needs this evidence, the Agent inspects the agreed knowledge scope. There is no scheduled stale scan. Evaluate source availability, observed references and documented dates; a missing scan result is unknown. A review can propose active digests matching:
 
-1. `Status: active` AND no reference to the digest path found in any of:
-   - the task store (kernel `query` (all task pages; see `kernel.md`))
-   - `journal/<YYYY-MM>/*.md` for last 90 days
+1. `Status: active` AND an actually recorded last-reference date older than the agreed threshold, with a bounded inspection of:
+   - the task store (kernel `query` (all task pages; see `$PERRY_HOME/reference/kernel.md`))
+   - native event/attachment evidence for the selected period (event time is not last-read time)
    - `evidence/<YYYY-MM>/**.md` for last 90 days
    - `decisions/`
    - `phase/<NNN>-<slug>.md` (current phase) and recent `phase/snapshots/`
-   for ≥ `archive_inactive_days` (default **90 days**, override per-project hook)
+   using the agreed `archive_inactive_days` reference (default 90 days). Absence of a link or an old mtime cannot establish the date a source was last used; unknown age prevents an age-based recommendation.
 2. Source file no longer exists (orphaned digest)
 3. Header has `Superseded by:` filled in but `Status:` still `active`
 
@@ -272,12 +277,12 @@ For each candidate, header = digest basename, options:
 - `Archive (Recommended)` — flip `Status: archived`, set `Archived: <date> (reason: <user input>)`. INDEX moves to Archived section on next rebuild.
 - `Keep active — still relevant` — note suppression date in INDEX so it's not re-flagged for 30 days.
 - `Mark eternal — never propose archive` — flip `Status: eternal`. Featured at top of INDEX.
-- `Delete entirely (digest + source)` — `git rm` both files; remove from INDEX. Use sparingly (loses history).
+- `Delete entirely (digest + source)` — a separate destructive scope: first show exact paths, backlinks and recoverable bytes, check ownership and actual authorization, and preserve frozen migration/acceptance evidence. Never delete a source merely because it appears old.
 
 ### "I need an archived digest"
 
 PMO behavior:
-- Default: only searches `Status: active | eternal` when picking references for new specs / journal / decisions.
+- Default: consult active/eternal sources when relevant; never append work history to a journal. Other lanes own their decision documents.
 - On user request ("the old vendor-acme contract from 2024"): grep the archived section of INDEX.md.
 - Re-activate: `/pmo digest knowledge/<topic>/<digest-name>.md --refresh` (refresh subcommand re-flips status to active automatically if user confirms).
 
@@ -287,16 +292,16 @@ Recognized in `.perry/hook.md` under `## Digest archive thresholds`:
 
 ```
 - Inactive days before archive candidate: 60      # tighter than 90
-- Auto-eternal topics: USER-002-constraints, OKR-anti-goals, operating-rules
+- Protected topics to review: <declared topics; eternal status still needs the actual user choice>
 - Topics never to digest: scratch, temp           # PMO refuses /pmo digest on inputs/ tagged with these names
 ```
 
 ## Bootstrap
 
-When `/pmo` bootstraps a new project (per `SKILL.md § First-time setup`), also create:
+Only when the user selects knowledge/digest work, create the needed owned paths after the root first-run collision checks; do not create these eagerly for every new project:
 - Empty `inputs/` directory
 - Empty `knowledge/` directory
-- `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (just headers, no entries)
+- `knowledge/INDEX.md` from `work/templates/knowledge_INDEX_TEMPLATE.md` (just headers, no entries)
 
 ## Why this isn't RAG
 

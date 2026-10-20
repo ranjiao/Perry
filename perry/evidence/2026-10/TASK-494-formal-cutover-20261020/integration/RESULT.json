@@ -1,0 +1,78 @@
+{
+  "perry": {
+    "base": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+    "candidate": "12c2dea761b1a3429b2b058e5fd82918ab7ff8f5",
+    "merge": "7f7849060d035871160b5be6e0cc9efca0cd6a5f",
+    "tree": "361aea27a4acf5bc649e5d972e247790d8e1f377",
+    "version": "0.1.29",
+    "dirty_files_preserved": 521,
+    "identical_untracked_approval_files_now_tracked": [
+      "perry/evidence/2026-10/TASK-492-prefix-floor/approval.json",
+      "perry/evidence/2026-10/TASK-492-prefix-floor/approval.md",
+      "perry/evidence/2026-10/TASK-492-prefix-floor/proposal.md",
+      "perry/evidence/2026-10/TASK-494-review-candidate/approval.json",
+      "perry/evidence/2026-10/TASK-494-review-candidate/candidate.json",
+      "perry/evidence/2026-10/TASK-494-review-candidate/combined-corrections.json",
+      "perry/evidence/2026-10/TASK-494-review-candidate/disposition.json",
+      "perry/evidence/2026-10/TASK-494-review-candidate/dropped-checks.tsv"
+    ],
+    "native_root_db_sha256_unchanged": "e0829d01d0c2560cde3c97f5132ae979f2633c1265a9b72005149300306e72c9",
+    "diff_check": "PASS",
+    "state_writes": "none by integrator",
+    "publication": "integrated unpublished; no remote actions"
+  },
+  "aimark": {
+    "base": "09231bd25b3b79ef8f630aef0474a490f1ed056e",
+    "adapter": "3e941d3454c363c793d87135fe9d8991c728034e",
+    "merge": "27586cdb5a59ecbed6afda5ed0dc7ada9b981947",
+    "tree": "f8a2678adcdea2744f0ed18d80da43e7503a83ec",
+    "compared_files": 257,
+    "combined_test_tree_byte_equal": true,
+    "user_wip_files_preserved": 51,
+    "user_version_preserved": "0.19.2",
+    "contract_user_delta": "Only original0.19.0-to0.19.2 version line remains unstaged atop native adapter text",
+    "recovery_stash": "a963e4b3e2d3c09685a790409332ce2e4cabf99b",
+    "contract_before": {
+      "sha256": "1d04d77b47faa0dac370da2574428dd90b214d67c07cbccf3d4d634a908ea50a",
+      "mtime_ns": 1792465052576981203,
+      "size": 7572
+    },
+    "contract_after": {
+      "sha256": "e32da18251955c87cf2fc5af2f32488a557ac75d2419b6e9fd1726a9534222f9",
+      "mtime_ns": 1792465721748355898
+    },
+    "diff_check": "PASS",
+    "user_changes_staged": false,
+    "publication": "local only, unpublished"
+  },
+  "gates": {
+    "perry_full": "PASS kernel288 incl1 platform skip + helpers182; new source suite, not retired corpus",
+    "perry_slow": "PASS same470 +7 integration selftests;1 platform skip",
+    "receipts": "PASS full and slow reconstructed immutable input tree and transcript/hash checks",
+    "release": "PASS base/head with0.1.27,0.1.28,0.1.29; v0.1.29 format only, no tag",
+    "release_independent_review": "/tmp/perry-scratch/Perry/TASK-492-494-release-20261020-d5ep6gyu/release-independent-review.md",
+    "aimark_actual_dirty_baseline": "PASS typecheck/build1047tests67files",
+    "aimark_verified_combined": "PASS typecheck/build1024tests69files",
+    "aimark_primary_native_contracts": "PASS see aimark-primary-native-check.log"
+  },
+  "boundaries": {
+    "live_activation": "root orchestrator owns; integrator made no live store/task writes",
+    "H_V5": "not awarded",
+    "remote": "no push, tag, publication",
+    "source_audit": "PROPOSAL remains inventory, not human signature; actual approval records independently checked"
+  },
+  "source_sha256": {
+    "Perry": {
+      "bin/perry": "7ab7a59ecc5c4ede2a33a080d57c967fe269e3a430a6de537cf671131587ebc4",
+      "kernel/perry_kernel/commands.py": "bd440612281f1ce163579ba7dd44c1bc83f3ca3c075ea29ea6d666c821586715",
+      "kernel/perry_kernel/surface.py": "d038e40fc13e488312d7f24c0d328c534d8769bf2214d6e8922115207e048b5e",
+      "templates/process/perry.json": "4131aeb50c5db330eb793994c26bee1848cf7a73342f3442bd28eb21b0dbe0f1"
+    },
+    "aiMark": {
+      "src/perry-kernel-goals.ts": "42a6fcd0d10b9479f8f2be0e8f58e904701e12ac2f2321545793858373786512",
+      "src/perry-gateway.ts": "46ba710af6ad83fdf71ab03dbfc72b2a3942d9fabc54e73f50c8565dbd113fd4",
+      "src/perry-cli.ts": "f6817bebfedd87703b1e98a05156184d8e12c7dff0883678f8656dd13c8f457c",
+      "PERRY-CONTRACTS.md": "e32da18251955c87cf2fc5af2f32488a557ac75d2419b6e9fd1726a9534222f9"
+    }
+  }
+}

@@ -55,14 +55,15 @@ Only the targets selected for your machine should exist. In any host, invoke the
 
 The complete matrix and strict host/executor mismatch behavior are in [`reference/host-capabilities.md`](reference/host-capabilities.md).
 
-## Existing projects and this candidate
+## Existing projects
 
-The H candidate removes the legacy commands and contracts. Do not activate it
-against an existing project until the F/G/H combined source, required aiMark
-adapters, isolated store/export/backup receipts and rollback limits have been
-reviewed. Source implementation is not permission for live migration. Existing
-JSONL configuration and project history remain frozen migration inputs.
-See [the concrete retirement ledger](release/retirement/README.md).
+The native architecture removes legacy commands and contracts. Perry's own project
+and SkyTonight completed their reviewed local cutover; that result does not
+migrate another project. Before a separate existing-project migration, review its
+actual source, required consumers, isolated rehearsal, backups, export/replay and
+rollback limits. Never copy a rehearsal database over a live store or import into
+a populated one. Existing JSONL configuration and project history remain frozen
+migration inputs. See [the source retirement ledger](release/retirement/README.md).
 
 ## First run
 

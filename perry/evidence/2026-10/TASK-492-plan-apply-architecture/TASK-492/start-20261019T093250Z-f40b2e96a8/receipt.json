@@ -1,0 +1,23 @@
+{
+  "stage": "start",
+  "task": "TASK-492",
+  "snapshot": "d7846e21bfcecbafe7be3f9c2c291e13ad754380a6c7a7386d5136f45ea47df5",
+  "status": "limited",
+  "open_report": false,
+  "reasons": [],
+  "target_changes": [],
+  "review": {
+    "snapshot": "d7846e21bfcecbafe7be3f9c2c291e13ad754380a6c7a7386d5136f45ea47df5",
+    "summary": "Exact Python source/reference evidence. Plan helper boundary compared with root section 3 and locked F/G/H; no target changes. Dynamic CLI calls, filesystem races, narrative authority and full semantics require separate checks.",
+    "target_change_requested": false,
+    "findings": []
+  },
+  "new_blind_spots": [],
+  "baseline": null,
+  "baseline_sha256": null,
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-plan-apply-architecture/TASK-492/start-20261019T093250Z-f40b2e96a8/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-plan-apply-architecture/TASK-492/start-20261019T093250Z-f40b2e96a8",
+  "summary": "\u67b6\u6784\u68c0\u67e5\uff1a\u672a\u53d1\u73b0\u5df2\u786e\u8ba4\u504f\u79bb\uff0c\u5b58\u5728\u9759\u6001\u5206\u6790\u76f2\u533a\uff1b\u8bc1\u636e\u5df2\u4fdd\u5b58\u3002",
+  "bundle_sha256": "82b46d55a430a1e2eb215f96bdc8ad1120537b2cd0b4266d4567608a6aadf2eb",
+  "html_sha256": "ec22e5fbfea8f5ceed77f792dc3a658d7aaa1740b3bdf7619acbb36855ebb32a"
+}

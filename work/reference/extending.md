@@ -12,11 +12,16 @@ If a new feature is broadly applicable (touches every standup, every reply), it 
 
 ## Per-project hooks
 
-`.perry/hook.md` is written at PMO bootstrap from `state/hook_TEMPLATE.md` and read at every standup. Its contents are pure additions to PMO's generic behavior, never overrides of the core rules — with one exception that is not optional:
+The root procedure creates or updates `.perry/hook.md` from the selected
+`templates/internal/hook_TEMPLATE.md` proposal. Work reads it and requests root
+edits; it does not own configuration. Preserve unrelated user-authored text.
 
-> **`## High-stakes operations` is a safety gate, not configuration.** `/pmo dispatch` refuses any spec whose `Files in scope` / `Deliverable` matches a line in it; `/pmo autopilot` skips matching rows and **refuses to run when the list is empty** (`autopilot.md` pre-flight step 0). A project without the list has an unarmed gate, so bootstrap always writes the conservative default and asks the user to confirm it. Everything below this line is genuinely optional.
-
-Read the exact hook section and run the structural dispatch packet through `tools/document_checks.py dispatch`; see `reference/operating-rules.md`. An empty/unextractable list refuses. The agent judges actual operations and authority; a supplied packet authorization is not consent by itself.
+`.perry/safety.json` supplies the actual high-stakes list. Hook prose explains
+intent, while role rules can only add restrictions. A missing/unreviewed policy
+blocks automated dispatch; a hook bullet or packet string is not consent.
+Read `$PERRY_HOME/reference/safety-policy.md` and run the structural dispatch
+packet. Judge actual operations and the user's scoped authority; never treat
+changing the source template as approval to edit any live policy.
 
 ### Block format
 
@@ -41,7 +46,7 @@ If the project is **<your project name>**:
   set that matches your project's vocabulary>.
 - Cost ceiling source: <file or section that names the spend cap>.
 - Special agents available: — · a role is a card in `.perry/roles/`, not a
-  name in this line. See `work/state/role_card_TEMPLATE.md`; copy a starting
+  name in this line. See `work/templates/role_card_TEMPLATE.md`; copy a starting
   point from `packs/software-ops/roles/`.
 - Promotion / staging path (if any): <ordered list of stages a deliverable
   must pass through before being considered shipped>.

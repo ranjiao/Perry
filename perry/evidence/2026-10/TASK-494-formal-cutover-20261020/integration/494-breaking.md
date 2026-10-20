@@ -1,0 +1,1 @@
+Old executables, typed-state schema/contracts, viewer parsers and obsolete test corpus are removed. The new full/slow gates validate the native kernel and retained skill helpers and do not claim the retired corpus passed. Offline merge receipts replace duration-artifact imports; test receipts are unsigned evidence, not approval or final H/V5 sign-off.

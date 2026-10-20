@@ -1,0 +1,20 @@
+[
+  {
+    "source": "/Users/bytedance/proj/Perry",
+    "source_copy": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/Perry/source",
+    "scratch_root": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/Perry/anchor",
+    "scratch_store": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/Perry/store.db",
+    "native_source": "/Users/bytedance/proj/Perry/.git/perry/root.db",
+    "method": "sqlite read-only online backup; no source SQL writes",
+    "source_git_head": "b9be4d39f52ce1266534215b999c9db408b03bc5"
+  },
+  {
+    "source": "/Users/bytedance/proj/SkyTonight",
+    "source_copy": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/SkyTonight/source",
+    "scratch_root": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/SkyTonight/anchor",
+    "scratch_store": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task-492.HqROWV/SkyTonight/store.db",
+    "native_source": "/Users/bytedance/proj/SkyTonight/.git/perry/root.db",
+    "method": "sqlite read-only online backup; no source SQL writes",
+    "source_git_head": "d3a153bf83c56a071d7b8df9fdad95c556478b62"
+  }
+]

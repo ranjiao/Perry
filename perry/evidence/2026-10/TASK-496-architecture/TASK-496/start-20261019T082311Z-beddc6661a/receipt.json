@@ -1,0 +1,25 @@
+{
+  "stage": "start",
+  "task": "TASK-496",
+  "snapshot": "b4f5c0be0c475bb759f28053225e8127908ca6fb0996a22561ca204a774e3e88",
+  "status": "attention",
+  "open_report": true,
+  "reasons": [
+    "target_change_requested"
+  ],
+  "target_changes": [],
+  "review": {
+    "snapshot": "b4f5c0be0c475bb759f28053225e8127908ca6fb0996a22561ca204a774e3e88",
+    "summary": "Real pre-edit baseline for user-authorized removal of the session ceiling, preserving truthful transcript identity/usage measurements and unrelated checks. Governing root/bin/kernel boundaries reviewed; no kernel edits planned. Static coverage does not establish workflow semantics. The user explicitly authorized retiring the session rule and its direct-config-read exception.",
+    "target_change_requested": true,
+    "findings": []
+  },
+  "new_blind_spots": [],
+  "baseline": null,
+  "baseline_sha256": null,
+  "report": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-496-architecture/TASK-496/start-20261019T082311Z-beddc6661a/index.html",
+  "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-496-architecture/TASK-496/start-20261019T082311Z-beddc6661a",
+  "summary": "\u9700\u8981\u8ba8\u8bba\u67b6\u6784\u68c0\u67e5\u7ed3\u679c",
+  "bundle_sha256": "d1fbb2430100aa5b6937df189f2f3065a70ce9e716158fe4b58b38b2aeb7220c",
+  "html_sha256": "6b1330c307a10536e484ab6cfdb5ef403429d3bc17cbbbe9537cead461cb4b3f"
+}

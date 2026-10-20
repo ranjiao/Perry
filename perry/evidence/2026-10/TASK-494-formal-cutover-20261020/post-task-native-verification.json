@@ -1,0 +1,99 @@
+[
+  {
+    "project": "/Users/bytedance/proj/Perry",
+    "seq": 1895,
+    "total_items": 807,
+    "event_count": 1895,
+    "original_event_prefix_exact": true,
+    "only_intended_original_item_changes": [
+      "TASK-492",
+      "TASK-493",
+      "TASK-494"
+    ],
+    "derived_dependency_changes": [
+      {
+        "id": "TASK-220",
+        "before_blocked_by": [
+          "TASK-492"
+        ],
+        "after_blocked_by": []
+      },
+      {
+        "id": "TASK-393",
+        "before_blocked_by": [
+          "TASK-492"
+        ],
+        "after_blocked_by": []
+      },
+      {
+        "id": "TASK-444",
+        "before_blocked_by": [
+          "TASK-493"
+        ],
+        "after_blocked_by": []
+      },
+      {
+        "id": "TASK-461",
+        "before_blocked_by": [
+          "TASK-493"
+        ],
+        "after_blocked_by": []
+      },
+      {
+        "id": "TASK-465",
+        "before_blocked_by": [
+          "TASK-191",
+          "TASK-444",
+          "TASK-493"
+        ],
+        "after_blocked_by": [
+          "TASK-191",
+          "TASK-444"
+        ]
+      },
+      {
+        "id": "TASK-493",
+        "before_blocked_by": [
+          "TASK-492"
+        ],
+        "after_blocked_by": []
+      },
+      {
+        "id": "TASK-494",
+        "before_blocked_by": [
+          "TASK-493"
+        ],
+        "after_blocked_by": []
+      }
+    ],
+    "stored_fields_and_seq_of_all_other_items_unchanged": true,
+    "replay_byte_identical": true,
+    "native_task_states": {
+      "TASK-492": "done",
+      "TASK-493": "done",
+      "TASK-494": "done"
+    },
+    "export_hashes": {
+      "items.jsonl": "8ce5f6913311b01f5db58ca7a80a370d099e6a83c1f2fe68541160fbc7362f8c",
+      "events.jsonl": "82d4e23d21ab382b1ef6274c1121a3c6e2d2f0db2519f9ed54a5aff72b293698"
+    },
+    "replay_work": "/tmp/perry-scratch/Perry/post-task-replay-dxa3_8v1"
+  },
+  {
+    "project": "/Users/bytedance/proj/SkyTonight",
+    "seq": 264,
+    "total_items": 94,
+    "event_count": 264,
+    "original_event_prefix_exact": true,
+    "only_intended_original_item_changes": [],
+    "derived_dependency_changes": [],
+    "stored_fields_and_seq_of_all_other_items_unchanged": true,
+    "replay_byte_identical": true,
+    "native_task_states": {},
+    "export_hashes": {
+      "items.jsonl": "802fbc818a98b19cf4e918883bb0c8dc7c783a1511762f09cb0f1b6a508974ad",
+      "events.jsonl": "e0c433c81bdeb1419148f73e13820cb8fa81fbe13ef380ee634181cb9b801af8"
+    },
+    "replay_work": "/tmp/perry-scratch/Perry/post-task-replay-q8xsl0y3"
+  }
+]

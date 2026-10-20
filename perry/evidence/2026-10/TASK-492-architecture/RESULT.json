@@ -1,0 +1,75 @@
+{
+  "task": "TASK-492",
+  "status": "coding delivery; Perry rehearsal blocked by missing generic prefix-floor capability",
+  "branch": "codex/task-492-goals-decide",
+  "head": "c1b04f71d65c41f87edcca3666f55878010f9062",
+  "base": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+  "files_changed": [
+    "bin/perry-decide",
+    "bin/perry-goals",
+    "decide/SKILL.md",
+    "decide/reference/decisions.md",
+    "goals/SKILL.md",
+    "goals/reference/elicitation.md",
+    "goals/reference/linkage.md",
+    "goals/reference/phases.md",
+    "goals/reference/pivots.md",
+    "goals/reference/planning.md",
+    "goals/reference/setup.md",
+    "goals/reference/weekly.md",
+    "reference/glossary.md",
+    "reference/hand-off-contract.md",
+    "reference/okr-linkage.md",
+    "templates/process/perry.json",
+    "tests/test_goals_decide_native.py",
+    "tools/TASK-492-adr-successor.json",
+    "tools/TASK-492-delivery.md",
+    "tools/TASK-492-kernel-proposal.md",
+    "tools/goals_decide_migrate.py"
+  ],
+  "executor_root": "/Users/bytedance/.codex/worktrees/goals-decide-kernel/Perry",
+  "primary_head": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+  "checks": {
+    "native_tests": "16/16",
+    "kernel_template_vocabulary_tests": "15/15",
+    "diff_check": "clean",
+    "full_slow_legacy": "not run per dispatch; root combined validation owns this"
+  },
+  "architecture": {
+    "start": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-architecture/TASK-492/start-20261019T085244Z-e4dba888a1",
+    "delivery": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-architecture/TASK-492/delivery-20261019T091834Z-053a0e4d6e",
+    "freshness": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-492-architecture/freshness-final.json",
+    "fresh": true,
+    "status": "attention",
+    "target_changes": [],
+    "new_blind_spot_kinds": {
+      "call": 321,
+      "skipped": 5,
+      "rule": 1
+    },
+    "browser_open": "unavailable: iab unavailable; browser inventory empty",
+    "source_roots": [
+      "bin",
+      "kernel",
+      "viewer"
+    ],
+    "exclude": [
+      "tests",
+      "kernel/tests",
+      "perry",
+      ".git"
+    ],
+    "max_file_bytes": 2000000,
+    "limit": "Python lexical evidence only; no static completeness, semantic acceptance, V4 or V5"
+  },
+  "authority_gap": {
+    "proposal": "tools/TASK-492-kernel-proposal.md",
+    "reason": "Perry DESIGN-018 filename hole requires monotone prefix-floor primitive; no code/target approval assumed",
+    "kernel_changes": false,
+    "live_writes": false,
+    "task_state_changes": false,
+    "push_pr_publication": false
+  },
+  "activation_and_release_notes": "tools/TASK-492-delivery.md",
+  "adr_activation_candidate": "tools/TASK-492-adr-successor.json"
+}

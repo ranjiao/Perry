@@ -1,0 +1,6 @@
+{
+  "snapshot": "fefc3eb0e8a7c930abed815ff306402b231373a12ab02c3f4590e21ff4ab548f",
+  "summary": "User explicitly approved TASK-490-target-proposal.patch before application. Target semantics applied; root wrapping restored the existing 500-line cap, and the measured declared-surface count is eight rather than the proposal typo seven. Native work procedures retain independent review, criteria, high-stakes, ownership, restore and executor isolation constraints. Frozen-reader fixtures explicitly declare historical input and never bypass production retirement. Full gate remains red: acceptance and live cutover are NOT granted. The implementation was fully tested at 5daae778 and the descriptive undeclared-tool count correction is committed as e890317f. The full gate failed with 46 of 162 modules red; no completion or switch acceptance is implied.",
+  "target_change_requested": false,
+  "findings": []
+}

@@ -1,0 +1,2052 @@
+
+0. tree guard — recording /Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry
+  · recorded
+
+1. schema drift guard (templates vs schema/state-schema.json)
+perry-lint · templates in /Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry
+  ✓ clean — every state file matches schema/state-schema.json
+
+2. parser / extractor / linter contract tests
+
+✗ test_actor_required.py — 86 of 18 test(s) failed
+  ! unittest counted 86 failed test(s) and the id parser named 9 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_actor_required.TestAWriteRecordsItsActor.test_the_event_carries_the_actor_given
+    FAIL   test_actor_required.TestEveryDocumentExampleCarriesTheActor.test_no_writing_invocation_lacks_the_actor
+    FAIL   test_actor_required.TestEveryWriterRefusesWithoutAnOwner.test_each_writer_refuses_absent_empty_and_blank
+    FAIL   test_actor_required.TestEveryWriterRefusesWithoutAnOwner.test_the_same_argv_writes_once_the_actor_is_given
+    FAIL   test_actor_required.TestNoReadDemandsIt.test_every_read_runs_without_the_flag
+    FAIL   test_actor_required.TestNoReadDemandsIt.test_usage_marks_the_flag_required_on_writers_only
+    FAIL   test_actor_required.TestTheLinkageRecordHasNoDefault.test_a_nonblank_actor_is_recorded_without_rewriting_it
+    FAIL   test_actor_required.TestTheLinkageRecordHasNoDefault.test_add_kr_records_the_actor_given
+    FAIL   test_actor_required.TestTheWritingSetIsDeclared.test_the_set_is_every_subcommand_that_declares_writes
+  … 854 earlier line(s) elided of 879; the last 25 follow — re-run this module alone for all of it
+
+======================================================================
+FAIL: test_add_kr_records_the_actor_given (test_actor_required.TestTheLinkageRecordHasNoDefault.test_add_kr_records_the_actor_given)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_actor_required.py", line 205, in test_add_kr_records_the_actor_given
+    tid = self.new_id(proc)
+          ^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_writes_the_edge.py", line 283, in new_id
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_set_is_every_subcommand_that_declares_writes (test_actor_required.TestTheWritingSetIsDeclared.test_the_set_is_every_subcommand_that_declares_writes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_actor_required.py", line 119, in test_the_set_is_every_subcommand_that_declares_writes
+    self.assertGreaterEqual(len(declared), 27)
+AssertionError: 0 not greater than or equal to 27
+
+----------------------------------------------------------------------
+Ran 18 tests in 2.624s
+
+FAILED (failures=86)
+
+✗ test_add_declares_unlinked.py — 25 of 29 test(s) failed
+  ! unittest counted 25 failed test(s) and the id parser named 21 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_add_declares_unlinked.TestAStoreLessProjectRefusesTheDeclaration.test_a_kr_on_a_store_less_project_is_still_accepted
+    FAIL   test_add_declares_unlinked.TestAStoreLessProjectRefusesTheDeclaration.test_the_control_the_same_fixture_can_file_a_row
+    FAIL   test_add_declares_unlinked.TestAStoreLessProjectRefusesTheDeclaration.test_the_declaration_is_refused_when_there_is_no_store
+    FAIL   test_add_declares_unlinked.TestSilenceIsStillNeverAsked.test_with_no_register_silence_still_files_and_warns
+    FAIL   test_add_declares_unlinked.TestTheContradictionIsRefused.test_a_blank_kr_alone_is_still_refused_for_its_own_reason
+    FAIL   test_add_declares_unlinked.TestTheContradictionIsRefused.test_both_flags_together_are_refused
+    FAIL   test_add_declares_unlinked.TestTheContradictionIsRefused.test_it_is_refused_on_presence_not_on_value
+    FAIL   test_add_declares_unlinked.TestTheContradictionIsRefused.test_the_refusal_says_the_declaration_cannot_be_withdrawn
+    FAIL   test_add_declares_unlinked.TestTheDeclarationIsNotASecondTransaction.test_a_crash_before_the_marker_lands_writes_nothing
+    FAIL   test_add_declares_unlinked.TestTheDeclarationIsNotASecondTransaction.test_after_the_canonical_set_lands_the_declaration_has_its_row
+    FAIL   test_add_declares_unlinked.TestTheDeclarationIsNotASecondTransaction.test_the_declaration_never_survives_without_its_row
+    FAIL   test_add_declares_unlinked.TestTheDeclarationIsNotASecondTransaction.test_the_marker_does_not_outlive_recovery
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_a_declared_row_does_not_warn_that_it_reads_never_asked
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_no_edge_record_is_written_for_a_declared_row
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_the_add_event_carries_kr_null_and_no_declaration
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_the_declared_row_counts_as_answered_and_the_kr_rises
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_the_journal_tells_the_three_states_apart
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_the_record_carries_the_declaring_actor
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_the_record_is_the_shape_the_reader_already_read
+    FAIL   test_add_declares_unlinked.TestTheOneSequence.test_the_success_line_names_the_store_it_wrote
+    FAIL   test_add_declares_unlinked.TestUnlinkedBelongsToAddAlone.test_the_control_the_same_subcommand_works_without_it
+  … 302 earlier line(s) elided of 327; the last 25 follow — re-run this module alone for all of it
+
+
+======================================================================
+FAIL: test_the_success_line_names_the_store_it_wrote (test_add_declares_unlinked.TestTheOneSequence.test_the_success_line_names_the_store_it_wrote)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_declares_unlinked.py", line 214, in test_the_success_line_names_the_store_it_wrote
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_control_the_same_subcommand_works_without_it (test_add_declares_unlinked.TestUnlinkedBelongsToAddAlone.test_the_control_the_same_subcommand_works_without_it)
+Without this, the refusal above passes for any broken invocation.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_declares_unlinked.py", line 453, in test_the_control_the_same_subcommand_works_without_it
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+AssertionError: 1 != 0 : perry-task next is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 29 tests in 5.967s
+
+FAILED (failures=25)
+
+✗ test_add_refuses_without_an_answer.py — 40 of 48 test(s) failed
+  ! unittest counted 40 failed test(s) and the id parser named 34 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_add_refuses_without_an_answer.TestAStoreLessProjectStillFiles.test_add_still_works_with_no_register
+    FAIL   test_add_refuses_without_an_answer.TestAStoreLessProjectStillFiles.test_it_still_warns
+    FAIL   test_add_refuses_without_an_answer.TestAStoreLessProjectStillFiles.test_the_warning_does_not_advise_a_command_that_refuses
+    FAIL   test_add_refuses_without_an_answer.TestAnUnreadableRegisterIsItsOwnAnswer.test_an_answered_row_still_files
+    FAIL   test_add_refuses_without_an_answer.TestAnUnreadableRegisterIsItsOwnAnswer.test_it_says_what_is_actually_wrong_and_who_diagnoses_it
+    FAIL   test_add_refuses_without_an_answer.TestAnUnreadableRegisterIsItsOwnAnswer.test_the_gap_and_the_unreadable_store_are_told_apart
+    FAIL   test_add_refuses_without_an_answer.TestAnUnreadableRegisterIsItsOwnAnswer.test_unlinked_between_phases_keeps_its_own_sentence
+    FAIL   test_add_refuses_without_an_answer.TestAnUnreadableRegisterIsItsOwnAnswer.test_unlinked_on_an_unreadable_register_says_it_could_not_be_read
+    FAIL   test_add_refuses_without_an_answer.TestBothRemediesStillWork.test_kr_is_accepted_and_counted
+    FAIL   test_add_refuses_without_an_answer.TestBothRemediesStillWork.test_unlinked_is_accepted_and_counted
+    FAIL   test_add_refuses_without_an_answer.TestNothingWasWritten.test_no_id_was_burned
+    FAIL   test_add_refuses_without_an_answer.TestTheBlankRefusalIsReconciled.test_blank_kr_is_still_refused
+    FAIL   test_add_refuses_without_an_answer.TestTheBlankRefusalIsReconciled.test_it_names_the_empty_variable_hazard
+    FAIL   test_add_refuses_without_an_answer.TestTheBlankRefusalIsReconciled.test_it_points_at_the_flag_on_this_command
+    FAIL   test_add_refuses_without_an_answer.TestTheContradictionIsUntouched.test_both_flags_still_refused
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_a_fabricated_kr_is_still_accepted_in_the_gap
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_a_store_less_project_still_says_the_store_is_missing
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_every_window_spelling_files_the_row_with_a_warning
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_in_every_window_spelling_the_row_files_while_unlinked_is_refused
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_in_the_window_the_honest_answer_is_refused_and_the_row_still_files
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_gap_files_the_row_instead_of_refusing
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_gap_still_warns
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_gate_still_refuses_where_the_register_answers
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_honest_answer_is_not_refused_while_the_row_is_filed
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_phase_match_is_load_bearing
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_warning_does_not_claim_the_store_is_missing
+    FAIL   test_add_refuses_without_an_answer.TestTheGateKeysOffThePhaseNotTheFile.test_the_window_files_the_row_with_a_warning
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalIsDeliberatelyTrackIndependent.test_a_non_main_track_is_refused_too
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalIsDeliberatelyTrackIndependent.test_the_control_exits_zero_on_the_same_track
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalIsNotVacuous.test_the_refusal_is_about_the_kr_question
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalIsNotVacuous.test_the_refusal_names_which_one_means_serves_no_kr
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalMakesNoVisibilityClaim.test_the_friction_it_keeps_is_the_true_one
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalMakesNoVisibilityClaim.test_the_lane_page_makes_no_visibility_claim_either
+    FAIL   test_add_refuses_without_an_answer.TestTheRefusalMakesNoVisibilityClaim.test_the_named_reader_is_phase_scoped
+  … 439 earlier line(s) elided of 464; the last 25 follow — re-run this module alone for all of it
+FAIL: test_the_lane_page_makes_no_visibility_claim_either (test_add_refuses_without_an_answer.TestTheRefusalMakesNoVisibilityClaim.test_the_lane_page_makes_no_visibility_claim_either)
+The category, not the next instance (review.md § 2 rule 1).
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_refuses_without_an_answer.py", line 427, in test_the_lane_page_makes_no_visibility_claim_either
+    self.assertEqual(len(bullet), 1,
+AssertionError: 0 != 1 : the add-task KR bullet moved; re-anchor this test rather than deleting it
+
+======================================================================
+FAIL: test_the_named_reader_is_phase_scoped (test_add_refuses_without_an_answer.TestTheRefusalMakesNoVisibilityClaim.test_the_named_reader_is_phase_scoped)
+**Why the claim is gone, as a measurement rather than a memory.**
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_refuses_without_an_answer.py", line 383, in test_the_named_reader_is_phase_scoped
+    tid = self.new_id(self.add(d, "a row serving no KR", None,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_writes_the_edge.py", line 283, in new_id
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 48 tests in 10.853s
+
+FAILED (failures=40)
+
+✗ test_add_writes_the_edge.py — 20 of 25 test(s) failed
+  ! unittest counted 20 failed test(s) and the id parser named 18 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_add_writes_the_edge.TestAProjectWithNoStore.test_add_kr_does_not_create_the_store
+    FAIL   test_add_writes_the_edge.TestAProjectWithNoStore.test_the_event_still_records_the_answer
+    FAIL   test_add_writes_the_edge.TestAProjectWithNoStore.test_the_row_files_and_the_answer_is_not_silently_dropped
+    FAIL   test_add_writes_the_edge.TestRouteAndIntakeInheritNeverAsked.test_intake_then_route_writes_no_linkage_record
+    FAIL   test_add_writes_the_edge.TestRouteAndIntakeInheritNeverAsked.test_route_leaves_the_row_never_asked
+    ERROR  test_add_writes_the_edge.TestTheEdgeIsNotASecondTransaction.test_a_crash_before_any_rename_writes_no_edge
+    ERROR  test_add_writes_the_edge.TestTheEdgeIsNotASecondTransaction.test_the_edge_never_survives_without_its_row
+    FAIL   test_add_writes_the_edge.TestTheEdgeIsNotASecondTransaction.test_the_marker_does_not_outlive_recovery
+    FAIL   test_add_writes_the_edge.TestTheOneSequence.test_the_add_event_carries_the_kr
+    FAIL   test_add_writes_the_edge.TestTheOneSequence.test_the_edge_record_is_written_once_and_says_via_add
+    FAIL   test_add_writes_the_edge.TestTheOneSequence.test_the_new_row_reports_linked
+    FAIL   test_add_writes_the_edge.TestTheOneSequence.test_the_success_line_names_the_store_it_wrote
+    FAIL   test_add_writes_the_edge.TestTheReadersAreOnTheStore.test_a_row_linked_by_add_is_visible_to_the_reader
+    FAIL   test_add_writes_the_edge.TestWithoutAKr.test_it_warns_on_stderr
+    FAIL   test_add_writes_the_edge.TestWithoutAKr.test_no_record_of_any_kind_is_written
+    FAIL   test_add_writes_the_edge.TestWithoutAKr.test_the_event_carries_kr_null_not_a_missing_key
+    FAIL   test_add_writes_the_edge.TestWithoutAKr.test_the_row_is_created_and_not_refused
+    FAIL   test_add_writes_the_edge.TestWithoutAKr.test_the_row_reports_never_asked_and_not_declared_unlinked
+  … 227 earlier line(s) elided of 252; the last 25 follow — re-run this module alone for all of it
+======================================================================
+FAIL: test_the_row_is_created_and_not_refused (test_add_writes_the_edge.TestWithoutAKr.test_the_row_is_created_and_not_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_writes_the_edge.py", line 366, in test_the_row_is_created_and_not_refused
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_row_reports_never_asked_and_not_declared_unlinked (test_add_writes_the_edge.TestWithoutAKr.test_the_row_reports_never_asked_and_not_declared_unlinked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_writes_the_edge.py", line 429, in test_the_row_reports_never_asked_and_not_declared_unlinked
+    tid = self.new_id(self.add(d, "an unattributed row"))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_add_writes_the_edge.py", line 283, in new_id
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 25 tests in 4.040s
+
+FAILED (failures=16, errors=4)
+
+✗ test_ask_is_a_node.py — 13 of 20 test(s) failed
+    FAIL   test_ask_is_a_node.TestAGenuinelyUnknownIdIsStillReported.test_a_project_with_no_queue_reads_exactly_as_it_did_before
+    FAIL   test_ask_is_a_node.TestAGenuinelyUnknownIdIsStillReported.test_an_ask_the_queue_does_not_carry_is_unknown_too
+    FAIL   test_ask_is_a_node.TestAGenuinelyUnknownIdIsStillReported.test_an_unknown_task_id_reaches_depends_on_unknown
+    FAIL   test_ask_is_a_node.TestAnAskIsANodeAndStillNotATask.test_no_cycle_is_reported_through_an_ask
+    FAIL   test_ask_is_a_node.TestAnAskIsANodeAndStillNotATask.test_the_ask_is_not_in_the_task_array
+    FAIL   test_ask_is_a_node.TestAnAskIsANodeAndStillNotATask.test_the_reverse_edge_is_the_asks_own_blocks_cell
+    FAIL   test_ask_is_a_node.TestAnsweredSatisfiesTheEdgeAndPendingDoesNot.test_a_pending_ask_leaves_the_row_blocked
+    FAIL   test_ask_is_a_node.TestAnsweredSatisfiesTheEdgeAndPendingDoesNot.test_an_answered_ask_satisfies_it
+    FAIL   test_ask_is_a_node.TestAnsweredSatisfiesTheEdgeAndPendingDoesNot.test_the_row_is_in_neither_conformance_array_in_either_state
+    FAIL   test_ask_is_a_node.TestAnsweredSatisfiesTheEdgeAndPendingDoesNot.test_the_stored_status_is_left_alone
+    FAIL   test_ask_is_a_node.TestTheLiveShapeStopsBeingAFinding.test_the_edge_is_still_declared_on_the_row
+    FAIL   test_ask_is_a_node.TestTheLiveShapeStopsBeingAFinding.test_the_row_is_named_by_neither_check
+    FAIL   test_ask_is_a_node.TestTheLiveShapeStopsBeingAFinding.test_the_writer_still_accepts_the_shape_it_documents
+  … 175 earlier line(s) elided of 200; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_ask_is_a_node.py", line 129, in setUp
+    self.project = blocked_on_an_ask()
+                   ^^^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_ask_is_a_node.py", line 114, in blocked_on_an_ask
+    assert code == 0, out
+           ^^^^^^^^^
+AssertionError: {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_the_writer_still_accepts_the_shape_it_documents (test_ask_is_a_node.TestTheLiveShapeStopsBeingAFinding.test_the_writer_still_accepts_the_shape_it_documents)
+`depends --on USER-nnn` is the shape the refusal-free path names.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_ask_is_a_node.py", line 129, in setUp
+    self.project = blocked_on_an_ask()
+                   ^^^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_ask_is_a_node.py", line 114, in blocked_on_an_ask
+    assert code == 0, out
+           ^^^^^^^^^
+AssertionError: {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.288s
+
+FAILED (failures=13)
+
+✗ test_bin_argument_contract.py — 44 of 58 test(s) failed
+  ! unittest counted 44 failed test(s) and the id parser named 15 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_bin_argument_contract.TestAPositionalNoHandlerReadsIsRefused.test_a_subcommand_that_reads_an_id_refuses_a_second
+    FAIL   test_bin_argument_contract.TestAPositionalNoHandlerReadsIsRefused.test_a_subcommand_that_reads_no_id_refuses_one
+    FAIL   test_bin_argument_contract.TestARefusalIsOneLine.test_a_missing_board_is_not_a_traceback
+    FAIL   test_bin_argument_contract.TestARenderThatCannotRestoreRefuses.test_a_clean_write_says_what_it_changed
+    FAIL   test_bin_argument_contract.TestARenderThatCannotRestoreRefuses.test_dry_run_touches_nothing
+    FAIL   test_bin_argument_contract.TestARenderThatCannotRestoreRefuses.test_it_refuses_and_names_what_it_cannot_place
+    ERROR  test_bin_argument_contract.TestARenderThatCannotRestoreRefuses.test_the_detection_layer_still_reports_it
+    FAIL   test_bin_argument_contract.TestAddWritesTheDesignEdge.test_a_design_with_no_document_is_refused
+    ERROR  test_bin_argument_contract.TestAddWritesTheDesignEdge.test_a_row_opened_without_the_flag_keeps_its_shape
+    ERROR  test_bin_argument_contract.TestAddWritesTheDesignEdge.test_the_edge_lands_in_the_store
+    FAIL   test_bin_argument_contract.TestEveryWriterHonoursDryRun.test_a_dry_run_writes_nothing_that_the_real_run_would_write
+    FAIL   test_bin_argument_contract.TestEveryWriterHonoursDryRun.test_a_dry_run_writes_nothing_that_the_real_run_would_write
+    FAIL   test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation
+    FAIL   test_bin_argument_contract.TestTheFlagBeatsTheEnvironment.test_the_environment_still_wins_when_no_flag_is_given
+    FAIL   test_bin_argument_contract.TestTheFlagBeatsTheEnvironment.test_the_store_tools_count_the_named_projects_records
+  … 520 earlier line(s) elided of 545; the last 25 follow — re-run this module alone for all of it
+AssertionError: 0 != 3 : {
+  "records": 0,
+  "stored_fields": 21,
+  "sample": null
+}
+
+
+======================================================================
+FAIL: test_the_store_tools_count_the_named_projects_records (test_bin_argument_contract.TestTheFlagBeatsTheEnvironment.test_the_store_tools_count_the_named_projects_records)
+The measurement DESIGN-016 § 1.1 opened with, as an assertion.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_bin_argument_contract.py", line 117, in test_the_store_tools_count_the_named_projects_records
+    self.assertEqual(json.loads(out.stdout)["records"], 1, out.stdout)
+AssertionError: 0 != 1 : {
+  "records": 0,
+  "stored_fields": 21,
+  "sample": null
+}
+
+
+----------------------------------------------------------------------
+Ran 58 tests in 43.300s
+
+FAILED (failures=41, errors=3)
+
+✗ test_board_less_reads_and_writes.py — 81 of 35 test(s) failed
+  ! unittest counted 81 failed test(s) and the id parser named 6 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_board_less_reads_and_writes.TestEveryWriteLandsWithNoBoard.test_a_write_is_the_same_with_and_without_the_file
+    FAIL   test_board_less_reads_and_writes.TestEveryWriteLandsWithNoBoard.test_each_write_lands_its_record_event_and_journal_line
+    FAIL   test_board_less_reads_and_writes.TestEveryWriteLandsWithNoBoard.test_the_write_table_covers_every_declared_write
+    FAIL   test_board_less_reads_and_writes.TestTheRetiredBoardHintStaysOffTheJsonChannel.test_a_json_write_with_a_held_board_prints_nothing_on_stderr
+    FAIL   test_board_less_reads_and_writes.TestTheRetiredBoardHintStaysOffTheJsonChannel.test_the_hint_says_import_before_delete
+    FAIL   test_board_less_reads_and_writes.TestTheRetiredBoardHintStaysOffTheJsonChannel.test_the_same_write_without_json_names_the_file
+  … 1111 earlier line(s) elided of 1136; the last 25 follow — re-run this module alone for all of it
+
+======================================================================
+FAIL: test_the_hint_says_import_before_delete (test_board_less_reads_and_writes.TestTheRetiredBoardHintStaysOffTheJsonChannel.test_the_hint_says_import_before_delete)
+Round 4a's F17 (user decision, 2026-09-15): a register only the held
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_board_less_reads_and_writes.py", line 728, in test_the_hint_says_import_before_delete
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task risk-add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_same_write_without_json_names_the_file (test_board_less_reads_and_writes.TestTheRetiredBoardHintStaysOffTheJsonChannel.test_the_same_write_without_json_names_the_file)
+The control: the fixture really holds a file the hint would name.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_board_less_reads_and_writes.py", line 718, in test_the_same_write_without_json_names_the_file
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task risk-add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 35 tests in 12.238s
+
+FAILED (failures=81)
+
+✗ test_cadence.py — 27 of 54 test(s) failed
+    ERROR  test_cadence.TestCadenceAdd.test_a_registration_is_not_a_run
+    FAIL   test_cadence.TestCadenceAdd.test_an_aperiodic_frequency_is_recorded_with_no_due_date
+    ERROR  test_cadence.TestCadenceAdd.test_an_id_is_never_reissued_after_its_row_is_removed
+    FAIL   test_cadence.TestCadenceAdd.test_ids_are_minted_above_a_boards_existing_cadence_numbering
+    FAIL   test_cadence.TestCadenceAdd.test_it_mints_stamps_and_writes_all_three
+    FAIL   test_cadence.TestCadenceAdd.test_it_refuses_a_frequency_it_cannot_schedule_from
+    FAIL   test_cadence.TestCadenceAdd.test_next_due_is_computed_from_the_frequency_not_from_today
+    FAIL   test_cadence.TestCadenceAdd.test_on_backdates_the_history_and_the_due_date_follows
+    FAIL   test_cadence.TestCadenceAdd.test_the_section_is_created_after_the_priority_tables
+    FAIL   test_cadence.TestCadenceDone.test_a_sub_grouped_register_is_written_the_way_it_is_read
+    FAIL   test_cadence.TestCadenceDone.test_frequency_can_be_corrected_in_the_same_write
+    ERROR  test_cadence.TestCadenceDone.test_it_recomputes_next_due_from_the_rows_own_frequency
+    ERROR  test_cadence.TestCadenceDone.test_it_records_the_run_and_the_evidence
+    ERROR  test_cadence.TestCadenceDone.test_it_refuses_a_row_whose_frequency_it_cannot_read
+    FAIL   test_cadence.TestCadenceDone.test_it_refuses_without_evidence
+    FAIL   test_cadence.TestCadenceDone.test_it_writes_the_board_the_journal_and_the_event
+    ERROR  test_cadence.TestCadenceDone.test_the_run_defaults_to_today
+    FAIL   test_cadence.TestCadenceIsNotATask.test_done_cannot_close_a_cadence_row
+    FAIL   test_cadence.TestCadenceIsNotATask.test_the_refusal_is_true_and_says_why
+    FAIL   test_cadence.TestCadenceIsNotATask.test_the_refusal_still_says_not_on_the_board_for_an_id_that_is_not
+    FAIL   test_cadence.TestOverdueReport.test_a_done_run_clears_the_overdue_finding
+    ERROR  test_cadence.TestOverdueReport.test_a_periodic_row_with_an_unreadable_due_cell_is_a_finding
+    ERROR  test_cadence.TestOverdueReport.test_a_row_due_today_is_not_yet_overdue
+    ERROR  test_cadence.TestOverdueReport.test_an_aperiodic_row_is_never_overdue_and_is_not_a_finding
+    FAIL   test_cadence.TestOverdueReport.test_overdue_rows_are_reported_by_age_oldest_first
+    FAIL   test_cadence.TestOverdueReport.test_the_dashboard_line_appears_only_when_there_is_a_register
+    FAIL   test_cadence.TestTheLegacyProjectionIsUnchanged.test_cadence_rows_are_still_excluded_from_drift
+  … 337 earlier line(s) elided of 362; the last 25 follow — re-run this module alone for all of it
+'CAD-001'
+
+- []
++ ['CAD-001', 'CAD-002', 'CAD-003']
+
+======================================================================
+FAIL: test_the_dashboard_line_appears_only_when_there_is_a_register (test_cadence.TestOverdueReport.test_the_dashboard_line_appears_only_when_there_is_a_register)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_cadence.py", line 635, in test_the_dashboard_line_appears_only_when_there_is_a_register
+    self.assertIn("1 overdue", p.dashboard())
+AssertionError: '1 overdue' not found in '📍 Project        : tmpkv42aoo4 · 2026-10-15\n🎯 OKR            : — (no OKR.md)\n🌀 Current phase  : — (no phase/CURRENT)\n📋 Open tasks     : P0=0 · P1=0 · P2=0 · blocked=0 · BOARD 0/200 lines\n⏳ User Input Q   : 0\n🚧 Top risk       : —\n📝 Last decision  : —\n📐 Locked designs : 0 · pending hand-off: 0\n📅 Last weekly    : — · last handoff: —\n\n⚠ Warnings:\n   - No high-stakes list in .perry/hook.md — /perry work dispatch and /perry work autopilot have nothing to match against; the safety scan is unarmed.\n'
+
+======================================================================
+FAIL: test_cadence_rows_are_still_excluded_from_drift (test_cadence.TestTheLegacyProjectionIsUnchanged.test_cadence_rows_are_still_excluded_from_drift)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_cadence.py", line 785, in test_cadence_rows_are_still_excluded_from_drift
+    self.assertEqual(drift["unrecorded"], 0)
+AssertionError: None != 0
+
+----------------------------------------------------------------------
+Ran 54 tests in 7.356s
+
+FAILED (failures=18, errors=9)
+
+✗ test_cadence_store.py — 8 of 34 test(s) failed
+  ! unittest counted 8 failed test(s) and the id parser named 7 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_a_hand_deletion_under_an_add_destroys_and_reports_nothing
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_a_repeated_id_in_the_store_is_refused_by_its_lint_rule
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_a_row_deleted_from_the_file_alone_is_not_a_retirement
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_a_write_is_the_same_with_and_without_the_file
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_add_lands_the_record_the_event_and_the_journal_with_no_board
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_an_aperiodic_frequency_is_stored_as_given
+    FAIL   test_cadence_store.TestTheWritesLandInTheStore.test_done_recomputes_the_due_date_and_leaves_every_other_cell_alone
+  … 117 earlier line(s) elided of 142; the last 25 follow — re-run this module alone for all of it
+AssertionError: 1 != 0 : perry-task cadence-add is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_an_aperiodic_frequency_is_stored_as_given (test_cadence_store.TestTheWritesLandInTheStore.test_an_aperiodic_frequency_is_stored_as_given)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_cadence_store.py", line 311, in test_an_aperiodic_frequency_is_stored_as_given
+    self.assertEqual(got["exit"], 0, got["stderr"])
+AssertionError: 1 != 0 : perry-task cadence-done is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_done_recomputes_the_due_date_and_leaves_every_other_cell_alone (test_cadence_store.TestTheWritesLandInTheStore.test_done_recomputes_the_due_date_and_leaves_every_other_cell_alone)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_cadence_store.py", line 294, in test_done_recomputes_the_due_date_and_leaves_every_other_cell_alone
+    self.assertEqual(got["exit"], 0, got["stderr"])
+AssertionError: 1 != 0 : perry-task cadence-done is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 34 tests in 1.817s
+
+FAILED (failures=8)
+
+✗ test_design_handoff.py — 6 of 25 test(s) failed
+    FAIL   test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_a_row_that_has_already_closed_can_still_be_linked
+    FAIL   test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_a_whole_store_rebuild_does_not_clear_the_edge
+    FAIL   test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_an_unrelated_write_does_not_clear_the_edge
+    FAIL   test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_closing_the_linked_row_does_not_clear_the_edge
+    FAIL   test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_it_can_be_linked_with_the_event_log_deleted
+    FAIL   test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_linking_does_not_move_the_record_in_the_store
+  … 93 earlier line(s) elided of 118; the last 25 follow — re-run this module alone for all of it
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_design_handoff.py", line 391, in test_it_can_be_linked_with_the_event_log_deleted
+    self.perry_task(root, "done", "TASK-001", "--rung", "V1",
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_design_handoff.py", line 347, in perry_task
+    self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+AssertionError: 1 != 0 : perry-task done is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_linking_does_not_move_the_record_in_the_store (test_design_handoff.TestTheEdgeSurvivesTheNextWrite.test_linking_does_not_move_the_record_in_the_store)
+**Mutation M8**, the `in_place` clause.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_design_handoff.py", line 418, in test_linking_does_not_move_the_record_in_the_store
+    self.perry_task(root, "design-link", "TASK-001",
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_design_handoff.py", line 347, in perry_task
+    self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+AssertionError: 1 != 0 : perry-task design-link is read-only after the kernel cutover; use perry-kernel attach add --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.356s
+
+FAILED (failures=6)
+
+✗ test_duplicate_ids_are_refused.py — 11 of 27 test(s) failed
+    FAIL   test_duplicate_ids_are_refused.TestABoardDuplicateIsRefused.test_a_duplicate_on_a_held_board_does_not_reach_a_write
+    FAIL   test_duplicate_ids_are_refused.TestAControlBoardWritesExactlyAsBefore.test_a_clean_ask_board_still_writes
+    FAIL   test_duplicate_ids_are_refused.TestAControlBoardWritesExactlyAsBefore.test_a_clean_board_still_writes
+    FAIL   test_duplicate_ids_are_refused.TestARepeatedValueThatIsNotAnIdIsNotCaught.test_a_board_carrying_such_a_line_still_writes
+    FAIL   test_duplicate_ids_are_refused.TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_asks_asked_on_the_same_date_write_normally
+    FAIL   test_duplicate_ids_are_refused.TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_risks_opened_on_the_same_day_write_normally
+    FAIL   test_duplicate_ids_are_refused.TestARepeatedValueThatIsNotAnIdIsNotCaught.test_two_risks_with_the_same_status_and_prose_write_normally
+    FAIL   test_duplicate_ids_are_refused.TestAStoreDuplicateIsRefused.test_an_ordinary_write_over_a_duplicated_store_is_refused
+    FAIL   test_duplicate_ids_are_refused.TestAStoreDuplicateIsRefused.test_the_refusal_says_why_the_two_halves_get_different_surfaces
+    FAIL   test_duplicate_ids_are_refused.TestIntakeIsNotServedByTheseLines.test_two_intake_rows_for_the_same_request_on_the_same_day_are_fine
+    FAIL   test_duplicate_ids_are_refused.TestTasksJsonlDoesNotShareTheHole.test_a_duplicated_tasks_store_refuses_an_ordinary_write
+  … 120 earlier line(s) elided of 145; the last 25 follow — re-run this module alone for all of it
+    self.assertIn("the linter is asked what is wrong with the store as it "
+AssertionError: 'the linter is asked what is wrong with the store as it stands, and this tool is asked to REPLACE it' not found in 'perry-task risk-add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_two_intake_rows_for_the_same_request_on_the_same_day_are_fine (test_duplicate_ids_are_refused.TestIntakeIsNotServedByTheseLines.test_two_intake_rows_for_the_same_request_on_the_same_day_are_fine)
+The ordinary shape of a thing filed twice — `dropped — duplicate`
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_duplicate_ids_are_refused.py", line 433, in test_two_intake_rows_for_the_same_request_on_the_same_day_are_fine
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_a_duplicated_tasks_store_refuses_an_ordinary_write (test_duplicate_ids_are_refused.TestTasksJsonlDoesNotShareTheHole.test_a_duplicated_tasks_store_refuses_an_ordinary_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_duplicate_ids_are_refused.py", line 564, in test_a_duplicated_tasks_store_refuses_an_ordinary_write
+    self.assertIn("unique task id", r.stdout + r.stderr)
+AssertionError: 'unique task id' not found in 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+----------------------------------------------------------------------
+Ran 27 tests in 1.490s
+
+FAILED (failures=11)
+
+✗ test_empty_config_store.py — 6 of 16 test(s) failed
+  ! unittest counted 6 failed test(s) and the id parser named 4 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_empty_config_store.EmptyStoreWriters.test_perry_task_add_writes_on_an_empty_store
+    FAIL   test_empty_config_store.EmptyStoreWriters.test_the_end_to_end_reproduction
+    FAIL   test_empty_config_store.WritersAndLinterAgree.test_a_non_empty_invalid_store_is_refused_exactly_as_before
+    FAIL   test_empty_config_store.WritersAndLinterAgree.test_every_shape_gets_one_answer_from_every_tool
+  … 60 earlier line(s) elided of 85; the last 25 follow — re-run this module alone for all of it
+AssertionError: False != True : perry-task: perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_every_shape_gets_one_answer_from_every_tool (test_empty_config_store.WritersAndLinterAgree.test_every_shape_gets_one_answer_from_every_tool) [only an invalid record]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_empty_config_store.py", line 204, in test_every_shape_gets_one_answer_from_every_tool
+    self.assertEqual(task.returncode != 0
+AssertionError: False != True : perry-task: perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_every_shape_gets_one_answer_from_every_tool (test_empty_config_store.WritersAndLinterAgree.test_every_shape_gets_one_answer_from_every_tool) [torn trailing line]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_empty_config_store.py", line 204, in test_every_shape_gets_one_answer_from_every_tool
+    self.assertEqual(task.returncode != 0
+AssertionError: False != True : perry-task: perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 16 tests in 10.828s
+
+FAILED (failures=6)
+
+✗ test_goals_kr_revisions.py — 1 of 56 test(s) failed
+    FAIL   test_goals_kr_revisions.TestRefusals.test_perry_task_add_kr_to_a_withdrawn_kr
+  … 54 earlier line(s) elided of 79; the last 25 follow — re-run this module alone for all of it
+test_withdraw_without_a_reason (test_goals_kr_revisions.TestRefusals.test_withdraw_without_a_reason) ... ok
+test_a_withdrawn_kr_leaves_every_count (test_goals_kr_revisions.TestTheFold.test_a_withdrawn_kr_leaves_every_count) ... ok
+test_an_identity_field_is_not_applied_at_either_level (test_goals_kr_revisions.TestTheFold.test_an_identity_field_is_not_applied_at_either_level) ... ok
+test_an_overall_kr_is_keyed_by_its_version (test_goals_kr_revisions.TestTheFold.test_an_overall_kr_is_keyed_by_its_version) ... ok
+test_each_malformed_revision_is_reported_and_skipped (test_goals_kr_revisions.TestTheFold.test_each_malformed_revision_is_reported_and_skipped) ... ok
+test_equal_timestamps_apply_in_file_order (test_goals_kr_revisions.TestTheFold.test_equal_timestamps_apply_in_file_order) ... ok
+test_restate_overwrites_only_the_fields_it_names (test_goals_kr_revisions.TestTheFold.test_restate_overwrites_only_the_fields_it_names) ... ok
+test_revisions_apply_in_revised_at_order_not_file_order (test_goals_kr_revisions.TestTheFold.test_revisions_apply_in_revised_at_order_not_file_order)
+Rule 1. The LATER line is the EARLIER revision: file order would ... ok
+test_the_identity_fields_are_the_schema_s (test_goals_kr_revisions.TestTheFold.test_the_identity_fields_are_the_schema_s)
+Read from the declaration beside the record, per level. ... ok
+test_withdraw_is_terminal_and_a_revision_after_it_is_not_applied (test_goals_kr_revisions.TestTheFold.test_withdraw_is_terminal_and_a_revision_after_it_is_not_applied) ... ok
+
+======================================================================
+FAIL: test_perry_task_add_kr_to_a_withdrawn_kr (test_goals_kr_revisions.TestRefusals.test_perry_task_add_kr_to_a_withdrawn_kr)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_goals_kr_revisions.py", line 591, in test_perry_task_add_kr_to_a_withdrawn_kr
+    self.assertIn(fragment, said)
+AssertionError: 'withdrawn' not found in 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+----------------------------------------------------------------------
+Ran 56 tests in 3.256s
+
+FAILED (failures=1)
+
+✗ test_handed_back_root.py — 4 of 26 test(s) failed
+    FAIL   test_handed_back_root.TestEveryWriterHandBackCarriesTheRoot.test_every_mention_still_names_something
+    FAIL   test_handed_back_root.TestEveryWriterHandBackCarriesTheRoot.test_the_count_of_pasteable_writer_hand_backs_is_held
+    FAIL   test_handed_back_root.TestWhichSubcommandsWrite.test_the_declaration_is_preferred_where_there_is_one
+    FAIL   test_handed_back_root.TestWhichSubcommandsWrite.test_the_two_derivations_agree_where_both_exist
+  … 135 earlier line(s) elided of 160; the last 25 follow — re-run this module alone for all of it
+'risk-clear'
+'risk-migrate'
+'drop'
+'intake'
+'stage'
+'depends'
+'track'
+'resolve-intake'
+'intake-sweep'
+'add'
+'cadence-add'
+'route'
+'summary'
+'status'
+'start'
+Items in the second set but not the first:
+'rung'
+'next'
+'retitle'
+'evidence' : the call-graph derivation's error set has changed. It is the only answer available for perry-goals, perry-decide and perry-knowledge, so a change here is a change in what this module can claim about those three
+
+----------------------------------------------------------------------
+Ran 26 tests in 11.016s
+
+FAILED (failures=4)
+
+✗ test_intake_store.py — 2 of 48 test(s) failed
+    FAIL   test_intake_store.TestTheCostOfNIsReportedRatherThanSilent.test_a_hand_deleted_row_no_longer_moves_n_for_a_write
+    FAIL   test_intake_store.TestTheCostOfNIsReportedRatherThanSilent.test_a_sweep_moves_n_and_the_store_is_what_says_so
+  … 73 earlier line(s) elided of 98; the last 25 follow — re-run this module alone for all of it
+
+======================================================================
+FAIL: test_a_hand_deleted_row_no_longer_moves_n_for_a_write (test_intake_store.TestTheCostOfNIsReportedRatherThanSilent.test_a_hand_deleted_row_no_longer_moves_n_for_a_write)
+**The line the suite stopped one short of**, after TASK-262 round 4a.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_intake_store.py", line 770, in test_a_hand_deleted_row_no_longer_moves_n_for_a_write
+    self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+AssertionError: 1 != 0 : perry-task resolve-intake is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_a_sweep_moves_n_and_the_store_is_what_says_so (test_intake_store.TestTheCostOfNIsReportedRatherThanSilent.test_a_sweep_moves_n_and_the_store_is_what_says_so)
+**The mutation this whole row exists to make visible.**
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_intake_store.py", line 806, in test_a_sweep_moves_n_and_the_store_is_what_says_so
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task resolve-intake is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 48 tests in 5.654s
+
+FAILED (failures=2)
+
+✗ test_knowledge_promotion.py — 5 of 38 test(s) failed
+  ! unittest counted 5 failed test(s) and the id parser named 4 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    ERROR  test_knowledge_promotion.TestARealCloseProducesACard.test_a_closed_task_id_still_resolves_as_a_source
+    FAIL   test_knowledge_promotion.TestARealCloseProducesACard.test_close_then_promote_then_lint
+    ERROR  test_knowledge_promotion.TestTheCapturePointsCiteTheOneProcedure.test_each_capture_point_routes_to_it
+    ERROR  test_knowledge_promotion.TestTheProjectRootIsPassedNotDerived.test_a_card_citing_a_closed_task_is_not_dangling
+  … 84 earlier line(s) elided of 109; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/Users/bytedance/.local/bin/python3', '/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/bin/perry-task', 'done', 'TASK-001', '--evidence', 'evidence/2026-08/TASK-001-export-fix.md', '--rung', 'V3', '--root', '/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/tmpw9g64xon']' returned non-zero exit status 1.
+
+======================================================================
+FAIL: test_close_then_promote_then_lint (test_knowledge_promotion.TestARealCloseProducesACard.test_close_then_promote_then_lint)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_knowledge_promotion.py", line 418, in test_close_then_promote_then_lint
+    self.assertEqual(close.returncode, 0, close.stderr)
+AssertionError: 1 != 0 : perry-task done is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_each_capture_point_routes_to_it (test_knowledge_promotion.TestTheCapturePointsCiteTheOneProcedure.test_each_capture_point_routes_to_it) (anchor='### `end-phase-retro`')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_knowledge_promotion.py", line 698, in test_each_capture_point_routes_to_it
+    self.assertIn("promotion.md", block,
+AssertionError: 'promotion.md' not found in '### `end-phase-retro`\n\nSave the bounded retrospective as evidence. Its header is\n`> Phase: <NNN>-<slug> · Since: <start-date>` so the goals reader can identify\nthe phase. Describe actual results, unresolved criteria and evidence limits;\nhand goal scoring to the goals lane. This document is evidence, not task state.\n\n<!-- next-close: work plan-week -->\n\n<!-- next-close: work triage -->\n\n<!-- next-close: work risk -->\n\n<!-- next-close: work add-task -->\n' : ### `end-phase-retro` does not route to the one procedure
+
+----------------------------------------------------------------------
+Ran 38 tests in 7.268s
+
+FAILED (failures=2, errors=3)
+
+✗ test_linkage_store_readers.py — 2 of 36 test(s) failed
+    FAIL   test_linkage_store_readers.TestEveryReaderAnswersFromTheStore.test_site_3_an_agent_record_is_a_live_reference_and_says_so
+    FAIL   test_linkage_store_readers.TestEveryReaderAnswersFromTheStore.test_site_3_perry_task_names_the_store_and_its_line
+  … 63 earlier line(s) elided of 88; the last 25 follow — re-run this module alone for all of it
+test_the_linter_names_the_unreadable_line_the_writer_refused_on (test_linkage_store_readers.TestTheWrongInputBranchesAreReached.test_the_linter_names_the_unreadable_line_the_writer_refused_on)
+The other half: a refusal that says "run perry-lint" is only a road ... ok
+
+======================================================================
+FAIL: test_site_3_an_agent_record_is_a_live_reference_and_says_so (test_linkage_store_readers.TestEveryReaderAnswersFromTheStore.test_site_3_an_agent_record_is_a_live_reference_and_says_so)
+`agents[].tasks` was a YAML block in the deleted document and the
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_linkage_store_readers.py", line 360, in test_site_3_an_agent_record_is_a_live_reference_and_says_so
+    self.assertIn("linkage.jsonl:", out["refused"])
+AssertionError: 'linkage.jsonl:' not found in 'perry-task purge is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'
+
+======================================================================
+FAIL: test_site_3_perry_task_names_the_store_and_its_line (test_linkage_store_readers.TestEveryReaderAnswersFromTheStore.test_site_3_perry_task_names_the_store_and_its_line)
+`bin/perry-task § live_references`, and the regex that is gone.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_linkage_store_readers.py", line 338, in test_site_3_perry_task_names_the_store_and_its_line
+    self.assertIn("linkage.jsonl:", out["refused"],
+AssertionError: 'linkage.jsonl:' not found in 'perry-task purge is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.' : the refusal must name the store and the line
+
+----------------------------------------------------------------------
+Ran 36 tests in 3.729s
+
+FAILED (failures=2)
+
+✗ test_module_run_guard.py — 34 of 90 test(s) failed
+  ! unittest counted 34 failed test(s) and the id parser named 1 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_module_run_guard.TestDottedInvocationWorks.test_a_sibling_importing_module_runs_via_the_dotted_name
+  … 47 earlier line(s) elided of 72; the last 25 follow — re-run this module alone for all of it
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_risks.py", line 794, in test_the_cleared_cell_lands_in_the_status_column
+    self.assertIn("it stopped", r.status)
+AssertionError: 'it stopped' not found in 'open'
+
+======================================================================
+FAIL: test_the_user_input_queue_still_answers_by_id (tests.test_risks.TestTheWriterResolvesTheIdColumnByName.test_the_user_input_queue_still_answers_by_id)
+`find_section_row`'s other caller. `USER-id` is an id column too, and
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_risks.py", line 822, in test_the_user_input_queue_still_answers_by_id
+    self.assertEqual(code, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task answer is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 75 tests in 2.505s
+
+FAILED (failures=32, errors=1)
+
+
+----------------------------------------------------------------------
+Ran 15 tests in 12.113s
+
+FAILED (failures=1)
+
+✗ test_one_heading_predicate.py — 2 of 5 test(s) failed
+    FAIL   test_one_heading_predicate.TestTheWriterDoesNotDuplicateTheSection.test_risk_add_on_a_bolded_heading_writes_into_the_existing_section
+    FAIL   test_one_heading_predicate.TestTheWriterDoesNotDuplicateTheSection.test_the_earlier_risks_are_still_addressable_afterwards
+  … 8 earlier line(s) elided of 33; the last 25 follow — re-run this module alone for all of it
+The consequence a user meets: not "a count is wrong" but "the risk I ... FAIL
+
+======================================================================
+FAIL: test_risk_add_on_a_bolded_heading_writes_into_the_existing_section (test_one_heading_predicate.TestTheWriterDoesNotDuplicateTheSection.test_risk_add_on_a_bolded_heading_writes_into_the_existing_section)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_one_heading_predicate.py", line 223, in test_risk_add_on_a_bolded_heading_writes_into_the_existing_section
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task risk-add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_earlier_risks_are_still_addressable_afterwards (test_one_heading_predicate.TestTheWriterDoesNotDuplicateTheSection.test_the_earlier_risks_are_still_addressable_afterwards)
+The consequence a user meets: not "a count is wrong" but "the risk I
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_one_heading_predicate.py", line 237, in test_the_earlier_risks_are_still_addressable_afterwards
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task risk-clear is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.540s
+
+FAILED (failures=2)
+
+✗ test_one_line_break_rule.py — 2 of 18 test(s) failed
+    FAIL   test_one_line_break_rule.TestTheRefusalNamesTheFlag.test_the_fixture_row_is_reachable_before_the_refusal_is_asserted
+    FAIL   test_one_line_break_rule.TestTheRefusalNamesTheFlag.test_two_flags_do_not_produce_the_same_message
+  … 40 earlier line(s) elided of 65; the last 25 follow — re-run this module alone for all of it
+          ^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_one_line_break_rule.py", line 168, in a_row
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_two_flags_do_not_produce_the_same_message (test_one_line_break_rule.TestTheRefusalNamesTheFlag.test_two_flags_do_not_produce_the_same_message)
+Both flags must be ones that actually reach a table cell.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_one_line_break_rule.py", line 186, in test_two_flags_do_not_produce_the_same_message
+    tid = self.a_row()
+          ^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_one_line_break_rule.py", line 168, in a_row
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 18 tests in 5.548s
+
+FAILED (failures=2)
+
+✗ test_perry_task_writes_are_what_it_writes.py — 33 of 6 test(s) failed
+  ! unittest counted 33 failed test(s) and the id parser named 4 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_perry_task_writes_are_what_it_writes.TestEachWriteChangesWhatItDeclares.test_every_case_ran
+    FAIL   test_perry_task_writes_are_what_it_writes.TestEachWriteChangesWhatItDeclares.test_every_declared_write_is_measured
+    FAIL   test_perry_task_writes_are_what_it_writes.TestOneDeclaration.test_every_mutating_subcommand_declares_and_no_read_does
+    FAIL   test_perry_task_writes_are_what_it_writes.TestOneDeclaration.test_register_events_and_writes_name_the_same_writers
+  … 299 earlier line(s) elided of 324; the last 25 follow — re-run this module alone for all of it
+
+======================================================================
+FAIL: test_register_events_and_writes_name_the_same_writers (test_perry_task_writes_are_what_it_writes.TestOneDeclaration.test_register_events_and_writes_name_the_same_writers) (register='asks', store='asks.jsonl')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_perry_task_writes_are_what_it_writes.py", line 119, in test_register_events_and_writes_name_the_same_writers
+    self.assertEqual(by_writes, by_events)
+AssertionError: Items in the second set but not the first:
+'answer'
+'ask'
+
+======================================================================
+FAIL: test_register_events_and_writes_name_the_same_writers (test_perry_task_writes_are_what_it_writes.TestOneDeclaration.test_register_events_and_writes_name_the_same_writers) (register='cadence', store='cadence.jsonl')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_perry_task_writes_are_what_it_writes.py", line 119, in test_register_events_and_writes_name_the_same_writers
+    self.assertEqual(by_writes, by_events)
+AssertionError: Items in the second set but not the first:
+'cadence-add'
+'cadence-done'
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.824s
+
+FAILED (failures=33)
+
+✗ test_prioritize.py — 18 of 31 test(s) failed
+    FAIL   test_prioritize.TestAClosedRowKeepsThePriorityItWasMovedTo.test_the_closed_row_reports_where_it_was_moved_to
+    FAIL   test_prioritize.TestAClosedRowKeepsThePriorityItWasMovedTo.test_the_field_never_disagrees_with_its_own_timeline
+    FAIL   test_prioritize.TestARungPassedAsTheCheckIsRefused.test_a_real_check_that_merely_mentions_a_rung_is_accepted
+    FAIL   test_prioritize.TestARungPassedAsTheCheckIsRefused.test_every_rung_token_is_refused_as_a_check
+    FAIL   test_prioritize.TestARungPassedAsTheCheckIsRefused.test_the_refusal_names_the_flag_that_would_have_worked
+    FAIL   test_prioritize.TestClosingWithoutStartingIsVisible.test_closing_a_started_row_says_nothing
+    FAIL   test_prioritize.TestClosingWithoutStartingIsVisible.test_closing_an_unstarted_row_says_so
+    FAIL   test_prioritize.TestClosingWithoutStartingIsVisible.test_it_warns_and_does_not_refuse
+    ERROR  test_prioritize.TestClosingWithoutStartingIsVisible.test_the_payload_carries_it_so_a_front_end_can_show_it
+    FAIL   test_prioritize.TestItMoves.test_a_dry_run_writes_nothing
+    ERROR  test_prioritize.TestItMoves.test_from_and_to_are_the_section_and_the_event_says_so
+    FAIL   test_prioritize.TestItMoves.test_it_emits_an_event_so_the_move_is_not_drift
+    FAIL   test_prioritize.TestItMoves.test_the_row_moves_and_keeps_its_id
+    FAIL   test_prioritize.TestItRefuses.test_a_move_to_where_it_already_is_is_refused
+    FAIL   test_prioritize.TestItRefuses.test_a_row_that_is_not_on_the_board_is_refused
+    FAIL   test_prioritize.TestItRefuses.test_naming_no_destination_is_refused
+    FAIL   test_prioritize.TestTheIndexIsCheckedBeforeAnythingIsDeleted.test_a_widener_that_inserts_is_refused_and_deletes_nothing
+    FAIL   test_prioritize.TestWideningReachesTheDestination.test_the_narrow_destination_gains_the_columns_and_no_cell_is_lost
+  … 193 earlier line(s) elided of 218; the last 25 follow — re-run this module alone for all of it
+    self.assertIn("--priority", out.stderr)
+AssertionError: '--priority' not found in 'perry-task prioritize is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_a_widener_that_inserts_is_refused_and_deletes_nothing (test_prioritize.TestTheIndexIsCheckedBeforeAnythingIsDeleted.test_a_widener_that_inserts_is_refused_and_deletes_nothing)
+Simulated by inserting a line above the row between locate and
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_prioritize.py", line 271, in test_a_widener_that_inserts_is_refused_and_deletes_nothing
+    self.assertIn("shifted under the write", out.stdout + out.stderr)
+AssertionError: 'shifted under the write' not found in 'perry-task prioritize is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_the_narrow_destination_gains_the_columns_and_no_cell_is_lost (test_prioritize.TestWideningReachesTheDestination.test_the_narrow_destination_gains_the_columns_and_no_cell_is_lost)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_prioritize.py", line 305, in test_the_narrow_destination_gains_the_columns_and_no_cell_is_lost
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task prioritize is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 31 tests in 10.182s
+
+FAILED (failures=16, errors=2)
+
+✗ test_purge.py — 40 of 47 test(s) failed
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_a_purge_still_lands_on_a_gapped_log
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_a_write_still_lands_on_a_gapped_log
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_drift_reconciliation_still_answers
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_list_still_answers
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_the_events_feed_still_answers
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_the_linter_still_answers
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_the_log_is_never_rewritten_by_any_of_this
+    ERROR  test_purge.TestABlankLineInTheLogIsTolerated.test_the_writers_own_reader_skips_it
+    ERROR  test_purge.TestItIsReconstructible.test_the_event_carries_the_record_verbatim
+    ERROR  test_purge.TestItIsReconstructible.test_the_journal_says_the_record_was_removed
+    ERROR  test_purge.TestItIsReconstructible.test_the_store_can_be_rebuilt_from_the_log_alone
+    ERROR  test_purge.TestItRefusesALiveReference.test_a_cited_evidence_document_that_names_it_is_refused
+    ERROR  test_purge.TestItRefusesALiveReference.test_a_commitment_pointer_is_refused_and_named
+    ERROR  test_purge.TestItRefusesALiveReference.test_a_depends_on_edge_is_refused_and_named
+    ERROR  test_purge.TestItRefusesALiveReference.test_a_linkage_edge_that_names_it_is_refused
+    ERROR  test_purge.TestItRefusesALiveReference.test_a_next_action_that_cites_it_is_refused
+    ERROR  test_purge.TestItRefusesALiveReference.test_a_parent_pointer_is_refused_and_named
+    ERROR  test_purge.TestItRefusesALiveReference.test_an_agent_assignment_that_names_it_is_refused
+    ERROR  test_purge.TestItRefusesALiveReference.test_the_goals_store_linked_field_is_refused
+    ERROR  test_purge.TestItRemovesTheRecord.test_a_dry_run_writes_nothing
+    ERROR  test_purge.TestItRemovesTheRecord.test_it_leaves_the_list_payload
+    ERROR  test_purge.TestItRemovesTheRecord.test_no_other_record_is_touched
+    ERROR  test_purge.TestItRemovesTheRecord.test_order_is_not_renumbered
+    ERROR  test_purge.TestItRemovesTheRecord.test_the_board_is_not_disturbed
+    ERROR  test_purge.TestItRemovesTheRecord.test_the_record_leaves_the_store
+    ERROR  test_purge.TestRefusals.test_a_removal_with_no_reason_is_refused
+    FAIL   test_purge.TestRefusals.test_an_id_the_store_does_not_carry_is_refused
+    ERROR  test_purge.TestRefusals.test_an_open_row_is_refused_and_the_refusal_names_drop
+    ERROR  test_purge.TestTheContractShapeIsUnchanged.test_every_surviving_task_carries_the_same_keys
+    ERROR  test_purge.TestTheContractShapeIsUnchanged.test_the_contract_version_does_not_move
+    ERROR  test_purge.TestTheDerivationHonoursIt.test_a_closed_row_that_was_not_purged_still_survives_a_rebuild
+    ERROR  test_purge.TestTheDerivationHonoursIt.test_a_rebuild_from_the_board_does_not_resurrect_it
+    ERROR  test_purge.TestTheDerivationHonoursIt.test_it_produces_no_drift
+    ERROR  test_purge.TestTheDerivationHonoursIt.test_the_id_is_not_reissued
+    ERROR  test_purge.TestWhatIsNotALiveReference.test_a_cited_source_file_naming_it_does_not_refuse
+    ERROR  test_purge.TestWhatIsNotALiveReference.test_a_document_nothing_cites_does_not_refuse
+    ERROR  test_purge.TestWhatIsNotALiveReference.test_an_evidence_filename_that_starts_with_the_id_does_not_refuse
+    ERROR  test_purge.TestWhatIsNotALiveReference.test_the_event_log_naming_it_does_not_refuse
+    ERROR  test_purge.TestWhatIsNotALiveReference.test_the_journal_naming_it_does_not_refuse
+    ERROR  test_purge.TestWhatIsNotALiveReference.test_the_purged_rows_own_fields_do_not_refuse
+  … 536 earlier line(s) elided of 561; the last 25 follow — re-run this module alone for all of it
+                              ~^^^^^^
+KeyError: 'id'
+
+======================================================================
+ERROR: test_the_purged_rows_own_fields_do_not_refuse (test_purge.TestWhatIsNotALiveReference.test_the_purged_rows_own_fields_do_not_refuse)
+A row that declares its own dependency, evidence and next action is
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_purge.py", line 429, in test_the_purged_rows_own_fields_do_not_refuse
+    p.run("drop", a["id"], "--reason", "probe")
+                  ~^^^^^^
+KeyError: 'id'
+
+======================================================================
+FAIL: test_an_id_the_store_does_not_carry_is_refused (test_purge.TestRefusals.test_an_id_the_store_does_not_carry_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_purge.py", line 231, in test_an_id_the_store_does_not_carry_is_refused
+    self.assertIn("TASK-999", str(out))
+AssertionError: 'TASK-999' not found in "{'refused': 'perry-task purge is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}"
+
+----------------------------------------------------------------------
+Ran 47 tests in 0.706s
+
+FAILED (failures=1, errors=39)
+
+✗ test_queue_sla.py — 11 of 32 test(s) failed
+  ! unittest counted 11 failed test(s) and the id parser named 6 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_queue_sla.TestAHandWrittenDashIsNoClockToEitherReader.test_a_dash_in_stage_since_is_no_clock_either
+    FAIL   test_queue_sla.TestAHandWrittenDashIsNoClockToEitherReader.test_a_dash_is_clockless_to_both_readers
+    FAIL   test_queue_sla.TestAHandWrittenDashIsNoClockToEitherReader.test_a_real_date_is_a_clock_to_both_readers
+    FAIL   test_queue_sla.TestAHandWrittenDashIsNoClockToEitherReader.test_an_empty_cell_is_clockless_to_both_readers
+    FAIL   test_queue_sla.TestAHandWrittenDashIsNoClockToEitherReader.test_every_declared_spelling_of_nothing_reaches_both_readers
+    FAIL   test_queue_sla.TestTheNoClockReportThatMustKeepWorking.test_the_clockless_row_is_in_both_reports_and_neither_is_the_other
+  … 243 earlier line(s) elided of 268; the last 25 follow — re-run this module alone for all of it
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_queue_sla.py", line 254, in board
+    self.task(root, "add", "--title", "tool written",
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_queue_sla.py", line 126, in task
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_clockless_row_is_in_both_reports_and_neither_is_the_other (test_queue_sla.TestTheNoClockReportThatMustKeepWorking.test_the_clockless_row_is_in_both_reports_and_neither_is_the_other)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_queue_sla.py", line 200, in test_the_clockless_row_is_in_both_reports_and_neither_is_the_other
+    self.task(root, "add", "--title", "tool written",
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_queue_sla.py", line 126, in task
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 32 tests in 9.937s
+
+FAILED (failures=11)
+
+✗ test_register_minters.py — 36 of 15 test(s) failed
+  ! unittest counted 36 failed test(s) and the id parser named 14 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_register_minters.TestANumberIsRetiredNotFreed.test_deleting_the_row_does_not_free_the_number
+    FAIL   test_register_minters.TestANumberIsRetiredNotFreed.test_it_survives_losing_the_event_log
+    FAIL   test_register_minters.TestANumberIsRetiredNotFreed.test_it_survives_losing_the_journal
+    FAIL   test_register_minters.TestANumberIsRetiredNotFreed.test_the_boundary_an_id_the_tool_never_minted
+    FAIL   test_register_minters.TestBothRiskCallSites.test_risk_add_continues_from_what_the_migration_allocated
+    FAIL   test_register_minters.TestBothRiskCallSites.test_risk_migrate_allocates_above_a_retired_number
+    FAIL   test_register_minters.TestEverySourceIsRead.test_a_family_does_not_count_another_familys_numbers
+    FAIL   test_register_minters.TestEverySourceIsRead.test_an_empty_project_starts_at_001
+    FAIL   test_register_minters.TestEverySourceIsRead.test_cadence_counts_the_long_spelling
+    FAIL   test_register_minters.TestEverySourceIsRead.test_state_root_markdown_outside_the_journal_is_not_read
+    FAIL   test_register_minters.TestEverySourceIsRead.test_the_board_is_the_canonical_half
+    FAIL   test_register_minters.TestEverySourceIsRead.test_the_event_log_is_read
+    FAIL   test_register_minters.TestEverySourceIsRead.test_the_journal_is_read
+    FAIL   test_register_minters.TestOneMechanism.test_a_null_id_in_the_log_is_survivable
+  … 455 earlier line(s) elided of 480; the last 25 follow — re-run this module alone for all of it
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_minters.py", line 296, in test_a_null_id_in_the_log_is_survivable
+    self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
+                     ^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_minters.py", line 132, in mint
+    raise AssertionError(f"{cmd} failed: {out}")
+AssertionError: cadence-add failed: {'refused': 'perry-task cadence-add is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_a_null_id_in_the_log_is_survivable (test_register_minters.TestOneMechanism.test_a_null_id_in_the_log_is_survivable) (prefix='RX')
+`read_events` keeps whatever JSON a line held — *"a corrupt line is
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_minters.py", line 296, in test_a_null_id_in_the_log_is_survivable
+    self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
+                     ^^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_minters.py", line 132, in mint
+    raise AssertionError(f"{cmd} failed: {out}")
+AssertionError: risk-add failed: {'refused': 'perry-task risk-add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.737s
+
+FAILED (failures=36)
+
+✗ test_register_store_invariant.py — 29 of 47 test(s) failed
+  ! unittest counted 29 failed test(s) and the id parser named 18 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_register_store_invariant.TestAHandEditToAHeldBoardReachesNoStore.test_no_section_shape_on_a_held_board_changes_what_a_write_stores
+    FAIL   test_register_store_invariant.TestAHandEditToAHeldBoardReachesNoStore.test_rows_tidied_off_a_held_board_do_not_move_n
+    FAIL   test_register_store_invariant.TestExplicitRemovalStillWorks.test_intake_sweep_may_shrink_the_intake_store
+    FAIL   test_register_store_invariant.TestExplicitRemovalStillWorks.test_purge_may_shrink_the_task_store
+    FAIL   test_register_store_invariant.TestExplicitRemovalStillWorks.test_resolve_intake_is_not_blocked_and_does_not_in_fact_shrink
+    FAIL   test_register_store_invariant.TestTheCarryForwardJoin.test_a_row_replaced_by_hand_does_not_hand_its_discharge_to_the_newcomer
+    FAIL   test_register_store_invariant.TestTheExemptionIsBounded.test_intake_sweep_may_not_shrink_by_more_than_the_rows_it_swept
+    FAIL   test_register_store_invariant.TestTheExemptionIsBounded.test_intake_sweep_may_shrink_by_exactly_the_rows_it_swept
+    FAIL   test_register_store_invariant.TestTheExemptionIsBounded.test_purge_removes_the_one_record_it_names_and_leaves_the_other
+    FAIL   test_register_store_invariant.TestTheExemptionIsBounded.test_resolve_intake_may_not_shrink_a_store_it_removes_nothing_from
+    FAIL   test_register_store_invariant.TestTheFixturesAreTheShapeUnderTest.test_the_queue_track_reaches_cmd_adds_queue_branch
+    FAIL   test_register_store_invariant.TestTheOrdinaryWriteReachesItsStore.test_ask_and_risk_add_reach_their_stores_too
+    FAIL   test_register_store_invariant.TestTheOrdinaryWriteReachesItsStore.test_intake_on_a_project_with_no_store_creates_it_and_holds_the_row
+    FAIL   test_register_store_invariant.TestTheOrdinaryWriteReachesItsStore.test_the_lint_prints_a_drift_verdict_rather_than_unchecked
+    FAIL   test_register_store_invariant.TestTheOrdinaryWriteReachesItsStore.test_the_success_line_names_the_register_store_only_when_one_is_written
+    FAIL   test_register_store_invariant.TestTheReproduction.test_a_dry_run_previews_the_refusal_rather_than_the_write
+    FAIL   test_register_store_invariant.TestTheReproduction.test_the_refusal_names_the_store_and_a_way_forward
+    FAIL   test_register_store_invariant.TestTheStoreIsReadHonestly.test_a_corrupt_line_in_a_register_store_is_a_refusal_not_a_traceback
+  … 323 earlier line(s) elided of 348; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_store_invariant.py", line 445, in test_a_dry_run_previews_the_refusal_rather_than_the_write
+    self.assertIn("may never make a canonical store smaller", out)
+AssertionError: 'may never make a canonical store smaller' not found in 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_the_refusal_names_the_store_and_a_way_forward (test_register_store_invariant.TestTheReproduction.test_the_refusal_names_the_store_and_a_way_forward)
+And the way forward is a subcommand that exists.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_store_invariant.py", line 423, in test_the_refusal_names_the_store_and_a_way_forward
+    self.assertIn("intake.jsonl", out)
+AssertionError: 'intake.jsonl' not found in 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_a_corrupt_line_in_a_register_store_is_a_refusal_not_a_traceback (test_register_store_invariant.TestTheStoreIsReadHonestly.test_a_corrupt_line_in_a_register_store_is_a_refusal_not_a_traceback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_store_invariant.py", line 1053, in test_a_corrupt_line_in_a_register_store_is_a_refusal_not_a_traceback
+    self.assertIn("intake.jsonl", out)
+AssertionError: 'intake.jsonl' not found in 'perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+----------------------------------------------------------------------
+Ran 47 tests in 1.537s
+
+FAILED (failures=29)
+
+✗ test_register_substitution.py — 27 of 25 test(s) failed
+  ! unittest counted 27 failed test(s) and the id parser named 15 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_register_substitution.TestResolveIntakeIsInsideItsBoundAndStillReports.test_resolve_intake_reports_the_records_the_swap_destroyed
+    FAIL   test_register_substitution.TestTheCapIsOnTheOutputAndNeverOnTheCount.test_seven_losses_are_counted_seven_and_listed_five
+    FAIL   test_register_substitution.TestTheIdentityIsAMultiset.test_one_of_a_duplicated_pair_deleted_by_hand_is_reported
+    FAIL   test_register_substitution.TestTheInvariantIsStillACountRule.test_a_dry_run_previews_the_report_and_writes_nothing
+    FAIL   test_register_substitution.TestTheInvariantIsStillACountRule.test_a_shrink_is_still_refused_on_the_same_board
+    FAIL   test_register_substitution.TestTheInvariantIsStillACountRule.test_the_substitution_report_never_changes_the_exit_code
+    FAIL   test_register_substitution.TestTheLocalizedBoardReportsTheSameWay.test_a_substitution_on_the_localized_queue_is_reported
+    FAIL   test_register_substitution.TestTheLostRecordsAreRecoverable.test_a_clean_write_leaves_no_substituted_field_on_its_event
+    FAIL   test_register_substitution.TestTheLostRecordsAreRecoverable.test_the_event_carries_the_whole_lost_record
+    FAIL   test_register_substitution.TestTheLostRecordsAreRecoverable.test_the_json_payload_carries_the_report_for_a_caller_with_no_stream
+    FAIL   test_register_substitution.TestTheReportIsSilentWhenNothingWasDestroyed.test_a_sweep_over_a_substitution_reports_only_the_excess
+    FAIL   test_register_substitution.TestTheReportIsSilentWhenNothingWasDestroyed.test_an_intake_sweep_removes_records_and_is_not_a_finding
+    FAIL   test_register_substitution.TestTheReportIsSilentWhenNothingWasDestroyed.test_no_ordinary_command_on_an_in_sync_board_reports_anything
+    FAIL   test_register_substitution.TestTheSubstitutionIsReportedOnEveryRegister.test_an_ordinary_write_names_every_record_it_destroys
+    FAIL   test_register_substitution.TestTheSubstitutionIsReportedOnEveryRegister.test_the_report_names_the_register_and_the_way_back
+  … 276 earlier line(s) elided of 301; the last 25 follow — re-run this module alone for all of it
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_substitution.py", line 311, in test_the_report_names_the_register_and_the_way_back
+    self.assertIn(f"## {REGISTERS[key][0]}", out)
+AssertionError: '## Intake' not found in 'perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_the_report_names_the_register_and_the_way_back (test_register_substitution.TestTheSubstitutionIsReportedOnEveryRegister.test_the_report_names_the_register_and_the_way_back) (register='asks')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_substitution.py", line 311, in test_the_report_names_the_register_and_the_way_back
+    self.assertIn(f"## {REGISTERS[key][0]}", out)
+AssertionError: '## User Input Queue' not found in 'perry-task ask is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_the_report_names_the_register_and_the_way_back (test_register_substitution.TestTheSubstitutionIsReportedOnEveryRegister.test_the_report_names_the_register_and_the_way_back) (register='risks')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_register_substitution.py", line 311, in test_the_report_names_the_register_and_the_way_back
+    self.assertIn(f"## {REGISTERS[key][0]}", out)
+AssertionError: '## Top risks' not found in 'perry-task risk-add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+----------------------------------------------------------------------
+Ran 25 tests in 1.637s
+
+FAILED (failures=27)
+
+✗ test_retired_tolerance.py — 1 of 0 test(s) failed
+    ERROR  test_retired_tolerance.TestAProjectThatNeverMigratedStillReads
+setUpClass (test_retired_tolerance.TestAProjectThatNeverMigratedStillReads) ... ERROR
+
+======================================================================
+ERROR: setUpClass (test_retired_tolerance.TestAProjectThatNeverMigratedStillReads)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_retired_tolerance.py", line 268, in setUpClass
+    import_board(cls.p.root, remove=False)
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/held_board.py", line 53, in import_board
+    raise AssertionError(f"perry-tasks {verb} --from-board refused on "
+AssertionError: perry-tasks risks-write --from-board refused on /var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/tmpqjgysbri: exit 1: perry-task risk-migrate is read-only after the kernel cutover; use perry-kernel describe --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 0 tests in 0.045s
+
+FAILED (errors=1)
+
+✗ test_risks.py — 33 of 75 test(s) failed
+    FAIL   test_risks.TestClearedRisksStopCounting.test_cleared_rows_stay_on_the_board
+    FAIL   test_risks.TestColumnsResolveByName.test_a_localized_board_migrates_and_the_next_risk_joins_the_register
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_a_second_risk_migrate_refuses_and_writes_nothing
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_an_empty_section_is_not_asked_about
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_dry_run_shows_every_row_and_writes_nothing
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_risk_add_leaves_a_held_bullet_section_as_the_user_wrote_it
+    ERROR  test_risks.TestConversionIsAskedForNotPerformed.test_risk_add_no_longer_reports_a_migration_it_did_not_do
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_risk_migrate_refuses_a_board_that_has_already_migrated
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_risk_migrate_refuses_when_there_is_nothing_to_convert
+    FAIL   test_risks.TestConversionIsAskedForNotPerformed.test_the_conversion_is_its_own_event_and_its_own_journal_line
+    FAIL   test_risks.TestIdsAreMintedNotInvented.test_ids_are_not_reissued_after_a_risk_is_cleared
+    FAIL   test_risks.TestMigrationLosesNothing.test_a_placeholder_bullet_is_not_migrated_into_a_risk
+    FAIL   test_risks.TestMigrationLosesNothing.test_a_struck_through_bullet_carries_its_stated_date_across
+    FAIL   test_risks.TestMigrationLosesNothing.test_every_bullet_survives_verbatim
+    FAIL   test_risks.TestMigrationLosesNothing.test_migration_does_not_invent_an_opened_date
+    FAIL   test_risks.TestMigrationLosesNothing.test_migration_preserves_every_verdict
+    FAIL   test_risks.TestOneNormalizationForAHeaderCell.test_risk_add_appends_to_the_table_that_is_already_there
+    FAIL   test_risks.TestOneNormalizationForAHeaderCell.test_risk_migrate_does_not_offer_to_migrate_a_migrated_board
+    FAIL   test_risks.TestOneRegisterNotTwo.test_migrating_does_not_raise_the_count
+    FAIL   test_risks.TestOneRuleForWhatABulletIs.test_the_writer_sees_the_same_bullets_the_reader_does
+    FAIL   test_risks.TestRiskRowsAreNotTaskRows.test_a_risk_id_never_collides_with_a_task_id
+    FAIL   test_risks.TestTheToolOwnsTheComputedCells.test_every_write_is_board_journal_and_event
+    FAIL   test_risks.TestTheToolOwnsTheComputedCells.test_risk_add_refuses_without_a_statement
+    FAIL   test_risks.TestTheToolOwnsTheComputedCells.test_risk_add_stamps_opened_and_mints_the_id
+    FAIL   test_risks.TestTheToolOwnsTheComputedCells.test_risk_clear_refuses_a_risk_that_is_already_cleared
+    FAIL   test_risks.TestTheToolOwnsTheComputedCells.test_risk_clear_refuses_without_a_reason
+    FAIL   test_risks.TestTheWriterAsksTheReadersQuestion.test_risk_migrate_refuses_it_too
+    FAIL   test_risks.TestTheWriterAsksTheReadersQuestion.test_the_bullets_under_a_legend_are_still_there_afterwards
+    FAIL   test_risks.TestTheWriterResolvesTheIdColumnByName.test_a_localized_header_clears_the_same
+    FAIL   test_risks.TestTheWriterResolvesTheIdColumnByName.test_a_new_row_lands_in_the_right_columns_too
+    FAIL   test_risks.TestTheWriterResolvesTheIdColumnByName.test_risk_clear_finds_a_row_the_reader_can_see
+    FAIL   test_risks.TestTheWriterResolvesTheIdColumnByName.test_the_cleared_cell_lands_in_the_status_column
+    FAIL   test_risks.TestTheWriterResolvesTheIdColumnByName.test_the_user_input_queue_still_answers_by_id
+  … 385 earlier line(s) elided of 410; the last 25 follow — re-run this module alone for all of it
+    self.assertEqual(code, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task risk-clear is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_the_cleared_cell_lands_in_the_status_column (test_risks.TestTheWriterResolvesTheIdColumnByName.test_the_cleared_cell_lands_in_the_status_column)
+Resolving the id by name is only half of it — the write back has to
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_risks.py", line 794, in test_the_cleared_cell_lands_in_the_status_column
+    self.assertIn("it stopped", r.status)
+AssertionError: 'it stopped' not found in 'open'
+
+======================================================================
+FAIL: test_the_user_input_queue_still_answers_by_id (test_risks.TestTheWriterResolvesTheIdColumnByName.test_the_user_input_queue_still_answers_by_id)
+`find_section_row`'s other caller. `USER-id` is an id column too, and
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_risks.py", line 822, in test_the_user_input_queue_still_answers_by_id
+    self.assertEqual(code, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task answer is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 75 tests in 1.378s
+
+FAILED (failures=32, errors=1)
+
+✗ test_role_on_rows.py — 8 of 11 test(s) failed
+    FAIL   test_role_on_rows.TestAProjectThatHasDeclaredRoles.test_a_declared_role_lands_in_the_cell_and_the_payload
+    FAIL   test_role_on_rows.TestAProjectThatHasDeclaredRoles.test_a_role_with_no_card_is_refused_and_points_at_the_shipped_ones
+    FAIL   test_role_on_rows.TestAProjectThatHasDeclaredRoles.test_a_roleless_row_is_refused
+    FAIL   test_role_on_rows.TestAProjectThatHasDeclaredRoles.test_the_refusal_lists_the_roles_that_exist
+    FAIL   test_role_on_rows.TestGoal7AProjectWithNoRoles.test_a_role_passed_anyway_is_filed_not_refused
+    FAIL   test_role_on_rows.TestGoal7AProjectWithNoRoles.test_add_does_not_ask_for_a_role
+    FAIL   test_role_on_rows.TestGoal7AProjectWithNoRoles.test_no_refusal_ever_mentions_roles
+    ERROR  test_role_on_rows.TestGoal7AProjectWithNoRoles.test_the_payload_still_carries_the_key_as_empty
+  … 68 earlier line(s) elided of 93; the last 25 follow — re-run this module alone for all of it
+
+
+======================================================================
+FAIL: test_add_does_not_ask_for_a_role (test_role_on_rows.TestGoal7AProjectWithNoRoles.test_add_does_not_ask_for_a_role)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_role_on_rows.py", line 116, in test_add_does_not_ask_for_a_role
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_no_refusal_ever_mentions_roles (test_role_on_rows.TestGoal7AProjectWithNoRoles.test_no_refusal_ever_mentions_roles)
+A project that has not adopted the concept must not meet it in an
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_role_on_rows.py", line 123, in test_no_refusal_ever_mentions_roles
+    self.assertEqual(out.returncode, 0, out.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 11 tests in 1.030s
+
+FAILED (failures=7, errors=1)
+
+✗ test_row_integrity.py — 2 of 26 test(s) failed
+    FAIL   test_row_integrity.TestTheWriterRefusesAndWritesNothing.test_a_multi_line_next_action_is_refused
+    FAIL   test_row_integrity.TestTheWriterRefusesAndWritesNothing.test_a_single_line_next_action_containing_a_pipe_is_written
+  … 41 earlier line(s) elided of 66; the last 25 follow — re-run this module alone for all of it
+`tables()` is a VIEW of `tables_with_lines()`, not a second scan. ... ok
+test_a_multi_line_next_action_is_refused (test_row_integrity.TestTheWriterRefusesAndWritesNothing.test_a_multi_line_next_action_is_refused) ... FAIL
+test_a_single_line_next_action_containing_a_pipe_is_written (test_row_integrity.TestTheWriterRefusesAndWritesNothing.test_a_single_line_next_action_containing_a_pipe_is_written) ... FAIL
+
+======================================================================
+FAIL: test_a_multi_line_next_action_is_refused (test_row_integrity.TestTheWriterRefusesAndWritesNothing.test_a_multi_line_next_action_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_row_integrity.py", line 247, in test_a_multi_line_next_action_is_refused
+    self.assertIn("refused", out.stderr)
+AssertionError: 'refused' not found in 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_a_single_line_next_action_containing_a_pipe_is_written (test_row_integrity.TestTheWriterRefusesAndWritesNothing.test_a_single_line_next_action_containing_a_pipe_is_written)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_row_integrity.py", line 254, in test_a_single_line_next_action_containing_a_pipe_is_written
+    self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+AssertionError: 1 != 0 : perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 26 tests in 0.390s
+
+FAILED (failures=2)
+
+✗ test_same_action_linkage.py — 9 of 81 test(s) failed
+    FAIL   test_same_action_linkage.ABlankKrIsRefusedBeforeItReachesTheEvent.test_a_padded_kr_is_stripped_rather_than_refused
+    FAIL   test_same_action_linkage.ABlankKrIsRefusedBeforeItReachesTheEvent.test_a_whitespace_only_kr_is_refused
+    FAIL   test_same_action_linkage.ABlankKrIsRefusedBeforeItReachesTheEvent.test_an_empty_kr_is_refused_the_same_way
+    FAIL   test_same_action_linkage.ABlankKrIsRefusedBeforeItReachesTheEvent.test_kr_is_still_not_mandatory_because_unlinked_answers_too
+    FAIL   test_same_action_linkage.ABlankKrIsRefusedBeforeItReachesTheEvent.test_omitting_the_flag_is_refused
+    FAIL   test_same_action_linkage.ABlankKrIsRefusedBeforeItReachesTheEvent.test_the_refusal_says_how_to_say_no_kr_instead
+    FAIL   test_same_action_linkage.TheUnlinkedAtAddPathHasAWriter.test_a_project_with_no_store_refuses_the_declaration
+    FAIL   test_same_action_linkage.TheUnlinkedAtAddPathHasAWriter.test_perry_task_add_accepts_the_unlinked_flag_and_it_lands
+    FAIL   test_same_action_linkage.TheUnlinkedAtAddPathHasAWriter.test_the_fixture_can_actually_file_a_row
+  … 182 earlier line(s) elided of 207; the last 25 follow — re-run this module alone for all of it
+AssertionError: 'linkage.jsonl' not found in 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+======================================================================
+FAIL: test_perry_task_add_accepts_the_unlinked_flag_and_it_lands (test_same_action_linkage.TheUnlinkedAtAddPathHasAWriter.test_perry_task_add_accepts_the_unlinked_flag_and_it_lands)
+The CLI half, through the real binary. When this goes red the flag
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_same_action_linkage.py", line 908, in test_perry_task_add_accepts_the_unlinked_flag_and_it_lands
+    self.assertEqual(r.returncode, 0,
+AssertionError: 1 != 0 : `perry-task add --unlinked` was refused: perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_the_fixture_can_actually_file_a_row (test_same_action_linkage.TheUnlinkedAtAddPathHasAWriter.test_the_fixture_can_actually_file_a_row)
+The control both tests above still need. If `_fixture_project`
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_same_action_linkage.py", line 959, in test_the_fixture_can_actually_file_a_row
+    self.assertEqual(_add(d, "a control row", "--unlinked").returncode, 0)
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 81 tests in 43.653s
+
+FAILED (failures=9)
+
+✗ test_store_is_the_write_target.py — 34 of 33 test(s) failed
+  ! unittest counted 34 failed test(s) and the id parser named 28 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_store_is_the_write_target.TestAStatusTheStoreCannotHold.test_a_dry_run_uses_store_truth_and_writes_nothing
+    FAIL   test_store_is_the_write_target.TestAStatusTheStoreCannotHold.test_every_other_row_is_unaffected
+    FAIL   test_store_is_the_write_target.TestAStatusTheStoreCannotHold.test_the_store_record_can_be_written_despite_projection_prose
+    FAIL   test_store_is_the_write_target.TestAStatusTheStoreCannotHold.test_the_write_replaces_projection_prose_with_store_truth
+    FAIL   test_store_is_the_write_target.TestCanonicalRecovery.test_commit_routes_the_real_command_through_the_recovery_boundary
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_a_write_to_a_section_that_is_not_a_task_table
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_add
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_done
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_drop
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_next_and_retitle
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_prioritize
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_start
+    FAIL   test_store_is_the_write_target.TestEveryWriteLeavesTheStoreAndTheBoardAgreeing.test_status
+    FAIL   test_store_is_the_write_target.TestOneTaskTableDefinition.test_a_second_table_after_prose_is_stored_and_rendered_losslessly
+    FAIL   test_store_is_the_write_target.TestOneTaskTableDefinition.test_widening_preserves_both_tables_and_targets_the_second_row
+    FAIL   test_store_is_the_write_target.TestRowOrderIsRecorded.test_a_new_row_lands_last_in_its_section_and_records_that
+    FAIL   test_store_is_the_write_target.TestRowOrderIsRecorded.test_a_row_that_left_the_board_records_no_order
+    FAIL   test_store_is_the_write_target.TestRowOrderIsRecorded.test_a_write_does_not_reorder_the_board
+    FAIL   test_store_is_the_write_target.TestRowOrderIsRecorded.test_the_renderer_reports_a_board_that_disagrees_with_the_store
+    FAIL   test_store_is_the_write_target.TestRowOrderIsRecorded.test_the_store_records_the_authored_order_not_the_id_order
+    FAIL   test_store_is_the_write_target.TestStoreEditsRemainAuthoritativeAfterTask090.test_a_store_only_created_edit_is_preserved
+    FAIL   test_store_is_the_write_target.TestStoreEditsRemainAuthoritativeAfterTask090.test_an_unrelated_write_preserves_and_renders_the_store_edit
+    FAIL   test_store_is_the_write_target.TestTheStoreAndTheJournalAreThePair.test_a_lost_event_costs_history_and_not_the_record
+    FAIL   test_store_is_the_write_target.TestTheStoreAndTheJournalAreThePair.test_both_land_together
+    FAIL   test_store_is_the_write_target.TestTheStoreIsWhatIsWritten.test_a_dry_run_writes_nothing_and_still_plans_the_store
+    FAIL   test_store_is_the_write_target.TestTheStoreIsWhatIsWritten.test_the_board_is_rendered_from_the_store_and_not_copied
+    ERROR  test_store_is_the_write_target.TestTheStoreIsWhatIsWritten.test_the_payload_counts_what_the_projection_could_not_fill
+    FAIL   test_store_is_the_write_target.TestTheStoreIsWhatIsWritten.test_the_write_names_the_existing_canonical_store
+  … 313 earlier line(s) elided of 338; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_store_is_the_write_target.py", line 481, in test_a_dry_run_writes_nothing_and_still_plans_the_store
+    self.assertEqual(code, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task start is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_the_board_is_rendered_from_the_store_and_not_copied (test_store_is_the_write_target.TestTheStoreIsWhatIsWritten.test_the_board_is_rendered_from_the_store_and_not_copied)
+**The half `diff` cannot prove.** A `commit()` that wrote
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_store_is_the_write_target.py", line 522, in test_the_board_is_rendered_from_the_store_and_not_copied
+    self.assertEqual(p.task("next", "TASK-004", "--next", "x")[0], 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_the_write_names_the_existing_canonical_store (test_store_is_the_write_target.TestTheStoreIsWhatIsWritten.test_the_write_names_the_existing_canonical_store)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_store_is_the_write_target.py", line 472, in test_the_write_names_the_existing_canonical_store
+    self.assertEqual(code, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task start is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 33 tests in 10.374s
+
+FAILED (failures=33, errors=1)
+
+✗ test_stranded_rows.py — 9 of 11 test(s) failed
+    FAIL   test_stranded_rows.TestBothIdleChecksAreEmptyWithoutAnEventLog.test_blocked_by_closed_rows_still_works_without_one
+    FAIL   test_stranded_rows.TestBothIdleChecksAreEmptyWithoutAnEventLog.test_no_event_log_names_nothing
+    ERROR  test_stranded_rows.TestNextActionCitesClosedReportsWhatItMightMean
+    FAIL   test_stranded_rows.TestTheAggregateReadsTheFieldRatherThanRestatingIt.test_changing_the_rule_in_bin_lib_moves_the_check
+    FAIL   test_stranded_rows.TestTheAggregateReadsTheFieldRatherThanRestatingIt.test_the_array_is_exactly_the_rows_carrying_the_field
+    ERROR  test_stranded_rows.TestTheContractAnnouncedAllOfIt
+    ERROR  test_stranded_rows.TestTheNewPredicateIsNotTheOldOne
+    ERROR  test_stranded_rows.TestTheReviewRowNobodyIsWaitingFor
+    ERROR  test_stranded_rows.TestTheStarvedAgent
+  … 101 earlier line(s) elided of 126; the last 25 follow — re-run this module alone for all of it
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_stranded_rows.py", line 283, in test_changing_the_rule_in_bin_lib_moves_the_check
+    payload = stranded_board().list()
+              ^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_stranded_rows.py", line 187, in stranded_board
+    assert code == 0, out
+           ^^^^^^^^^
+AssertionError: {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_the_array_is_exactly_the_rows_carrying_the_field (test_stranded_rows.TestTheAggregateReadsTheFieldRatherThanRestatingIt.test_the_array_is_exactly_the_rows_carrying_the_field)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_stranded_rows.py", line 271, in test_the_array_is_exactly_the_rows_carrying_the_field
+    payload = stranded_board().list()
+              ^^^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_stranded_rows.py", line 187, in stranded_board
+    assert code == 0, out
+           ^^^^^^^^^
+AssertionError: {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.511s
+
+FAILED (failures=4, errors=5)
+
+✗ test_summary_is_asked_for.py — 11 of 28 test(s) failed
+  ! unittest counted 11 failed test(s) and the id parser named 8 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_summary_is_asked_for.TestAddRefusesWithoutASummary.test_add_accepts_a_fragment_and_a_value_with_no_sentence
+    FAIL   test_summary_is_asked_for.TestAddRefusesWithoutASummary.test_add_refuses_a_summary_that_is_only_the_title_again
+    FAIL   test_summary_is_asked_for.TestAddRefusesWithoutASummary.test_add_refuses_when_summary_is_absent
+    FAIL   test_summary_is_asked_for.TestAddRefusesWithoutASummary.test_the_control_a_good_summary_is_accepted_and_stored
+    FAIL   test_summary_is_asked_for.TestOnePlaceDefinesWhatASummaryIs.test_the_writer_and_the_linter_agree_over_a_corpus
+    FAIL   test_summary_is_asked_for.TestTheCheckDoesNotJudgeLanguage.test_a_chinese_summary_that_extends_its_chinese_title_is_not_a_repeat
+    FAIL   test_summary_is_asked_for.TestTheRewriteWriterHoldsTheSameLine.test_clear_is_deliberately_not_gated
+    FAIL   test_summary_is_asked_for.TestTheRewriteWriterHoldsTheSameLine.test_summary_refuses_a_second_title
+  … 154 earlier line(s) elided of 179; the last 25 follow — re-run this module alone for all of it
+======================================================================
+FAIL: test_clear_is_deliberately_not_gated (test_summary_is_asked_for.TestTheRewriteWriterHoldsTheSameLine.test_clear_is_deliberately_not_gated)
+A wrong summary must stay removable.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_summary_is_asked_for.py", line 143, in setUp
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_summary_refuses_a_second_title (test_summary_is_asked_for.TestTheRewriteWriterHoldsTheSameLine.test_summary_refuses_a_second_title)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_summary_is_asked_for.py", line 143, in setUp
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 28 tests in 8.026s
+
+FAILED (failures=11)
+
+✗ test_task_summary.py — 18 of 8 test(s) failed
+  ! unittest counted 18 failed test(s) and the id parser named 7 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_task_summary.TaskSummaryContract.test_create_list_reload_and_explain_preserve_unicode_exactly
+    FAIL   test_task_summary.TaskSummaryContract.test_dedicated_update_and_clear_touch_only_summary
+    FAIL   test_task_summary.TaskSummaryContract.test_every_unrelated_task_writer_preserves_the_sentinel
+    FAIL   test_task_summary.TaskSummaryContract.test_legacy_record_stays_empty_after_the_next_write
+    FAIL   test_task_summary.TaskSummaryContract.test_pipeline_stage_mutation_preserves_the_sentinel
+    FAIL   test_task_summary.TaskSummaryContract.test_summary_is_verbatim_prose_not_an_identifier_surface
+    FAIL   test_task_summary.TaskSummaryContract.test_summary_update_preserves_store_record_order
+  … 188 earlier line(s) elided of 213; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_summary.py", line 224, in test_pipeline_stage_mutation_preserves_the_sentinel
+    self.assertEqual(rc, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task summary is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_summary_is_verbatim_prose_not_an_identifier_surface (test_task_summary.TaskSummaryContract.test_summary_is_verbatim_prose_not_an_identifier_surface)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_summary.py", line 177, in test_summary_is_verbatim_prose_not_an_identifier_surface
+    self.assertEqual(written.returncode, 0, written.stderr)
+AssertionError: 1 != 0 : perry-task summary is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_summary_update_preserves_store_record_order (test_task_summary.TaskSummaryContract.test_summary_update_preserves_store_record_order)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_summary.py", line 166, in test_summary_update_preserves_store_record_order
+    self.assertEqual(rc, 0, out)
+AssertionError: 1 != 0 : {'refused': 'perry-task summary is read-only after the kernel cutover; use perry-kernel item update --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 8 tests in 5.879s
+
+FAILED (failures=18)
+
+✗ test_task_writer_contracts.py — 44 of 68 test(s) failed
+    FAIL   test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_board_with_several_families_is_not_guessed_at
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_family_with_no_numbers_is_not_given_one
+    FAIL   test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_multi_segment_prefix_is_allowed
+    FAIL   test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_single_family_board_mints_into_its_own_family
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_a_task_board_still_mints_task
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_an_adopted_id_is_never_reissued_either
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_ids_in_the_non_task_registers_are_not_a_family
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_beats_what_the_board_would_have_adopted
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_names_the_family_outright
+    FAIL   test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_prefix_refuses_a_whole_id
+    FAIL   test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_route_mints_from_the_same_rule_add_does
+    FAIL   test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_route_takes_prefix_too
+    ERROR  test_task_writer_contracts.TestANewIdJoinsTheFamilyTheBoardAlreadyUses.test_the_number_continues_the_family_rather_than_restarting_it
+    FAIL   test_task_writer_contracts.TestDriftReconciliation.test_a_board_the_tool_wrote_entirely_has_no_drift
+    ERROR  test_task_writer_contracts.TestDriftReconciliation.test_a_closed_task_is_not_reported_as_orphaned
+    ERROR  test_task_writer_contracts.TestDriftReconciliation.test_a_hand_edit_to_a_held_board_cannot_discard_store_truth
+    FAIL   test_task_writer_contracts.TestDriftReconciliation.test_a_routed_row_is_not_reported_as_un_tool_written
+    ERROR  test_task_writer_contracts.TestDriftReconciliation.test_an_event_whose_row_was_deleted_by_hand_is_reported
+    FAIL   test_task_writer_contracts.TestDriftReconciliation.test_cadence_rows_are_not_counted_as_predating_the_log
+    FAIL   test_task_writer_contracts.TestDriftReconciliation.test_rows_predating_the_log_are_context_not_drift
+    FAIL   test_task_writer_contracts.TestFromAimarksProductionReport.test_a_row_list_printed_can_also_be_closed
+    ERROR  test_task_writer_contracts.TestFullTaskSet.test_a_closed_task_keeps_its_title_and_evidence
+    ERROR  test_task_writer_contracts.TestFullTaskSet.test_closed_tasks_are_reconstructed_from_events
+    ERROR  test_task_writer_contracts.TestFullTaskSet.test_every_task_carries_its_timeline
+    ERROR  test_task_writer_contracts.TestFullTaskSet.test_the_live_board_wins_over_the_event_stream
+    ERROR  test_task_writer_contracts.TestFullTaskSet.test_without_all_only_open_tasks_are_returned
+    ERROR  test_task_writer_contracts.TestLaneProceduresCallTheTool.test_add_task_calls_the_tool
+    ERROR  test_task_writer_contracts.TestLaneProceduresCallTheTool.test_close_task_calls_the_tool
+    FAIL   test_task_writer_contracts.TestLaneProceduresCallTheTool.test_every_command_the_procedures_quote_actually_runs
+    ERROR  test_task_writer_contracts.TestLaneProceduresCallTheTool.test_no_migrated_procedure_still_describes_the_hand_edit
+    ERROR  test_task_writer_contracts.TestLaneProceduresCallTheTool.test_routing_goes_through_the_tool
+    ERROR  test_task_writer_contracts.TestLaneProceduresCallTheTool.test_the_procedures_say_what_a_refusal_means
+    ERROR  test_task_writer_contracts.TestLaneProceduresCallTheTool.test_the_stage_invariant_names_the_tool
+    ERROR  test_task_writer_contracts.TestListContract.test_created_and_updated_are_timestamps_or_null
+    ERROR  test_task_writer_contracts.TestListContract.test_every_declared_key_is_present_on_every_task
+    ERROR  test_task_writer_contracts.TestListContract.test_mode_columns_reach_the_payload
+    ERROR  test_task_writer_contracts.TestListContract.test_open_means_still_on_the_board_not_a_status_value
+    ERROR  test_task_writer_contracts.TestListContract.test_the_top_level_shape_is_exact
+    ERROR  test_task_writer_contracts.TestListContract.test_the_version_handle_is_present_and_major_2
+    ERROR  test_task_writer_contracts.TestListContract.test_without_all_the_closed_row_is_absent
+    ERROR  test_task_writer_contracts.TestPerryStateReadsTheLog.test_a_corrupt_line_does_not_lose_the_rest
+    FAIL   test_task_writer_contracts.TestPerryStateReadsTheLog.test_the_events_block_reports_the_log
+    FAIL   test_task_writer_contracts.TestTheSectionsAWorkSurfaceShows.test_an_answered_ask_is_not_in_the_needs_you_list
+    ERROR  test_task_writer_contracts.TestTheSectionsAWorkSurfaceShows.test_an_ask_carries_an_integer_age_beside_the_rendered_string
+  … 549 earlier line(s) elided of 574; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_contracts.py", line 421, in test_every_command_the_procedures_quote_actually_runs
+    self.assertGreater(len(quoted), 5, "the extraction found almost "
+AssertionError: 0 not greater than 5 : the extraction found almost nothing, so it proves nothing
+
+======================================================================
+FAIL: test_the_events_block_reports_the_log (test_task_writer_contracts.TestPerryStateReadsTheLog.test_the_events_block_reports_the_log)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_contracts.py", line 113, in test_the_events_block_reports_the_log
+    self.assertTrue(ev["present"])
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_an_answered_ask_is_not_in_the_needs_you_list (test_task_writer_contracts.TestTheSectionsAWorkSurfaceShows.test_an_answered_ask_is_not_in_the_needs_you_list)
+One shared predicate decides this. Counting answered rows is how a
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_contracts.py", line 1152, in test_an_answered_ask_is_not_in_the_needs_you_list
+    self.assertEqual(1, self.payload(p)["asks"]["open"])
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 68 tests in 1.862s
+
+FAILED (failures=14, errors=30)
+
+✗ test_task_writer_core.py — 154 of 68 test(s) failed
+  ! unittest counted 154 failed test(s) and the id parser named 55 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_task_writer_core.TestADeclaredBlankRungIsNotARung.test_a_declared_rung_still_beats_the_modes_default
+    FAIL   test_task_writer_core.TestADeclaredBlankRungIsNotARung.test_declaring_the_track_changes_nothing_a_row_carries
+    FAIL   test_task_writer_core.TestADeclaredBlankRungIsNotARung.test_every_blank_spelling_falls_back_to_the_modes_default
+    FAIL   test_task_writer_core.TestADeclaredBlankRungIsNotARung.test_what_done_stamps_is_what_done_would_accept
+    FAIL   test_task_writer_core.TestALocalizedBoard.test_a_transition_actually_moves_the_cell
+    FAIL   test_task_writer_core.TestALocalizedBoard.test_add_populates_the_row_rather_than_emptying_it
+    FAIL   test_task_writer_core.TestALocalizedBoard.test_drift_is_clean_on_a_board_the_tool_wrote_in_chinese
+    FAIL   test_task_writer_core.TestAtomicThreeWayWrite.test_add_writes_all_three
+    FAIL   test_task_writer_core.TestAtomicThreeWayWrite.test_concurrent_writes_do_not_lose_rows
+    FAIL   test_task_writer_core.TestAtomicThreeWayWrite.test_dry_run_touches_nothing
+    FAIL   test_task_writer_core.TestAtomicThreeWayWrite.test_locking_leaves_nothing_in_the_project
+    FAIL   test_task_writer_core.TestAtomicThreeWayWrite.test_the_event_may_be_lost_but_never_the_row
+    FAIL   test_task_writer_core.TestEveryStatusHasAToolPath.test_a_queue_add_creates_the_intake_register
+    ERROR  test_task_writer_core.TestEveryStatusHasAToolPath.test_add_honours_arrived_rather_than_silently_ignoring_it
+    ERROR  test_task_writer_core.TestEveryStatusHasAToolPath.test_blocked_and_review_have_a_tool_path
+    ERROR  test_task_writer_core.TestEveryStatusHasAToolPath.test_blocked_without_a_named_dependency_is_refused
+    FAIL   test_task_writer_core.TestEveryStatusHasAToolPath.test_dispatch_and_autopilot_carry_the_invariant
+    ERROR  test_task_writer_core.TestEveryStatusHasAToolPath.test_drop_requires_a_reason_and_leaves_no_orphan
+    FAIL   test_task_writer_core.TestEveryStatusHasAToolPath.test_resolve_intake_covers_the_other_two_outcomes
+    ERROR  test_task_writer_core.TestEveryStatusHasAToolPath.test_status_refuses_the_closing_transitions
+    FAIL   test_task_writer_core.TestEveryStatusHasAToolPath.test_the_schema_enum_is_what_the_tool_accepts
+    ERROR  test_task_writer_core.TestLifecycle.test_done_takes_the_rung_from_the_tracks_default
+    ERROR  test_task_writer_core.TestLifecycle.test_start_moves_status_and_records_both_ends
+    ERROR  test_task_writer_core.TestLifecycle.test_starting_twice_is_refused
+    ERROR  test_task_writer_core.TestLifecycle.test_the_event_log_is_disposable
+    ERROR  test_task_writer_core.TestOneCellWriterNotFour.test_each_is_its_own_event
+    ERROR  test_task_writer_core.TestOneCellWriterNotFour.test_each_refusal_says_what_that_subcommand_is_for
+    ERROR  test_task_writer_core.TestOneCellWriterNotFour.test_each_refuses_a_no_op
+    ERROR  test_task_writer_core.TestOneCellWriterNotFour.test_each_writes_its_own_cell_and_no_other
+    ERROR  test_task_writer_core.TestOneCellWriterNotFour.test_evidence_repairs_a_cell_without_closing_the_row
+    FAIL   test_task_writer_core.TestOneCellWriterNotFour.test_only_next_refuses_a_finished_row
+    FAIL   test_task_writer_core.TestOnePriorityValidator.test_a_valid_priority_still_routes
+    FAIL   test_task_writer_core.TestOnePriorityValidator.test_add_and_route_refuse_identically
+    FAIL   test_task_writer_core.TestOnePriorityValidator.test_route_refuses_an_unknown_priority_rather_than_crashing
+    FAIL   test_task_writer_core.TestOnePriorityValidator.test_the_refusal_says_what_to_type_instead
+    ERROR  test_task_writer_core.TestRetitle.test_an_empty_title_is_refused
+    ERROR  test_task_writer_core.TestRetitle.test_it_is_its_own_event
+    ERROR  test_task_writer_core.TestRetitle.test_it_rewrites_the_title_and_touches_nothing_else
+    ERROR  test_task_writer_core.TestRetitle.test_the_journal_records_what_it_used_to_be_called
+    ERROR  test_task_writer_core.TestRetitle.test_the_same_title_is_refused
+    FAIL   test_task_writer_core.TestTheDelimiterIsACharacterPeopleWrite.test_the_cell_survives_the_whole_write_path
+    ERROR  test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_add_and_done_answer_the_same_way
+    FAIL   test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_add_writes_the_rung_it_was_given
+    FAIL   test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_an_unknown_rung_is_refused_not_dropped
+    ERROR  test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_it_is_its_own_event
+    ERROR  test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_rung_corrects_an_open_row
+    ERROR  test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_the_same_rung_is_refused
+    FAIL   test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_v0_is_refused_by_name
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_a_bad_rung_is_refused_before_anything_is_written
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_a_closed_task_keeps_its_number
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_a_closed_tasks_number_survives_deleting_the_event_log
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_done_without_evidence_is_refused
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_ids_are_minted_and_never_collide
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_timestamps_are_observed_not_asserted
+    ERROR  test_task_writer_core.TestWhatTheToolComputes.test_v0_is_refused_by_name
+  … 1990 earlier line(s) elided of 2015; the last 25 follow — re-run this module alone for all of it
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_core.py", line 829, in test_add_writes_the_rung_it_was_given
+    self.assertEqual(code, 0, a)
+AssertionError: 1 != 0 : {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_an_unknown_rung_is_refused_not_dropped (test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_an_unknown_rung_is_refused_not_dropped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_core.py", line 837, in test_an_unknown_rung_is_refused_not_dropped
+    self.assertIn("not one of", str(out))
+AssertionError: 'not one of' not found in "{'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}"
+
+======================================================================
+FAIL: test_v0_is_refused_by_name (test_task_writer_core.TestTheRungIsWritableAndCorrectable.test_v0_is_refused_by_name)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_core.py", line 851, in test_v0_is_refused_by_name
+    self.assertIn("asserted", str(out))
+AssertionError: 'asserted' not found in "{'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}"
+
+----------------------------------------------------------------------
+Ran 68 tests in 11.005s
+
+FAILED (failures=118, errors=36)
+
+✗ test_task_writer_dependencies.py — 33 of 34 test(s) failed
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_a_no_op_repair_is_still_refused
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_a_titled_project_reports_nothing
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_an_id_nothing_knows_is_still_refused
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_an_open_untitled_row_is_still_reported
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_an_untitled_closed_row_is_reported_without_all
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_every_event_this_tool_writes_carries_a_title
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_no_other_cell_writer_reaches_a_row_off_the_board
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_retitle_repairs_a_row_the_board_has_let_go_of
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_the_finding_is_not_a_caption_for_the_listing
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_the_repair_does_not_reorder_the_store
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_the_repair_is_recorded_as_a_retitle_and_carries_the_new_name
+    ERROR  test_task_writer_dependencies.TestAClosedRowKeepsItsName.test_the_repair_leaves_the_row_closed_at_its_rung
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_a_blocked_row_with_no_declared_edge_is_named
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_a_cycle_is_refused_at_write_time
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_a_cycle_only_on_the_projection_is_not_task_truth
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_a_dependency_may_point_at_a_closed_task
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_a_row_cannot_depend_on_itself
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_a_satisfied_dependency_leaves_blocked_by_and_stays_in_depends_on
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_add_depends_writes_a_cell_and_not_only_journal_prose
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_an_id_this_payload_does_not_carry_counts_as_unsatisfied
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_blocked_by_names_the_unfinished_half_and_blocks_is_the_reverse
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_blocked_is_satisfied_by_on_as_well_as_by_reason
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_blocked_with_neither_on_nor_reason_is_still_refused
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_blocks_is_computed_before_the_track_and_all_filters
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_clear_records_that_a_row_waits_on_nothing
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_declaring_the_same_edge_twice_is_refused_as_a_no_op
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_prose_in_the_dependency_flag_is_refused
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_startable_is_false_for_a_closed_row
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_startable_is_false_for_a_row_whose_own_status_says_it_is_waiting
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_startable_is_true_for_open_unblocked_work
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_the_cell_is_what_the_reader_reads
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_the_edge_is_one_hop_and_not_the_transitive_closure
+    ERROR  test_task_writer_dependencies.TestADependencyIsQueryable.test_the_edge_survives_deleting_the_event_log
+  … 440 earlier line(s) elided of 465; the last 25 follow — re-run this module alone for all of it
+A waits on B, B waits on C. A's answer is B and only B — A becomes
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_dependencies.py", line 328, in test_the_edge_is_one_hop_and_not_the_transitive_closure
+    p.run("depends", a["id"], "--on", b["id"])
+                     ~^^^^^^
+KeyError: 'id'
+
+======================================================================
+ERROR: test_the_edge_survives_deleting_the_event_log (test_task_writer_dependencies.TestADependencyIsQueryable.test_the_edge_survives_deleting_the_event_log)
+The log is DERIVED AND DISPOSABLE. `mode` already cost this project
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_dependencies.py", line 261, in test_the_edge_survives_deleting_the_event_log
+    a, b = self.two(p)
+           ^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_dependencies.py", line 252, in two
+    return a["id"], b["id"]
+           ~^^^^^^
+KeyError: 'id'
+
+----------------------------------------------------------------------
+Ran 34 tests in 1.076s
+
+FAILED (errors=33)
+
+✗ test_task_writer_intake.py — 34 of 44 test(s) failed
+    FAIL   test_task_writer_intake.TestAgeIsKnownOrDeclaredUnknown.test_a_hand_written_row_beside_tool_written_ones_is_still_flagged
+    ERROR  test_task_writer_intake.TestAgeIsKnownOrDeclaredUnknown.test_a_row_with_a_stage_clock_is_ageable_without_events
+    ERROR  test_task_writer_intake.TestAgeIsKnownOrDeclaredUnknown.test_a_tool_written_row_has_an_age_and_is_not_flagged
+    ERROR  test_task_writer_intake.TestAgeIsKnownOrDeclaredUnknown.test_closed_rows_are_not_reported_as_ageless
+    FAIL   test_task_writer_intake.TestAnIntakeRowTakesExactlyOneOutcome.test_a_placeholder_outcome_is_not_a_discharge
+    FAIL   test_task_writer_intake.TestAnIntakeRowTakesExactlyOneOutcome.test_routing_twice_is_refused
+    ERROR  test_task_writer_intake.TestCorrectingANextAction.test_an_empty_next_is_refused
+    ERROR  test_task_writer_intake.TestCorrectingANextAction.test_it_is_its_own_event_not_a_status_change
+    ERROR  test_task_writer_intake.TestCorrectingANextAction.test_rewriting_to_the_same_text_is_refused
+    ERROR  test_task_writer_intake.TestCorrectingANextAction.test_the_cell_is_rewritten_and_the_status_is_untouched
+    ERROR  test_task_writer_intake.TestDropRecordsWhereTheRowDied.test_a_project_mode_row_carries_an_empty_stage_rather_than_no_key
+    ERROR  test_task_writer_intake.TestDropRecordsWhereTheRowDied.test_the_journal_line_and_the_event_carry_the_stage
+    ERROR  test_task_writer_intake.TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes.test_a_closed_row_resolves_the_document_that_justifies_its_close
+    ERROR  test_task_writer_intake.TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes.test_a_closed_rows_missing_file_is_reported_not_silently_empty
+    ERROR  test_task_writer_intake.TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes.test_a_row_with_no_evidence_still_reports_neither
+    ERROR  test_task_writer_intake.TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes.test_no_row_names_an_artifact_the_payload_neither_finds_nor_reports
+    ERROR  test_task_writer_intake.TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes.test_the_report_is_stable_across_two_reads
+    ERROR  test_task_writer_intake.TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes.test_the_same_file_resolves_open_and_closed
+    FAIL   test_task_writer_intake.TestIntakeIsReadableAndSweepable.test_discharging_moves_a_row_out_of_the_undischarged_count
+    FAIL   test_task_writer_intake.TestIntakeIsReadableAndSweepable.test_sweep_moves_discharged_rows_to_the_journal_with_their_outcome
+    FAIL   test_task_writer_intake.TestIntakeIsReadableAndSweepable.test_sweeping_with_nothing_discharged_is_refused
+    FAIL   test_task_writer_intake.TestIntakeIsReadableAndSweepable.test_the_oldest_undischarged_row_is_named
+    FAIL   test_task_writer_intake.TestIntakeIsReadableAndSweepable.test_the_row_numbers_the_procedure_needs_are_in_the_payload
+    ERROR  test_task_writer_intake.TestNextActionPointingAtFinishedWork.test_a_closed_row_citing_a_closed_task_is_not_reported
+    ERROR  test_task_writer_intake.TestNextActionPointingAtFinishedWork.test_a_row_citing_a_closed_task_is_reported
+    ERROR  test_task_writer_intake.TestNextActionPointingAtFinishedWork.test_a_row_citing_an_open_task_is_not_reported
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_a_question_with_no_text_is_refused
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_an_imported_queue_keeps_its_ids_and_the_new_ask_is_dated
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_answering_records_the_answer_and_the_date
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_answering_twice_is_refused
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_answering_without_the_answer_is_refused
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_ask_mints_an_id_and_stamps_the_date
+    FAIL   test_task_writer_intake.TestUserInputQueueHasAWriter.test_idle_is_computed_from_asked_not_read_from_a_typed_cell
+    ERROR  test_task_writer_intake.TestUserInputQueueHasAWriter.test_ids_are_not_reused_after_an_answer
+  … 392 earlier line(s) elided of 417; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_intake.py", line 223, in test_answering_without_the_answer_is_refused
+    self.assertIn("--answer", str(out))
+AssertionError: '--answer' not found in "{'refused': 'perry-task answer is read-only after the kernel cutover; use perry-kernel item move --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}"
+
+======================================================================
+FAIL: test_ask_mints_an_id_and_stamps_the_date (test_task_writer_intake.TestUserInputQueueHasAWriter.test_ask_mints_an_id_and_stamps_the_date)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_intake.py", line 184, in test_ask_mints_an_id_and_stamps_the_date
+    self.assertEqual(code, 0, a)
+AssertionError: 1 != 0 : {'refused': 'perry-task ask is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_idle_is_computed_from_asked_not_read_from_a_typed_cell (test_task_writer_intake.TestUserInputQueueHasAWriter.test_idle_is_computed_from_asked_not_read_from_a_typed_cell)
+The whole reason `Asked` exists. A stored age is stale the next
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_intake.py", line 251, in test_idle_is_computed_from_asked_not_read_from_a_typed_cell
+    self.assertEqual(q["count"], 2)
+AssertionError: 0 != 2
+
+----------------------------------------------------------------------
+Ran 44 tests in 1.593s
+
+FAILED (failures=15, errors=19)
+
+✗ test_task_writer_modes.py — 51 of 59 test(s) failed
+  ! unittest counted 51 failed test(s) and the id parser named 48 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_task_writer_modes.TestANarrowSectionIsWidenedWhicheverFlagNamedIt.test_add_by_priority_widens_it_the_way_add_by_group_does
+    FAIL   test_task_writer_modes.TestANarrowSectionIsWidenedWhicheverFlagNamedIt.test_the_intake_drain_runs_on_a_narrow_pre_existing_board
+    FAIL   test_task_writer_modes.TestDecoratedHeaders.test_a_row_can_be_added_to_a_project_imported_from_bolded_headers
+    FAIL   test_task_writer_modes.TestDecoratedHeaders.test_an_existing_row_is_still_findable
+    FAIL   test_task_writer_modes.TestDecoratedHeaders.test_the_header_is_left_exactly_as_the_project_wrote_it
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_a_group_is_not_silently_upgraded_to_a_priority
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_a_priority_board_routes_exactly_as_before
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_a_second_drain_still_works
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_add_and_route_reach_the_same_section_from_the_same_flag
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_route_files_the_row_under_the_projects_own_heading
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_route_reports_the_section_it_filed_into
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_route_still_refuses_a_priority_that_is_not_one
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_the_intake_row_is_discharged_by_a_grouped_route
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_the_intake_table_survives_the_drain
+    FAIL   test_task_writer_modes.TestEveryWriterThatFilesARowReadsGroup.test_the_routed_row_still_carries_its_clock
+    FAIL   test_task_writer_modes.TestModeAwareWrites.test_a_bad_stage_is_refused_at_creation_too
+    FAIL   test_task_writer_modes.TestModeAwareWrites.test_a_commitment_reaches_the_board
+    ERROR  test_task_writer_modes.TestModeAwareWrites.test_a_stage_move_restamps_the_clock
+    ERROR  test_task_writer_modes.TestModeAwareWrites.test_a_stage_outside_the_tracks_vocabulary_is_refused
+    FAIL   test_task_writer_modes.TestModeAwareWrites.test_intake_creates_the_section_that_nothing_created
+    ERROR  test_task_writer_modes.TestModeAwareWrites.test_moving_to_the_same_stage_is_refused
+    FAIL   test_task_writer_modes.TestModeAwareWrites.test_routing_carries_the_arrival_date
+    FAIL   test_task_writer_modes.TestModeAwareWrites.test_routing_into_a_project_track_is_refused
+    ERROR  test_task_writer_modes.TestModeAwareWrites.test_routing_records_where_the_intake_row_went
+    ERROR  test_task_writer_modes.TestModeAwareWrites.test_the_generated_board_still_lints
+    ERROR  test_task_writer_modes.TestModeColumns.test_a_pipeline_track_gets_stage_and_its_clock
+    FAIL   test_task_writer_modes.TestModeColumns.test_a_project_track_stamps_no_mode_fields
+    FAIL   test_task_writer_modes.TestModeColumns.test_a_queue_track_gets_arrived_not_stage_since
+    FAIL   test_task_writer_modes.TestModeColumns.test_adding_a_column_preserves_every_existing_row
+    FAIL   test_task_writer_modes.TestModeColumns.test_an_undeclared_track_is_refused
+    ERROR  test_task_writer_modes.TestModeColumnsOnBoardsPerryDidNotBuild.test_a_stage_move_restamps_the_clock_on_such_a_board
+    FAIL   test_task_writer_modes.TestModeColumnsOnBoardsPerryDidNotBuild.test_add_on_a_pipeline_track_stamps_the_stage_clock
+    FAIL   test_task_writer_modes.TestModeColumnsOnBoardsPerryDidNotBuild.test_routing_into_a_pipeline_track_carries_the_arrival_date
+    ERROR  test_task_writer_modes.TestModeColumnsOnBoardsPerryDidNotBuild.test_the_columns_are_created_on_a_board_that_never_had_them
+    ERROR  test_task_writer_modes.TestOneRuleOneImplementation.test_a_project_with_no_track_register_still_reports_project_mode
+    FAIL   test_task_writer_modes.TestOneRuleOneImplementation.test_add_and_route_are_born_at_the_same_stage_in_every_mode
+    ERROR  test_task_writer_modes.TestOneRuleOneImplementation.test_mode_is_derived_from_the_track_register
+    ERROR  test_task_writer_modes.TestOneRuleOneImplementation.test_mode_survives_the_event_log_being_deleted
+    ERROR  test_task_writer_modes.TestRoutingRespectsTheTracksMode.test_a_pipeline_row_enters_at_the_first_stage
+    ERROR  test_task_writer_modes.TestRoutingRespectsTheTracksMode.test_a_pipeline_row_gets_the_clock_its_mode_reads
+    ERROR  test_task_writer_modes.TestRoutingRespectsTheTracksMode.test_a_queue_row_keeps_the_arrival_date
+    ERROR  test_task_writer_modes.TestRoutingRespectsTheTracksMode.test_a_queue_row_still_skips_the_intake_stage
+    ERROR  test_task_writer_modes.TestTheStageClockHasOneWriter.test_a_stage_move_still_restamps_it
+    FAIL   test_task_writer_modes.TestTheStageClockHasOneWriter.test_stage_creates_the_column_it_writes_into
+    ERROR  test_task_writer_modes.TestTheStageClockHasOneWriter.test_start_does_not_restamp_the_stage_clock
+    FAIL   test_task_writer_modes.TestWritingToAProjectsOwnSections.test_a_narrower_section_gains_the_columns_rather_than_losing_the_data
+    FAIL   test_task_writer_modes.TestWritingToAProjectsOwnSections.test_a_priority_board_is_unaffected
+    FAIL   test_task_writer_modes.TestWritingToAProjectsOwnSections.test_group_files_the_row_under_the_projects_own_heading
+  … 561 earlier line(s) elided of 586; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_modes.py", line 417, in test_a_narrower_section_gains_the_columns_rather_than_losing_the_data
+    self.assertIn("the actual next step", p.board())
+AssertionError: 'the actual next step' not found in "# Board — tmp9rfwmsxc †\n> † = not stored: no record holds it; the render supplies it. An unmarked cell is one field of one record, printed as written, and an empty one is an empty field.\n\n## P0 (must finish this period)\n> Stored in `tasks.jsonl` under the state root; written by `perry-task` add, start, stage, track, next, done, drop, purge, route, retitle, summary, rung, evidence, prioritize, status, depends, design-link\n\n| ID | Title | Owner | Status | Next action | Evidence | Track | Verification | Stage | Arrived | Commitment | Stage since | Parent | Depends on | Role |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n\n## P1\n> Stored in `tasks.jsonl` under the state root; written by `perry-task` add, start, stage, track, next, done, drop, purge, route, retitle, summary, rung, evidence, prioritize, status, depends, design-link\n\n| ID | Title | Owner | Status | Next action | Evidence | Track | Verification | Stage | Arrived | Commitment | Stage since | Parent | Depends on | Role |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n\n## P2\n> Stored in `tasks.jsonl` under the state root; written by `perry-task` add, start, stage, track, next, done, drop, purge, route, retitle, summary, rung, evidence, prioritize, status, depends, design-link\n\n| ID | Title | Owner | Status | Next action | Evidence | Track | Verification | Stage | Arrived | Commitment | Stage since | Parent | Depends on | Role |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n\n## Open — 工程线\n> Stored in `tasks.jsonl` under the state root; written by `perry-task` add, start, stage, track, next, done, drop, purge, route, retitle, summary, rung, evidence, prioritize, status, depends, design-link\n\n| ID | Title | Owner | Status | Next action | Evidence | Track | Verification | Stage | Arrived | Commitment | Stage since | Parent | Depends on | Role |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| TECH-1 | pre-existing | Coding Agent | not_started |  |  | main |  |  |  |  |  |  |  |  |\n\n## Cadence (recurring; doesn't consume P0 slots)\n> Stored in `cadence.jsonl` under the state root; written by `perry-task` cadence-add, cadence-done\n\n| ID | Recurring task | Owner | Frequency | Next due | Last run | Last evidence |\n|---|---|---|---|---|---|---|\n\n## User Input Queue\n> Stored in `asks.jsonl` under the state root; written by `perry-task` ask, answer\n\n| USER-id | Needed from user | Blocks | Status | Asked | Idle † |\n|---|---|---|---|---|---|\n\n## Top risks (one-line; full list in `PROJECT_STATE.md`)\n> Stored in `risks.jsonl` under the state root; written by `perry-task` risk-add, risk-clear, risk-migrate\n\n| ID | Risk | Opened | Status |\n|---|---|---|---|\n"
+
+======================================================================
+FAIL: test_a_priority_board_is_unaffected (test_task_writer_modes.TestWritingToAProjectsOwnSections.test_a_priority_board_is_unaffected)
+The default path must not change for a project using P0/P1/P2.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_modes.py", line 428, in test_a_priority_board_is_unaffected
+    self.assertEqual(code, 0, a)
+AssertionError: 1 != 0 : {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+======================================================================
+FAIL: test_group_files_the_row_under_the_projects_own_heading (test_task_writer_modes.TestWritingToAProjectsOwnSections.test_group_files_the_row_under_the_projects_own_heading)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_task_writer_modes.py", line 407, in test_group_files_the_row_under_the_projects_own_heading
+    self.assertEqual(code, 0, a)
+AssertionError: 1 != 0 : {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'}
+
+----------------------------------------------------------------------
+Ran 59 tests in 1.716s
+
+FAILED (failures=31, errors=17, expected failures=3)
+
+✗ test_track_move.py — 27 of 30 test(s) failed
+    FAIL   test_track_move.TestABoardWithItsOwnHeadings.test_the_cells_land_under_a_projects_own_heading
+    FAIL   test_track_move.TestAnEventPerMove.test_a_dry_run_writes_nothing
+    FAIL   test_track_move.TestAnEventPerMove.test_every_move_appends_exactly_one_track_event
+    FAIL   test_track_move.TestAnEventPerMove.test_the_event_says_where_from_and_where_to
+    FAIL   test_track_move.TestAnEventPerMove.test_the_events_feed_carries_it
+    FAIL   test_track_move.TestAnEventPerMove.test_the_pair_reaches_the_timeline_labelled_track
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_a_staged_non_queue_destination_gets_stage_since_and_no_arrived
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_an_existing_arrived_is_carried_never_restamped
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_arrived_on_a_destination_that_cannot_read_it_is_refused
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_off_a_queue_track_the_clock_is_cleared
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_onto_a_queue_track_the_clock_starts
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_the_move_survives_a_re_render
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_the_stage_is_restamped_on_a_queue_to_queue_move
+    FAIL   test_track_move.TestBothDirectionsOfTheFieldQuestion.test_what_was_cleared_is_recorded_on_both_surviving_surfaces
+    FAIL   test_track_move.TestSixRowsMove.test_nothing_else_about_the_row_moves
+    FAIL   test_track_move.TestSixRowsMove.test_perry_state_reports_them_under_the_tracks_stage_counts
+    FAIL   test_track_move.TestSixRowsMove.test_six_existing_rows_reach_the_declared_queue_track
+    FAIL   test_track_move.TestSixRowsMove.test_the_board_renders_arrived_and_stage_for_every_moved_row
+    FAIL   test_track_move.TestSixRowsMove.test_the_stage_is_the_one_the_other_two_entrances_use
+    FAIL   test_track_move.TestTheProjectionAgreesAfterAMove.test_and_none_after_a_move_that_clears_the_clock
+    FAIL   test_track_move.TestTheProjectionAgreesAfterAMove.test_perry_lint_reports_no_store_drift_after_a_move
+    FAIL   test_track_move.TestTheRefusalIsByName.test_a_move_to_the_track_the_row_is_already_on_is_refused
+    FAIL   test_track_move.TestTheRefusalIsByName.test_a_stage_outside_the_destinations_vocabulary_is_refused
+    FAIL   test_track_move.TestTheRefusalIsByName.test_it_creates_nothing
+    FAIL   test_track_move.TestTheRefusalIsByName.test_it_names_the_file_the_declaration_lives_in
+    FAIL   test_track_move.TestTheRefusalIsByName.test_it_names_the_track_and_lists_the_declared_ones
+    FAIL   test_track_move.TestTheRefusalIsByName.test_track_without_a_track_is_refused_rather_than_a_no_op
+  … 442 earlier line(s) elided of 467; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_track_move.py", line 120, in ok
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_track_without_a_track_is_refused_rather_than_a_no_op (test_track_move.TestTheRefusalIsByName.test_track_without_a_track_is_refused_rather_than_a_no_op)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_track_move.py", line 293, in test_track_without_a_track_is_refused_rather_than_a_no_op
+    root = self.project()
+           ^^^^^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_track_move.py", line 101, in project
+    self.ok(root, "add", "--title", f"row {n + 1}",
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_track_move.py", line 120, in ok
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 30 tests in 0.247s
+
+FAILED (failures=27)
+
+✗ test_track_register_source.py — 4 of 33 test(s) failed
+    FAIL   test_track_register_source.TestAWriterRefusesRatherThanFallingBack.test_a_write_is_fine_with_a_healthy_store
+    FAIL   test_track_register_source.TestAWriterRefusesRatherThanFallingBack.test_a_write_is_fine_with_a_trackless_store
+    FAIL   test_track_register_source.TestAWriterRefusesRatherThanFallingBack.test_a_write_is_fine_with_no_store_at_all
+    FAIL   test_track_register_source.TestAWriterRefusesRatherThanFallingBack.test_a_write_is_refused_when_the_store_is_present_and_unusable
+  … 76 earlier line(s) elided of 101; the last 25 follow — re-run this module alone for all of it
+AssertionError: 1 != 0 : perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_a_write_is_fine_with_no_store_at_all (test_track_register_source.TestAWriterRefusesRatherThanFallingBack.test_a_write_is_fine_with_no_store_at_all)
+`absent` is the adoption path and must not be swept into the
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_track_register_source.py", line 548, in test_a_write_is_fine_with_no_store_at_all
+    self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+AssertionError: 1 != 0 : perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_a_write_is_refused_when_the_store_is_present_and_unusable (test_track_register_source.TestAWriterRefusesRatherThanFallingBack.test_a_write_is_refused_when_the_store_is_present_and_unusable)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_track_register_source.py", line 534, in test_a_write_is_refused_when_the_store_is_present_and_unusable
+    self.assertIn("track register", (out.stdout + out.stderr))
+AssertionError: 'track register' not found in 'perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.\n'
+
+----------------------------------------------------------------------
+Ran 33 tests in 1.399s
+
+FAILED (failures=4)
+
+✗ test_v5_signoff.py — 29 of 36 test(s) failed
+  ! unittest counted 29 failed test(s) and the id parser named 27 — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    ERROR  test_v5_signoff.TestAnEmptySignatureIsRefused.test_a_bare_close_that_never_engaged_the_path_is_unchanged
+    ERROR  test_v5_signoff.TestAnEmptySignatureIsRefused.test_nothing_selected_and_no_free_text_is_refused
+    ERROR  test_v5_signoff.TestAnEmptySignatureIsRefused.test_pressing_return_at_the_prompt_is_what_this_costs
+    ERROR  test_v5_signoff.TestAnEmptySignatureIsRefused.test_the_refused_close_wrote_nothing
+    ERROR  test_v5_signoff.TestFreeTextIsAdditive.test_free_text_alone_is_a_signature
+    ERROR  test_v5_signoff.TestFreeTextIsAdditive.test_free_text_lands_beside_the_selection
+    ERROR  test_v5_signoff.TestFreeTextIsAdditive.test_the_free_text_is_not_run_through_the_drafting_guard
+    ERROR  test_v5_signoff.TestHistoryIsNotRewritten.test_signing_another_row_does_not_rewrite_the_one_before_it
+    ERROR  test_v5_signoff.TestHistoryIsNotRewritten.test_the_new_record_does_not_claim_to_be_the_old_one
+    ERROR  test_v5_signoff.TestNoDraftedOptionAssertsAUserAction.test_the_refusal_reaches_the_cli_not_just_the_function
+    ERROR  test_v5_signoff.TestTheOfferIsBuiltNotComposed.test_a_signoff_on_a_rung_that_is_not_v5_is_refused
+    ERROR  test_v5_signoff.TestTheOfferIsBuiltNotComposed.test_an_offer_with_nothing_measured_is_refused
+    ERROR  test_v5_signoff.TestTheOfferIsBuiltNotComposed.test_it_degrades_to_a_numbered_free_text_prompt
+    ERROR  test_v5_signoff.TestTheOfferIsBuiltNotComposed.test_the_offer_numbers_items_the_way_done_reads_them
+    ERROR  test_v5_signoff.TestTheOfferIsBuiltNotComposed.test_the_offer_writes_nothing
+    ERROR  test_v5_signoff.TestTheOfferIsBuiltNotComposed.test_the_same_selection_records_the_same_thing_from_either_spelling
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_every_item_is_labelled_with_its_provenance
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_name_and_date_are_filled_in_not_typed
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_the_labels_survive_verbatim_into_the_written_record
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_the_row_still_closes_at_v5
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_the_signature_rides_in_the_event_too
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_the_two_selected_are_recorded_as_checked
+    ERROR  test_v5_signoff.TestTheRecordIsASelection.test_the_two_unselected_are_recorded_as_accepted_on_report
+    ERROR  test_v5_signoff.TestThreeDispositionsNotTwo.test_not_looked_at_is_a_disposition_of_its_own
+    ERROR  test_v5_signoff.TestThreeDispositionsNotTwo.test_not_looked_at_is_never_a_default
+    ERROR  test_v5_signoff.TestThreeDispositionsNotTwo.test_one_item_cannot_carry_two_dispositions
+    ERROR  test_v5_signoff.TestV1toV4ClosesAreUntouched.test_a_v3_close_writes_exactly_what_it_wrote_before
+  … 408 earlier line(s) elided of 433; the last 25 follow — re-run this module alone for all of it
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_v5_signoff.py", line 433, in test_one_item_cannot_carry_two_dispositions
+    tid = p.a_task()
+          ^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_v5_signoff.py", line 126, in a_task
+    return a["id"]
+           ~^^^^^^
+KeyError: 'id'
+
+======================================================================
+ERROR: test_a_v3_close_writes_exactly_what_it_wrote_before (test_v5_signoff.TestV1toV4ClosesAreUntouched.test_a_v3_close_writes_exactly_what_it_wrote_before)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_v5_signoff.py", line 779, in test_a_v3_close_writes_exactly_what_it_wrote_before
+    tid = p.a_task()
+          ^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_v5_signoff.py", line 126, in a_task
+    return a["id"]
+           ~^^^^^^
+KeyError: 'id'
+
+----------------------------------------------------------------------
+Ran 36 tests in 6.272s
+
+FAILED (errors=29)
+
+✗ test_wip_and_stages.py — 3 of 21 test(s) failed
+    FAIL   test_wip_and_stages.TestCustomTaskGroupsReachTheStateReader.test_pipeline_add_is_visible_to_tasks_open_counts_and_wip
+    FAIL   test_wip_and_stages.TestCustomTaskGroupsReachTheStateReader.test_queue_route_is_visible_after_it_leaves_intake
+    ERROR  test_wip_and_stages.TestTheReaderAndTheWriterAgreeAboutStages.test_the_writer_births_a_row_inside_what_the_reader_reports
+  … 47 earlier line(s) elided of 72; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_wip_and_stages.py", line 240, in test_pipeline_add_is_visible_to_tasks_open_counts_and_wip
+    added = self.task(
+            ^^^^^^^^^^
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_wip_and_stages.py", line 89, in task
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+======================================================================
+FAIL: test_queue_route_is_visible_after_it_leaves_intake (test_wip_and_stages.TestCustomTaskGroupsReachTheStateReader.test_queue_route_is_visible_after_it_leaves_intake)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_wip_and_stages.py", line 259, in test_queue_route_is_visible_after_it_leaves_intake
+    self.task(root, "intake", "--title", "customer request",
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_wip_and_stages.py", line 89, in task
+    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+AssertionError: 1 != 0 : {"refused": "perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written."}
+perry-task intake is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+
+----------------------------------------------------------------------
+Ran 21 tests in 1.266s
+
+FAILED (failures=2, errors=1)
+
+✗ test_work_modes.py — 8 of 85 test(s) failed
+    FAIL   test_work_modes.TestEveryModeColumnHasAWriter.test_a_stage_move_stamps_the_clock_in_the_same_edit
+    ERROR  test_work_modes.TestEveryModeColumnHasAWriter.test_intake_staleness_is_measured_in_days_not_triages
+    ERROR  test_work_modes.TestEveryModeColumnHasAWriter.test_routing_out_of_intake_carries_the_arrival_date
+    FAIL   test_work_modes.TestEveryModeColumnHasAWriter.test_the_procedure_tells_the_agent_to_set_the_mode_columns
+    FAIL   test_work_modes.TestEveryModeColumnHasAWriter.test_the_work_lane_no_longer_writes_decisions
+    FAIL   test_work_modes.TestTheTrackRegisterIsReadFromTheStore.test_perry_task_accepts_a_track_only_the_store_declares
+    FAIL   test_work_modes.TestVerificationSeesToolClosedWork.test_a_closed_row_is_counted_after_it_leaves_the_board
+    FAIL   test_work_modes.TestVerificationSeesToolClosedWork.test_the_consequence_rule_fires_on_tool_closed_work
+  … 177 earlier line(s) elided of 202; the last 25 follow — re-run this module alone for all of it
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_work_modes.py", line 392, in test_perry_task_accepts_a_track_only_the_store_declares
+    self.assertNotIn("refused", payload,
+AssertionError: 'refused' unexpectedly found in {'refused': 'perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.'} : perry-task refused a track the store declares: perry-task add is read-only after the kernel cutover; use perry-kernel item create --help. Stage, cadence and intake registers have no kernel write equivalent; use the work lane procedure. Nothing was written.
+
+======================================================================
+FAIL: test_a_closed_row_is_counted_after_it_leaves_the_board (test_work_modes.TestVerificationSeesToolClosedWork.test_a_closed_row_is_counted_after_it_leaves_the_board)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_work_modes.py", line 1397, in test_a_closed_row_is_counted_after_it_leaves_the_board
+    self.assertEqual(v["closed"], 1, "a tool-closed task was not counted")
+AssertionError: 0 != 1 : a tool-closed task was not counted
+
+======================================================================
+FAIL: test_the_consequence_rule_fires_on_tool_closed_work (test_work_modes.TestVerificationSeesToolClosedWork.test_the_consequence_rule_fires_on_tool_closed_work)
+The rule that overrides the mode default in every mode, and which
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/test_work_modes.py", line 1404, in test_the_consequence_rule_fires_on_tool_closed_work
+    self.assertIn("consequence-needs-signoff", self.lint(root))
+AssertionError: 'consequence-needs-signoff' not found in 'perry-lint --verification · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/tmp4d4ek1n3\n\n  · no done rows under P0/P1/P2 to rate (closed rows leave those sections at triage)\n'
+
+----------------------------------------------------------------------
+Ran 85 tests in 12.449s
+
+FAILED (failures=6, errors=2)
+
+162 modules · 4631 tests · 192.8s · 8 workers
+
+durations: 166 recorded · 166 on disk · 165 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+✗ 46 of 162 MODULE(S) red
+✗ 1125 of 4631 TEST(S) failed
+
+3. bin/ scripts are syntactically valid and self-documenting
+
+4. sample projects lint clean (English and Chinese)
+perry-lint · /Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/fixtures/sample-project
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Risks & mitigations (not yet blocking at Status: in_review; required at locked)
+  ⚠ evidence [NS-01] `evidence/` holds 2 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `evidence/`. Both are reversible; the first is one command. Evidence: evidence/2026-08/REL-001-spec.md, evidence/2026-08/REL-002-spec.md
+  ⚠ inputs [NS-01] `inputs/` holds 1 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `inputs/`. Both are reversible; the first is one command. Evidence: inputs/vendor-api.md
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+
+  0 error(s), 9 warning(s)
+  · tasks store: 4 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 5 record(s), all valid
+  · linkage store: 13 record(s), 0 malformed
+  · specs: 2 of 2 declare no scope for `dispatch.md` step 4.2 to read — nobody can say those rows were screened (`perry-lint --specs --json` names every one)
+  · bounds: 2 of 2 spec(s) carry no `## Bound` — a round against those has no finite set to check and no last element (`perry-lint --specs --json` names every one)
+  · summaries: all 3 open row(s) carry one that is not just the title again
+perry-lint · /Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry/tests/fixtures/sample-project-zh
+  ✓ clean — every state file matches schema/state-schema.json
+  · tasks store: 3 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 7 record(s), all valid
+  · no `linkage.jsonl` — the linkage store is unchecked, not clean
+  · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
+  · summaries: all 3 open row(s) carry one that is not just the title again
+
+0. tree guard — the tree the suite started in is the tree it ends in
+  ✓ nothing under /Users/bytedance/.codex/worktrees/task-490-kernel-cutover/Perry moved
+
+✗ failures above

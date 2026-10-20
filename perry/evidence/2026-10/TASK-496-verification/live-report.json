@@ -1,0 +1,46 @@
+{
+  "verdict": "measured",
+  "context": 316140,
+  "ceiling": null,
+  "ceiling_from": null,
+  "host": "codex-cli",
+  "identity": "01a14dd7-65f6-7710-a7ba-f31cf2899322",
+  "transcript": "/Users/bytedance/.codex/sessions/2026/10/18/rollout-2026-10-18T15-08-44-01a14dd7-65f6-7710-a7ba-f31cf2899322.jsonl",
+  "report_only": true,
+  "transcript_host": "codex-cli",
+  "binding": "host identity",
+  "scope": "current",
+  "session": "01a14dd7-65f6-7710-a7ba-f31cf2899322",
+  "parent": null,
+  "cwd": "/Users/bytedance/proj/Perry",
+  "last_record_at": "2026-10-19T08:38:36.644Z",
+  "transcript_age_min": 0.0,
+  "coverage": "complete",
+  "gaps": [],
+  "usage": {
+    "input": 945357,
+    "cached_input": 59188224,
+    "cache_creation": 0,
+    "output": 115885,
+    "reasoning": 30940
+  },
+  "children": {
+    "spawned": 3,
+    "found": 3,
+    "with_usage": 3,
+    "workflow_calls": 0,
+    "workflow_found": 0
+  },
+  "records": {
+    "requests": 172,
+    "duplicate": 15
+  },
+  "measured": [
+    "context",
+    "usage"
+  ],
+  "estimated": [],
+  "cost": "unknown",
+  "quota": "unknown",
+  "not_measured": []
+}

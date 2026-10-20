@@ -1,3 +1,7 @@
+> Research and standalone-pattern rationale. Native operations follow the current
+> router, new-project guide and owning lane. Historical measurements, examples
+> and old tracking vocabulary below do not create native fields, writers or gates.
+
 # Project archetypes — what actually works in agent-run projects
 
 Loaded by `/perry diagnose`. Also readable on its own: this is the research
@@ -40,7 +44,7 @@ answer is the *lowest* rung that survives the contention you actually observe.
 |---|---|---|---|
 | **0 · Serial** | One session at a time. | Zero. | Most solo projects, most weeks. Nobody writes this down as a "pattern", so people skip past it and over-engineer. |
 | **1 · Ownership partition** | Multiple sessions, one working dir, each session owns a **disjoint, declared** file set. | A written ownership table. | File boundaries are clean (separate modules, separate note folders). Breaks on shared files — lockfiles, routers, index docs, config. |
-| **2 · Worktree isolation** | `git worktree` per session: own directory, own branch, own port, own DB [1][4][6]. | Per-worktree deps + env; a real merge/integration step. | Genuinely parallel implementation on one codebase, with contention already observed. |
+| **2 · Worktree isolation** | `git worktree` per session: own directory, own branch, own port and isolated runtime/test data [1][4][6]. Native Perry state remains shared per project anchor. | Per-worktree deps + env; a real merge/integration step. | Genuinely parallel implementation on one codebase, with contention already observed. |
 | **3 · Coordinated team** | Shared task list with locked claiming + inter-agent messaging + a lead that synthesizes [2]. | Highest token cost; coordination overhead; still experimental. | Parallel *exploration* (review from N angles, competing debug hypotheses) more than parallel implementation. |
 
 **Rules that hold across all four rungs:**
@@ -48,10 +52,10 @@ answer is the *lowest* rung that survives the contention you actually observe.
 - **Escalate on evidence, not anticipation.** Move up a rung after ≥2 observed
   contention incidents, not because parallelism sounds good. (This is the same
   trigger Perry already uses for its own single→split repo migration.)
-- **Prefer append-only to shared-mutable.** A dated, append-only journal that
-  every session appends to never conflicts. One live file that three sessions
-  rewrite always does. This is the single highest-leverage change for a
-  non-code project, and it needs no worktrees at all.
+- **Prefer append-only history where suitable.** Coordinate appends to a shared
+  file; append-only text alone does not prevent conflicts. A mutable state file
+  needs a designated writer or explicit edit coordination. Native Perry uses
+  events for task history, and does not add a parallel journal.
 - **Split work by ownership boundary, then isolate — in that order** [1][6].
   Isolation without a boundary just moves the collision to merge time.
 - **Every parallel scheme needs a named integration step.** Split-and-merge
@@ -161,6 +165,11 @@ a board honest once an agent is the one moving the rows.
 
 ## Part 2 · The minimum viable spine
 
+The three-file floor below applies to standalone document projects. For native
+Perry, current structured state belongs to kernel items/events and narratives
+are attachments; do not create a parallel STATE/DECISIONS/board registry. The
+[new-project guide](new-projects.md) gives current combinations and setup steps.
+
 Before any archetype: most small projects are **under-structured by three
 files, not by a framework**. Prescribing a PMO to a two-week side project is
 the failure mode on the other side, and it is common enough to name.
@@ -181,9 +190,9 @@ lives in exactly one store; a document holds what has no schema* — Perry has
 `decisions/` and a command that reads it, so its index was a second copy and
 TASK-235 deleted it. A project at this floor has no store and no tooling by
 construction, so a document is the only home its decisions can have, and it is
-the right one under the same rule. `templates/software/`, `templates/ops/` and
-The skill diagnosis procedure's minimum-spine and decision-record prescriptions name the file for this
-reason. `STATE.md` carries: current
+the right one under the same rule. `templates/scaffolds/software/`,
+`templates/scaffolds/ops/` and the standalone diagnosis prescriptions name the
+file for this reason. `STATE.md` carries: current
 goal, in-flight work, blocked-on, decided-this-week, next. If a project cannot
 keep three files current, adding a fourth will not help — that is a signal
 about the project, and `/perry diagnose` should say so out loud rather than
@@ -213,7 +222,10 @@ against a target without special-casing.
 > **Cadence** = the recurring ritual that keeps it honest. **Signature
 > failure** = what it looks like when this archetype is done badly.
 
-Runnable scaffolds for all three live in `templates/<archetype>/`.
+Runnable standalone scaffolds for all three live in
+`templates/scaffolds/<archetype>/`. The prescriptions below describe standalone
+patterns and research context; native operations follow `new-projects.md` and
+the owning lane, not legacy board/journal writers.
 
 ---
 

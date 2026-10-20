@@ -1,0 +1,1 @@
+The process template and native surface advance for the approved optional template apply.ceilings parameter. Goals and decide consumers must use bin/perry and native item/query/event contracts; retired structured writers and direct config/parser reads are removed.

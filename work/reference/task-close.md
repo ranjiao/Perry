@@ -1,6 +1,6 @@
 # Close or drop a task
 
-Read `kernel.md`, the task and its written criteria, attachments and recent events.
+Read `$PERRY_HOME/reference/kernel.md`, the task and its written criteria, attachments and recent events.
 For `close-task`, verify each criterion against the actual artifact/tests, not the
 presence of an evidence string. Report unrun checks and known limits explicitly.
 Apply selected pack runbook/knowledge procedures when relevant; an explicit

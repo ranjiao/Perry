@@ -3,7 +3,7 @@
 V4 means a fresh context reviewing the concrete artifact against written criteria.
 The implementer cannot award it. V5 additionally requires the named human's actual
 acceptance; a request to implement does not confer signoff authority. Read
-`kernel.md`, `review-constraints.md` and `reference/operating-rules.md`.
+`$PERRY_HOME/reference/kernel.md`, `review-constraints.md` and `reference/operating-rules.md`.
 
 ## 0 · Whether this row gets a round at all
 
@@ -114,7 +114,7 @@ concrete defects. Do not invent a fork to fit a template.
 The implementer cannot widen its own threshold. Recommend a justified change,
 record the user's choice, and retain the old failures. Do not re-ask an already
 answered principle or close defects silently. The old schema/config/regex round
-counter is retired provisionally; this explicit history review preserves the
+counter is retired under the accepted H list; this explicit history review preserves the
 decision gate. Preference edits follow `reference/config.md`.
 
 ## Completion routing

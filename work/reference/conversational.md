@@ -13,7 +13,7 @@ Each reply addresses **exactly one** topic. If multiple topics are live, list th
 - ❌ Don't write a reply that covers "today's standup" AND "the new digest" AND "this week's plan-week" all at once.
 - ✅ Do write a reply that picks one of those and offers to do the others next.
 
-Exception: the standup snapshot itself is a fixed-shape dashboard, not a multi-topic discussion. After the dashboard renders, the "What do you want to do?" question is the topic — the user picks.
+Exception: the standup snapshot itself is a fixed-shape dashboard, not a multi-topic discussion. After a requested dashboard, give one supported next step. A named/authorized user action remains the task; do not append a ceremonial selection question.
 
 ### R2 — One question per reply
 
@@ -31,7 +31,7 @@ For these two scopes, work proceeds in two phases:
 
 **Phase A is required when**:
 - The action will write to `evidence/<YYYY-MM>/<TASK-ID>-spec.md` (any new spec, P0/P1 promotion).
-- The action is an ADR. **`work` does not write one** — that moved to `decide` with `decisions/` on 2026-08-16 — so Phase A here means proposing the decision in prose and then handing off with `/perry decide adr <slug> --type <T>`. The propose-before-produce rule still applies; the produce step is another lane's.
+- The action is an ADR. **`work` does not write one** — that moved to `decide` with `decisions/` on 2026-08-16 — so Phase A here means proposing the decision in prose and then handing off with the decide lane's `adr` procedure and the applied native decision_type field. The propose-before-produce rule still applies; the produce step is another lane's.
 - The action will write to or substantially edit `ARCHITECTURE.md`.
 - The user asked an open-ended question like "how should we handle X?", "what should the design be for Y?", "this feels off, can we adjust?" — propose 1–3 directions with a recommendation, do not jump straight to one answer.
 

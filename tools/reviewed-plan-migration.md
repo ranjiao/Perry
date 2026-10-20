@@ -11,10 +11,10 @@ Legacy preparation remains at commit
 `1c5ccd851aec14d6d2e524b8237f508b1efde4f0`, in the read-only checkout
 `/Users/bytedance/.codex/worktrees/goals-decide-kernel/Perry`:
 `tools/goals_decide_migrate.py`, `Plan(source).build(native_items).document()`.
-That release retains its old isolated readers. Its corrected `in_review` mapping
+That commit retains its old isolated readers; the checkout path is provenance, not a guarantee that a local worktree remains available. Its corrected `in_review` mapping
 and invalid-status refusal have an independent bounded PASS and 18 passing
 source-preparation tests in the upstream handoff. Those are provenance, **not
-results from this candidate's suite**. Do not reinstall or copy its readers into
+results from the current suite**. Do not reinstall or copy its readers into
 the final product. Running preparation requires that pinned isolated old release;
 it is not a mode of the shipped apply helper.
 
@@ -81,7 +81,7 @@ validation or metric arithmetic.
 
 Apply preserves each existing task/ask/risk item exactly and verifies the original
 event prefix. Sparse filename identities and the final recorded prefix ceilings
-use the candidate's optional native `template apply.ceilings` surface (1.1).
+use the approved optional native `template apply.ceilings` surface (1.1).
 The user approved that exact primitive on2026-10-20 in DESIGN-023;
 `perry/evidence/2026-10/TASK-492-prefix-floor/approval.json` records the actual
 reply. Its presence in a source checkout alone still supplies no approval.
