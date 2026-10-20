@@ -2,6 +2,63 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.29 — 2026-10-20
+
+patch · phase 004-guided · TASK-494 · delivery TASK-494-native-cutover-20261020
+
+### Changes
+
+Retire the finite remaining legacy source/check surface under the actual user-approved 423 exact drops and R0096 Context/Loads grammar narrowing. Keep May touch/Must escalate safety and all retained generic kernel guards. Preserve the source audit as a proposal inventory, separate from actual approval records and final H/V5 acceptance.
+
+
+### Upgrade notes
+
+Review the immutable retirement disposition, actual approval records and new source acceptance suite. Update old bin/schema/viewer/test consumers to the retained native CLI, skill procedures and tools/. Historical state and evidence stay preserved. Live reconciliation and named human H/V5 sign-off remain separate; no publication is performed.
+
+
+### Breaking changes
+
+Old executables, typed-state schema/contracts, viewer parsers and obsolete test corpus are removed. The new full/slow gates validate the native kernel and retained skill helpers and do not claim the retired corpus passed. Offline merge receipts replace duration-artifact imports; test receipts are unsigned evidence, not approval or final H/V5 sign-off.
+
+
+## 0.1.28 — 2026-10-20
+
+patch · phase 004-guided · TASK-493 · delivery TASK-493-native-cutover-20261020
+
+### Changes
+
+Root and lane snapshots, current-state facts, next-step reasoning and shared references use native kernel queries with pagination and explicit unknown/error handling. Startup and high-stakes/ownership safety checks remain skill-side procedures and retained helpers; next-step meaning remains agent work, with no extra kernel method concepts.
+
+
+### Upgrade notes
+
+Use bin/perry for current structured state and the documented tools/ helpers for host, architecture, startup safety and report-only telemetry. Update consumer command paths. Retain user-owned configuration, safety policy and narrative attachments. Source integration precedes separately verified live activation.
+
+
+### Breaking changes
+
+Legacy perry-state/next renderers and current-state fallbacks are retired. Snapshot payloads and helper paths change; consumers must follow the native query contract rather than read the frozen legacy registers.
+
+
+## 0.1.27 — 2026-10-20
+
+patch · phase 004-guided · TASK-492 · delivery TASK-492-native-cutover-20261020
+
+### Changes
+
+Goals and decide structured records move to the native kernel through the process template and a reviewed one-shot additive migration plan. Exact legacy labels, versioned identities, attachments and historical evidence are retained. The user-approved generic template-apply ceiling revision 32bcf99c adds optional monotonic prefix floors; the budget remains eight concepts, twelve command groups and four guard kinds.
+
+
+### Upgrade notes
+
+Before live use, back up each actual native store and source documents, validate a fresh reviewed plan and source hashes, then perform the documented additive native CLI migration. Do not replace a populated store or seed fabricated history. Preserve frozen legacy material. Integrate required consumers with the source switch; the release itself performs no live migration.
+
+
+### Breaking changes
+
+The process template and native surface advance for the approved optional template apply.ceilings parameter. Goals and decide consumers must use bin/perry and native item/query/event contracts; retired structured writers and direct config/parser reads are removed.
+
+
 ## 0.1.26 — 2026-10-19
 
 patch · phase 004-guided · TASK-496 · delivery TASK-496-context-report-only-20261019
