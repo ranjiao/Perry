@@ -1,7 +1,7 @@
 {
   "version": 1,
   "acceptance": "PROPOSAL",
-  "manual_review_sha256": "eba92c38bc82b9744f2b66d0f36089788f8897813aaba434bc3061b317dbe868",
+  "manual_review_sha256": "0683935aaf538b07b40bb297338f821632003daf49e5ef6da79741c9976f60dd",
   "summary": {
     "manual_demonstrated": 22,
     "exact_check_drop_proposals": 58,
