@@ -92,9 +92,11 @@ release/README.md
 release/retirement/README.md
 release/retirement/changed-files.txt
 release/retirement/check-disposition.tsv
+release/retirement/combined-corrections.json
 release/retirement/consumers.json
 release/retirement/disposition.json
 release/retirement/dropped-checks.tsv
+release/retirement/historical-manual-red-review-H.json
 release/retirement/manual-disposition-resolution.json
 release/retirement/manual-red-review.json
 release/retirement/manual-red-review.md
@@ -182,7 +184,6 @@ tests/fixtures/witness-project/.perry/config.jsonl
 tests/fixtures/witness-project/.perry/events.jsonl
 tests/fixtures/witness-project/OKR.md
 tests/fixtures/witness-project/README.md
-tests/fixtures/witness-project/asks.jsonl
 tests/fixtures/witness-project/decisions/ADR-001-sunset-that-passed.md
 tests/fixtures/witness-project/journal/2026-09/2026-09-15.md
 tests/fixtures/witness-project/linkage.jsonl
