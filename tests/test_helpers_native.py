@@ -41,7 +41,7 @@ class Helpers(unittest.TestCase):
         path = self.root / ".perry" / "roles" / "coding.md"
         path.parent.mkdir(parents=True)
         path.write_text("# Role · coding\n- Accepted by: reviewer\n- Default rung: V4\n"
-                        "## Must escalate\n- outbound `publish`\n- `下单`\n- manual judgement\n")
+                        "## May touch\n- source and tests\n## Must escalate\n- outbound `publish`\n- `下单`\n- manual judgement\n")
         (self.root / ".perry" / "hook.md").write_text("# Human policy rationale\n")
         (self.root / ".perry" / "safety.json").write_text(json.dumps({"version":1,"approval_ref":"isolated reviewed policy","rules":[{"id":"remote","label":"Remote publication","patterns":["git push"]}]}))
 

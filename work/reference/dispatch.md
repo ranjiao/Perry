@@ -31,8 +31,8 @@ restate it. It governs every executor, not only the native subagents.
 
 - The agent gets an isolated worktree and commits on its own branch. **Whether
   it then pushes is the project's answer, not this file's** — where `git push`
-  and `origin` are in `.perry/hook.md § High-stakes operations`, which is the
-  default list bootstrap writes, the agent commits and stops there
+  and `origin` match `.perry/safety.json` or role escalation rules without
+  actual scoped user authorization, the agent commits and stops there
   (`git-boundaries.md`).
 - **Pin the base SHA in the prompt, and make the agent ASSERT it.** A worktree
   branches from wherever the tool cuts it, which is not necessarily where the
@@ -84,12 +84,12 @@ $ git push <primary> HEAD:main
  ! [remote rejected] HEAD -> main (branch is currently checked out)
 ```
 
-So a merge outside the primary checkout means a merge on the *remote* — a PR,
-which needs the hook to permit a push. **A project therefore has exactly two
-shapes available, and its hook already chooses between them**: push escalated →
-agent commits, primary checkout merges; push permitted → agent opens a PR and
-the verifying lane merges it. Read the hook once per dispatch; do not re-derive
-the argument.
+A remote PR flow requires the user's authority and the structured project/role
+policy. Read `.perry/safety.json` through the roles helper, check its errors and
+union, then read additional hook instructions. Missing/unreadable policy blocks
+dispatch; absence of a hook fragment does not grant push permission. When push
+is escalated without scoped authorization, the executor commits locally and an
+independent integrator handles the verified branch in the primary checkout.
 
 ### Where the agent puts a scratch file
 
@@ -234,7 +234,7 @@ Release only the slot this execution owns.
 
 1. Read the agent's RESULT block. Required fields:
    - `Branch: <name>` — always. It is what the primary checkout merges (`git-boundaries.md`), so it is required on every project whatever the push answer is.
-   - `PR URL:` — **only where the project's hook permits a push.** Where `git push` / `origin` are escalated, the compliant agent opened no PR and has no truthful value for this field; requiring one there would make the honest answer unwritable and step 4 below gates the `review` transition on required fields being present. On such a project the field is `n/a — push is escalated on this project`, and that is a complete answer rather than an excuse.
+   - `PR URL:` — **only where the project's structured policy, role union and user instructions permit a push.** Where `git push` / `origin` are escalated, the compliant agent opened no PR and has no truthful value for this field; requiring one there would make the honest answer unwritable and step 4 below gates the `review` transition on required fields being present. On such a project the field is `n/a — push is escalated on this project`, and that is a complete answer rather than an excuse.
    - `Files changed: <count>` + bullet list
    - `Tests: <pass>/<total>` + command used
    - `Cycle time: <minutes>` (for calibration)
@@ -264,7 +264,7 @@ Do not claim V4 from an implementing session or forge human V5 acceptance.
 ```
 === RESULT ===
 Branch: <name>          # always — this is what the primary checkout merges
-PR URL: <url>           # only where the hook permits a push; otherwise
+PR URL: <url>           # only where policy and user instructions permit a push; otherwise
                         #   "n/a — push is escalated on this project"
 Files changed: <count>
   - path/file1.py

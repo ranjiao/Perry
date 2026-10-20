@@ -16,7 +16,7 @@ This is a proposed source replacement, not activation or human acceptance.
 | `bin/perry-restore-check` | `tools/restore_check.py` | Git content-addressed comparison plus committed-self check |
 | `bin/perry-state-cost` | `tools/state_cost.py` | Git blob accounting with explicit document root/selections |
 | `bin/perry-knowledge` read side | `tools/knowledge.py` | Read/validate local knowledge cards, no promotion writer |
-| `viewer/parsers.py` role read/extraction | `tools/roles.py` | Narrow role-card reader and additive hook/role escalation union |
+| `viewer/parsers.py` role read/extraction | `tools/roles.py` | Narrow role-card reader and additive structured-policy/role escalation union |
 | `bin/lib/__init__.py:register_stamp` | `tools/host_common.py:register_stamp` | UTC `YYYY-MM-DDTHH:MM:SSZ` for architecture receipts |
 
 ## Read APIs for aiMark and skill procedures
@@ -132,3 +132,9 @@ store, network, preflight smoke or updater. Retained context-budget and release
 updater tests belong to the replacement harness. These helper tests are source
 verification only; aiMark adapter migration and user acceptance remain outside
 their claim.
+
+Declared role cards must contain exactly one nonempty `May touch` and
+`Must escalate` section. Missing, duplicate or misspelled safety sections produce
+a role error and block dispatch. Optional Context/Loads prose and extra headings
+do not grant authority or cancel the structured project policy. The old universal
+heading grammar is a separate proposed retirement, not helper parity.

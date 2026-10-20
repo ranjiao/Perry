@@ -1483,7 +1483,7 @@
     {
       "path": "tests/test_document_checks.py",
       "source_sha256": null,
-      "candidate_sha256": "d5cb0d7dc61395a6af546fa6541dce14801ffef93e1663d3403c9282c782b742",
+      "candidate_sha256": "764cfdd9c9e5dd835e1aa9f06a2d764d174d4e3b108ae16700bdd26e5198bcdd",
       "status": "added"
     },
     {
@@ -1633,7 +1633,7 @@
     {
       "path": "tests/test_helpers_native.py",
       "source_sha256": null,
-      "candidate_sha256": "10180e87df6be531124db9dd9895ce14dc2e7d7ebdfc8c30c298cb385a20c922",
+      "candidate_sha256": "9335239eed4646a497cb794ce090589920b5315a77936ef7101642c96f69cf54",
       "status": "added"
     },
     {
@@ -2437,7 +2437,7 @@
     {
       "path": "tools/helper-contracts.md",
       "source_sha256": null,
-      "candidate_sha256": "68eb93f72c7020b7833dfeffaf81f831e23759506b389483dc34fbbd62c44e6b",
+      "candidate_sha256": "9242941178058ab5884ebd48db01b3e0d6898a43686391a9eb6a80c10e1db1b4",
       "status": "added"
     },
     {
@@ -2473,7 +2473,7 @@
     {
       "path": "tools/roles.py",
       "source_sha256": null,
-      "candidate_sha256": "6a7ffadaaefaef1c470a75227b7c3f81d26ed39c8576bcc131f9f701024702f5",
+      "candidate_sha256": "c46c703cf4457d1beea4903c3ca76a2299935b49f771bf812b3c0ee35316b72b",
       "status": "added"
     },
     {
@@ -2521,7 +2521,7 @@
     {
       "path": "work/SKILL.md",
       "source_sha256": "d3f888caf8d298327cc5c584a67100f3f39942653c446e39a4cfcc3c2a73042a",
-      "candidate_sha256": "30e2414a6d3db6812d4d65929b4db74750b3517f6159fecb427d834db879b7cc",
+      "candidate_sha256": "dbee834d5eb4e6e3e88910242d6f723194a3d88cc295a071f3713751c22b61d6",
       "status": "modified"
     },
     {
@@ -2555,6 +2555,12 @@
       "status": "modified"
     },
     {
+      "path": "work/reference/delegate.md",
+      "source_sha256": "4bc1da83309d4bd09fb6a41232eacffc44751c245a2e282251680cc550a3e080",
+      "candidate_sha256": "7c3f9d5cf8c2034d8337523fb79cce7fee44b1b5f3190ec2ad5f59ab28797a9b",
+      "status": "modified"
+    },
+    {
       "path": "work/reference/digests.md",
       "source_sha256": "3b6e5717bb80b268d19ba16fdc130e678c1869eeeb1e7f3b57a8a9139509ed0f",
       "candidate_sha256": "e6263fa83c71c2eca42a2dba843c4b79c97f0fb22f2560b0afc0c79a06b97aeb",
@@ -2569,13 +2575,19 @@
     {
       "path": "work/reference/dispatch.md",
       "source_sha256": "dd331e59dc92ecdcdfa7c1c1b76d0410d215b0435eb02845b9a002ab865de876",
-      "candidate_sha256": "688f04ba10d5040a4846f605208a9ff8aa09c4b8271270e5cb1189938d5acc89",
+      "candidate_sha256": "a077c462a906cf8e3ecd52ce43938d4e92ee40f796d53834cab7db8bf76d3bf1",
       "status": "modified"
     },
     {
       "path": "work/reference/extending.md",
       "source_sha256": "b8ada5b5e06907bb0921d8adc1d2513c8dbfb4e333960fa95c41bd14dbb47a3f",
       "candidate_sha256": "95ae33ee0f01f949dc0ac7b2a448586575e14a082da698f8ebda5d074fbae662",
+      "status": "modified"
+    },
+    {
+      "path": "work/reference/git-boundaries.md",
+      "source_sha256": "6fd50a32e6e54ca67e52f83c841a8c30bad1c31fb5fe0a9073812b255103f201",
+      "candidate_sha256": "d9cf396f595cc55e7fa4d1c2e7a8076109950febcd292cfeeea6396bec65bf02",
       "status": "modified"
     },
     {

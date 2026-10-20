@@ -76,3 +76,24 @@ old configuration stays frozen input. These choices remain subject to H review.
    disposition, changed contracts/targets, verification gaps and rollback limits
    to the actual named user for H/V5. Never infer that signature from the request
    to implement, a helper packet or an agent's passing test result.
+
+## Combined-source corrections (pending acceptance)
+
+The source now assembles F/G and the reviewed native plan application seam.
+Current accounting is in source-changes.json and consumers.json; original
+610 inventory identities and hashes stay unchanged. The audit recognizes only
+the exact two-file prefix-floor proposal and reports PENDING_USER_APPROVAL.
+This is source accounting, not kernel approval or activation permission.
+
+Combined safety review withdrew the R0090 architecture-cap demonstration: the
+old predicate checked journal/evidence caps. R0090, R0094 and R0095 are now
+explicit exact-threshold/grammar drop proposals (423 proposed drops total).
+R0096 retains required May touch/Must escalate safety sections; mandatory
+Context/Loads grammar retirement remains a separate user decision. See
+combined-corrections.json. Original manual bytes are preserved in
+historical-manual-red-review-H.json. Current safety helper fixtures and actual
+independent review must replace, never silently rebind, old hook-packet evidence.
+
+No source deletion on main, external live activation or H/V5 acceptance has
+occurred. Full/slow results at earlier exact source are historical when later
+source changes; use final exact candidate receipts before integration.

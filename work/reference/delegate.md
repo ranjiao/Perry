@@ -2,7 +2,10 @@
 
 ## `delegate`
 
-Read `kernel.md`, `git-boundaries.md` and `.perry/hook.md`.
+Read `kernel.md`, `git-boundaries.md`, `.perry/safety.json` and `.perry/hook.md`.
+Load the reviewed structured policy through `tools/roles.py --root`; missing or
+unreadable policy blocks dispatch. Hook prose adds instructions but cannot cancel
+structured policy or role escalation rules.
 A manual handoff renders a self-contained
 prompt for a user-selected executor; it does not silently start a pipeline. Inspect
 any declared role card, its knowledge subscriptions (with stale flags), scope,
@@ -29,14 +32,15 @@ one. The project and role escalation lists are a union; neither cancels the othe
   save and record the start path before the first edit, retain that baseline,
   save delivery before RESULT, and follow quiet/attention reporting. This field
   applies whether or not the project has role cards.
-- **Git expectation** — see `git-boundaries.md`. For agents that produce commits, state explicitly: **which worktree to create and that the primary checkout is not it**, the worktree's branch point, the branch name pattern, and the push / PR expectation the project's hook actually permits — with the PR link required in the RESULT block only where a PR is permitted.
+- **Git expectation** — see `git-boundaries.md`. For agents that produce commits, state explicitly: **which worktree to create and that the primary checkout is not it**, the worktree's branch point, the branch name pattern, and the push / PR expectation the project's policy and actual user instructions permit — with the PR link required in the RESULT block only where a PR is permitted.
 
 ## Roleless projects — the unchanged path
 
 `declared: 0` (no `.perry/roles/`, or an empty one) is not an error and is not a
 prompt to declare one. Skip the role sections entirely; the prompt is rendered
-from the task and the hook exactly as it was before this layer existed, and the
-pre-flight scans `escalation.union`, which with no roles *is* the hook's list.
+from the task, structured project policy and additional hook instructions. The
+pre-flight scans `escalation_union`; with no roles this is the structured project
+policy list, never an empty union inferred from missing hook fragments.
 
 The two blocks below are that path. They are what `packs/software-ops/roles/`
 copied into `coding.md` and `research.md` when the hardcoding was closed — kept
@@ -64,7 +68,7 @@ baseline. Follow the existing architecture discussion gate before accepting it.
 - Clear list of changed files.
 - **Work in its own worktree**, not in the checkout the user is sitting in — `dispatch.md § The tree the agent works in` is the rule and the reason, and it applies here too. A pasted prompt is executed by an agent in whatever tree that session happens to hold, so the prompt must say which tree to create and that the primary checkout is not it. State the worktree's branch point in the prompt: an agent cannot tell that its baseline is stale, and four have run against one.
 - **Commit code + tests on a feature branch** named `coding/<task-id>-<slug>` (do NOT commit directly to main).
-- **Push and PR only if the project's hook permits it.** Where `git push` / `origin` are in `.perry/hook.md § High-stakes operations`, the prompt says *commit, do not push, do not open a PR*, and the primary checkout merges the branch afterwards. Where they are not, push and open a PR and put the URL in the RESULT block. Read the hook before rendering the prompt; do not default to either.
+- **Push and PR follow actual user authority and the policy/role union.** If the operation matches a structured project or role escalation rule and has no actual scoped authorization, render *commit, do not push, do not open a PR*. Otherwise apply `git-boundaries.md` and the user's instructions. Include a PR URL in RESULT only when a permitted PR was actually created. Removing hook prose does not remove a structured restriction.
 - **Do NOT merge own work**; the merge belongs to the user or to the lane that verified it.
 - If a permitted push or PR fails (auth, permissions, network), the RESULT block MUST say so explicitly so PMO can escalate.
 

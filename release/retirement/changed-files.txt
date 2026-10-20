@@ -440,10 +440,12 @@ work/reference/autopilot.md
 work/reference/bootstrap.md
 work/reference/budget-boundary.md
 work/reference/conversational.md
+work/reference/delegate.md
 work/reference/digests.md
 work/reference/dispatch-preflight.md
 work/reference/dispatch.md
 work/reference/extending.md
+work/reference/git-boundaries.md
 work/reference/kernel.md
 work/reference/promotion.md
 work/reference/review-constraints.md

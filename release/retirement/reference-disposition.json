@@ -311,7 +311,7 @@
       "source": "work/reference/dispatch.md",
       "source_sha256": "dd331e59dc92ecdcdfa7c1c1b76d0410d215b0435eb02845b9a002ab865de876",
       "destination": "work/reference/dispatch.md",
-      "candidate_sha256": "688f04ba10d5040a4846f605208a9ff8aa09c4b8271270e5cb1189938d5acc89",
+      "candidate_sha256": "a077c462a906cf8e3ecd52ce43938d4e92ee40f796d53834cab7db8bf76d3bf1",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
@@ -590,7 +590,7 @@
       "source": "tools/helper-contracts.md",
       "source_sha256": null,
       "destination": "tools/helper-contracts.md",
-      "candidate_sha256": "68eb93f72c7020b7833dfeffaf81f831e23759506b389483dc34fbbd62c44e6b",
+      "candidate_sha256": "9242941178058ab5884ebd48db01b3e0d6898a43686391a9eb6a80c10e1db1b4",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
@@ -608,7 +608,7 @@
       "source": "work/SKILL.md",
       "source_sha256": "d3f888caf8d298327cc5c584a67100f3f39942653c446e39a4cfcc3c2a73042a",
       "destination": "work/SKILL.md",
-      "candidate_sha256": "30e2414a6d3db6812d4d65929b4db74750b3517f6159fecb427d834db879b7cc",
+      "candidate_sha256": "dbee834d5eb4e6e3e88910242d6f723194a3d88cc295a071f3713751c22b61d6",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
@@ -627,6 +627,24 @@
       "source_sha256": "e2e0a3c0f760478bfe205c2c454b112ceaca1fd9fdefe7837650bfc723345cb4",
       "destination": "work/reference/dispatch-preflight.md",
       "candidate_sha256": "1cc74c6f517b154f75729de177eb3b92a8472d279fa7fbbb82a942a2ed0524af",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "work/reference/delegate.md",
+      "source_sha256": "4bc1da83309d4bd09fb6a41232eacffc44751c245a2e282251680cc550a3e080",
+      "destination": "work/reference/delegate.md",
+      "candidate_sha256": "7c3f9d5cf8c2034d8337523fb79cce7fee44b1b5f3190ec2ad5f59ab28797a9b",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "work/reference/git-boundaries.md",
+      "source_sha256": "6fd50a32e6e54ca67e52f83c841a8c30bad1c31fb5fe0a9073812b255103f201",
+      "destination": "work/reference/git-boundaries.md",
+      "candidate_sha256": "d9cf396f595cc55e7fa4d1c2e7a8076109950febcd292cfeeea6396bec65bf02",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."

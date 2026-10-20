@@ -29,6 +29,10 @@ def escalation(lines: list[str]) -> dict:
 
 def parse_card(path: Path, root: Path) -> dict:
     text = strip_comments(path.read_text(encoding="utf-8"))
+    headings = re.findall(r"^##\s+(.+?)\s*$", text, re.M)
+    for required in ('May touch', 'Must escalate'):
+        if headings.count(required) != 1 or not section(text, required).strip():
+            raise ValueError('one nonempty role safety section required: ' + required)
     heading = re.search(r"^#\s+(.+)$", text, re.M)
     name = heading.group(1).strip() if heading else path.stem
     name = re.sub(r"^Role\s*[·:：-]\s*", "", name)

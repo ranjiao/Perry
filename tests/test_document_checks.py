@@ -111,9 +111,21 @@ class Safety(unittest.TestCase):
         (self.root/'.perry/safety.json').unlink()
         with self.assertRaises((OSError,ValueError)):D.dispatch(p)
 
+    def test_role_missing_or_misspelled_safety_sections_blocks(self):
+        folder=self.root/'.perry/roles';folder.mkdir()
+        card=folder/'review.md';header='# Reviewer\n- Accepted by: Human\n- Default rung: V4\n'
+        for body in ('', '## May touch\n- src/\n## Must escalates\n- `paid-action`\n', '## Must escalate\n- `paid-action`\n'):
+            card.write_text(header+body)
+            packet=self.packet();packet['spec']='paid-action'
+            self.assertTrue(D.dispatch(packet)['blocked'])
+        card.write_text(header+'## May touch\n- src/\n## Must escalate\n- `paid-action`\n')
+        packet=self.packet();packet['spec']='paid-action'
+        self.assertIn('paid-action',D.dispatch(packet)['matches'])
+        packet['authorization']='actual scoped fixture instruction';self.assertFalse(D.dispatch(packet)['blocked'])
+
     def test_role_can_add_but_never_subtract_a_project_boundary(self):
         folder=self.root/'.perry/roles';folder.mkdir()
-        (folder/'review.md').write_text('# Reviewer\n- Accepted by: Human\n- Default rung: V4\n## Must escalate\n- `publish`\n')
+        (folder/'review.md').write_text('# Reviewer\n- Accepted by: Human\n- Default rung: V4\n## May touch\n- src/\n## Must escalate\n- `publish`\n')
         p=self.packet();p['spec']='publish a release';self.assertTrue(D.dispatch(p)['blocked'])
         p['authorization']='actual scoped fixture instruction';self.assertFalse(D.dispatch(p)['blocked'])
         p['spec']='git push upstream';p['authorization']=None;self.assertTrue(D.dispatch(p)['blocked'])

@@ -82,7 +82,7 @@ history is a gap; never reconstruct a pre-edit baseline from an edited tree.
 
 Work in an isolated checkout for coding, preserve unrelated changes, commit your
 own delivery and never merge your own implementation. `reference/git-boundaries.md`
-and the project hook govern push/PR/merge authority. Use targeted tests during
+and the structured project policy/role union plus user instructions govern push/PR/merge authority. Use targeted tests during
 iteration; repository completion requires its full gate and `git diff --check`.
 
 Additional references loaded on demand: `reference/bootstrap.md`,

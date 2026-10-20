@@ -1,10 +1,10 @@
 {
   "version": 1,
   "acceptance": "PROPOSAL",
-  "manual_review_sha256": "b8c54be51cd5ca02352fe76b0785690b57f89a1d6360a3c5b528573eb696575a",
+  "manual_review_sha256": "eba92c38bc82b9744f2b66d0f36089788f8897813aaba434bc3061b317dbe868",
   "summary": {
-    "manual_demonstrated": 23,
-    "exact_check_drop_proposals": 57,
+    "manual_demonstrated": 22,
+    "exact_check_drop_proposals": 58,
     "safety_gate_drops": 0
   },
   "rows": [
@@ -123,10 +123,10 @@
     {
       "row_id": "R0090",
       "key": "document-oversized@1978",
-      "manual_review_status": "MANUAL_DEMONSTRATED",
-      "final_disposition": "skill_procedure",
+      "manual_review_status": "WITHDRAWN_EVIDENCE_MISMATCH",
+      "final_disposition": "proposed_drop",
       "acceptance": "PROPOSAL",
-      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+      "reason": "The exact old journal/evidence line caps are proposed for retirement. Prior architecture-cap fixture did not exercise this old predicate; its claim is withdrawn. Architecture cap R0060 is a separate retained rule. Historical documents are preserved; no new document-budget scope is invented."
     },
     {
       "row_id": "R0091",

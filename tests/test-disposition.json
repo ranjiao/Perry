@@ -3981,13 +3981,13 @@
     },
     {
       "path": "tests/test-disposition.json",
-      "candidate_sha256": "c1113e36b33648900c9b06d14a387cd5eeccc64d92da7ae01ebad59d0a728834",
+      "candidate_sha256": "0defc544404205f933187890c80403c317ffbac11e6086a58dd9f79d49be0017",
       "acceptance": "PROPOSAL",
       "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
     },
     {
       "path": "tests/test_document_checks.py",
-      "candidate_sha256": "d5cb0d7dc61395a6af546fa6541dce14801ffef93e1663d3403c9282c782b742",
+      "candidate_sha256": "764cfdd9c9e5dd835e1aa9f06a2d764d174d4e3b108ae16700bdd26e5198bcdd",
       "acceptance": "PROPOSAL",
       "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
     },
@@ -4005,7 +4005,7 @@
     },
     {
       "path": "tests/test_helpers_native.py",
-      "candidate_sha256": "10180e87df6be531124db9dd9895ce14dc2e7d7ebdfc8c30c298cb385a20c922",
+      "candidate_sha256": "9335239eed4646a497cb794ce090589920b5315a77936ef7101642c96f69cf54",
       "acceptance": "PROPOSAL",
       "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
     },
