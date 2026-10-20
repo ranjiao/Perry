@@ -3981,7 +3981,7 @@
     },
     {
       "path": "tests/test-disposition.json",
-      "candidate_sha256": "fa282a6efc6ee0474b87e9b63c9c09587e2f98fe28984dab9e8bc99b9a235957",
+      "candidate_sha256": "ff09cb59ce6bda65423e69ab2861cbecd9b511c49756c597966774ffb6875364",
       "acceptance": "PROPOSAL",
       "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
     },

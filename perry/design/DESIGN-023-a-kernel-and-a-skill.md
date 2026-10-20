@@ -548,3 +548,17 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
 - `perry/decisions/ADR-002-no-cross-project-registry.md`, `perry/decisions/ADR-006-task-store-is-not-the-log.md`, `perry/decisions/ADR-019-store-is-the-only-copy-of-structured-state.md`, `perry/decisions/ADR-020-the-rung-gate-is-the-write-path-and-the-schema.md`, `perry/decisions/ADR-023-next-step-rules-cover-the-lifecycle.md`, `perry/decisions/ADR-024-next-step-is-a-skill-procedure.md`, `perry/decisions/ADR-025-earlier-designs-reconciled-with-design-023.md`
 - `bin/perry-task --help` (the 31 subcommands), `bin/perry-lint --help` (the advisory modes), `bin/lib/__init__.py § PERRY_CITATION_FAMILIES`
 - Measurements: `wc -l` over the paths in § 1. Commit counts come from `git log --since=2026-08-24`, split by whether `git diff-tree` names any path outside `perry/`
+
+
+### Approved kernel revision — 2026-10-20
+
+The user approved the exact prefix-floor revision
+`32bcf99c0832676c7c5ae125621cf88107c70dec`: existing `template apply` may
+accept optional `ceilings` to monotonically reserve issued filename numbers,
+including absent DESIGN-018. This is additive surface1.1; the eight concepts,
+twelve command groups and four guard kinds remain unchanged. No placeholder
+items, SQLite edits or method-specific kernel behavior are permitted.
+Actual user answer: “批准修订并继续切换（推荐）”. The question, scope and original
+proposal hash are preserved in
+`evidence/2026-10/TASK-492-prefix-floor/approval.json`. This is the §7 design
+revision; it does not approve H dropped checks, final V5 or publication.

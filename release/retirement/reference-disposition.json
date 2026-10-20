@@ -599,7 +599,7 @@
       "source": "tools/reviewed-plan-migration.md",
       "source_sha256": null,
       "destination": "tools/reviewed-plan-migration.md",
-      "candidate_sha256": "3d2c1398a0929deda7646e23ae13aa915afc10f036f608b68fb1b0aec91a65ab",
+      "candidate_sha256": "366830996d11b7845199ef55a71a1f9198ee14d3cae59426422e148347eb3dce",
       "disposition": "combined-native-skill-procedure",
       "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
       "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."

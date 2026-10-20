@@ -10,13 +10,13 @@ record independent acceptance, or supply the user's H/V5 sign-off.
 - [source-inventory.json](source-inventory.json): compact immutable independent
   index with every row key, source hash and original check expression/red scenario.
   The original 10 MB scratch inventory's SHA256 is retained for provenance.
-- [dropped-checks.tsv](dropped-checks.tsv): all 420 concrete deletion proposals,
+- [dropped-checks.tsv](dropped-checks.tsv): all 423 concrete deletion proposals,
   including test/source files. Each requires the actual user decision.
 - [path-migrations.tsv](path-migrations.tsv) and
   [check-disposition.tsv](check-disposition.tsv): compact review tables.
 - [manual red review](manual-red-review.md) and
-  [disposition resolution](manual-disposition-resolution.json): 23 actual author
-  red demonstrations; 57 exact old-check replacements were not demonstrated and
+  [disposition resolution](manual-disposition-resolution.json): 22 supported author
+  red demonstrations; 58 exact old-check replacements were not demonstrated and
   are now explicit deletion proposals, preserving their partial/pending history.
 - [consumers.json](consumers.json): all 1,508 inventory consumer file hits, source
   hashes and referenced lines/symbols. Historical text is preserved. F/G-owned
@@ -77,7 +77,7 @@ old configuration stays frozen input. These choices remain subject to H review.
    to the actual named user for H/V5. Never infer that signature from the request
    to implement, a helper packet or an agent's passing test result.
 
-## Combined-source corrections (pending acceptance)
+## Combined-source corrections (historical proposal basis)
 
 The source now assembles F/G and the reviewed native plan application seam.
 Current accounting is in source-changes.json and consumers.json; original
@@ -97,3 +97,17 @@ independent review must replace, never silently rebind, old hook-packet evidence
 No source deletion on main, external live activation or H/V5 acceptance has
 occurred. Full/slow results at earlier exact source are historical when later
 source changes; use final exact candidate receipts before integration.
+
+## Recorded user decisions — 2026-10-20
+
+The user accepted all423 exact drop rows and R0096 Context/Loads grammar
+retirement in the reviewed951c2789 snapshot, and authorized preserving aiMark
+WIP while integrating its native adapter. The prefix-floor revision was separately
+approved in DESIGN-023. The reviewed423 rows and R0096 still match this source
+byte-for-byte. Actual replies and the approved snapshot hash are preserved in
+`perry/evidence/2026-10/TASK-494-review-candidate/approval.json`.
+
+The original source ledger and read-only audit intentionally remain PROPOSAL: they
+do not authenticate or award human acceptance. Their historical pending fields
+are superseded by the separate user decision record; final H/V5 remains pending
+until actual local activation, independent integration and outcome verification.

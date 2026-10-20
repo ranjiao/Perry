@@ -82,8 +82,9 @@ validation or metric arithmetic.
 Apply preserves each existing task/ask/risk item exactly and verifies the original
 event prefix. Sparse filename identities and the final recorded prefix ceilings
 use the candidate's optional native `template apply.ceilings` surface (1.1).
-That primitive remains a proposal pending actual user approval. No acceptance is
-inferred from its presence in this source checkout.
+The user approved that exact primitive on2026-10-20 in DESIGN-023;
+`perry/evidence/2026-10/TASK-492-prefix-floor/approval.json` records the actual
+reply. Its presence in a source checkout alone still supplies no approval.
 
 Repeats reconcile source keys, fields, attachments, states and graph edges, then
 add no events. Any unexpected native F item or changed migrated fact refuses.

@@ -62,6 +62,7 @@ modes/project.md
 modes/queue.md
 packs/software-ops/architecture-analysis.md
 packs/software-ops/incidents.md
+perry/design/DESIGN-023-a-kernel-and-a-skill.md
 reference/adoption.md
 reference/config.md
 reference/diagnose-explanations.md
