@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "type": "task",
+  "fields": {
+    "title": "Synthetic delivery package",
+    "summary": "Package acceptance requires integration and actual human visual review.",
+    "priority": "P1",
+    "verification": "V3",
+    "track": "main"
+  },
+  "relations": [],
+  "attachments": []
+}

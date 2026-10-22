@@ -1,0 +1,53 @@
+{
+  "root": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/synthetic/project",
+  "store": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/synthetic/isolated.db",
+  "source_checkout": "/Users/bytedance/.codex/worktrees/design024-procedure-contracts/Perry",
+  "package": "TASK-001",
+  "provider": "TASK-002",
+  "consumer": "TASK-003",
+  "missing_role": "TASK-004",
+  "draft_design": "DESIGN-001",
+  "final_seq": 10,
+  "cases": {
+    "S01": [
+      "final-native",
+      "provider-spec.md"
+    ],
+    "S02": [
+      "source-identity-recheck.json"
+    ],
+    "S03": [
+      "paging-summary.json",
+      "provider-spec.md",
+      "consumer-spec.md"
+    ],
+    "S04": [
+      "cross-domain-packet.json",
+      "cross-domain-result.json"
+    ],
+    "S05": [
+      "docs/design/spec.md",
+      "draft_design"
+    ],
+    "S06": [
+      "custom-check.json",
+      "perry/criteria.md"
+    ],
+    "S07": [
+      "perry/criteria.md"
+    ],
+    "S08": [
+      "checks/custom.py",
+      "custom-check.json",
+      "research/brief.md"
+    ],
+    "S09": [
+      "snapshot-observations.json",
+      "retained-capture/untracked.txt"
+    ],
+    "S10": [
+      "partial-native-receipt.json",
+      "interrupted-startup.json"
+    ]
+  }
+}
