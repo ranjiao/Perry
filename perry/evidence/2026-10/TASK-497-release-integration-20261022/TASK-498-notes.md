@@ -1,0 +1,1 @@
+Define project artifact ownership, confined references, retained evidence subjects and actual-project verification across execution and review. Keep domain lifecycle separate from Perry approval and preserve independent Git-code integration.

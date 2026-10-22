@@ -1,0 +1,130 @@
+{
+  "result": "PASS",
+  "scope": "Independent review of integrator release metadata and product identity only; existing fresh source V4 remains authoritative. No merge or task transition performed by this author context.",
+  "base": "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+  "source": "3fb8839723c7b744ff610d837f3ab47c3adc33b9",
+  "candidate": "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934",
+  "prior_release_bytes_unchanged": true,
+  "new_records": [
+    {
+      "breaking": "Procedure clarification can refuse unresolved ownership, escaped references or missing required verification. No kernel/process/API change; the existing lexical dispatch false-refusal remains disclosed.\n",
+      "date": "2026-10-22",
+      "decision": null,
+      "delivery": "TASK-498-design024-project-contracts-20261022",
+      "integrator": "PMO-Release-Integrator-DESIGN024",
+      "kind": "patch",
+      "notes": "Define project artifact ownership, confined references, retained evidence subjects and actual-project verification across execution and review. Keep domain lifecycle separate from Perry approval and preserve independent Git-code integration.\n",
+      "phase": "004-guided",
+      "task": "TASK-498",
+      "upgrade": "Read reference/project-contract.md and apply the actual project ownership, source-root and verification declarations. No automatic consumer activation or migration is performed.\n",
+      "version": "0.1.30"
+    },
+    {
+      "breaking": "No native alias, role filter, uniqueness guard or additional adoption stage is added. Existing ambiguous identity or writer authority must be reconciled before another create.\n",
+      "date": "2026-10-22",
+      "decision": null,
+      "delivery": "TASK-499-design024-reconciliation-lookup-20261022",
+      "integrator": "PMO-Release-Integrator-DESIGN024",
+      "kind": "patch",
+      "notes": "Add established-project writer reconciliation, package/provider/integration distinctions and exact scoped-identity/domain-role lookup using existing native queries, summaries and attachments. Preserve partial receipts and explicit resume choices.\n",
+      "phase": "004-guided",
+      "task": "TASK-499",
+      "upgrade": "Use the updated adoption dossier and identity-lookup procedure on a separately authorized adoption. Re-query complete consistent pages before creates and reconcile old/new writers; existing projects are not migrated by installing this release.\n",
+      "version": "0.1.31"
+    },
+    {
+      "breaking": "Required failed, untested, unreadable or applicability-unknown evidence prevents closure. Parent membership and completed children do not grant package/human acceptance; no native entity, result enum or automatic rollup is added.\n",
+      "date": "2026-10-22",
+      "decision": null,
+      "delivery": "TASK-500-design024-scoped-acceptance-20261022",
+      "integrator": "PMO-Release-Integrator-DESIGN024",
+      "kind": "patch",
+      "notes": "Add finite per-subject acceptance records and an optional narrative template; distinguish provider delivery, integration, package, independent review and actual human sign-off. Retain ten isolated conformance cases without claiming live acceptance.\n",
+      "phase": "004-guided",
+      "task": "TASK-500",
+      "upgrade": "Use scoped acceptance when a review needs multiple criteria. Preserve original failures and untested required gates, and compare evidence applicability to the exact proposed subject. No new mutable acceptance register is installed.\n",
+      "version": "0.1.32"
+    }
+  ],
+  "unchanged_24_product_hashes": {
+    "SKILL.md": "27d8d27daa8830ddacff45aecea0e3ca7330efbb3f7b0fef9d209a2c1adc7bbc",
+    "work/SKILL.md": "42d0003085165335ba7b6b7414f49a955dd37fd0fcc0a8f3bcddfca4331ab5c5",
+    "decide/SKILL.md": "bc4c7af98f07bdd2c17fbd0950aa0169fa10684cda55670bb2e9632d2091955c",
+    "reference/project-contract.md": "d4b3ad3f3da0cb83bd585398685e821572e6fd28194b244fbf80d7cc63eef060",
+    "reference/config.md": "a8c5c64c7fe09d30ea4b007484d9904f2f81386eda9e1c6cfd8941f12e302bda",
+    "reference/kernel.md": "389c04f6aa79e0d01581951e22f0548314cd19f64d55bab64dd19ced1d1dadaf",
+    "reference/glossary.md": "236c0593813c410090d7010bb9409223bfcfe8ac15155eb338296d2daabb1f10",
+    "reference/operating-rules.md": "425106866c0b15dcc3b7ea61835c744a3d280759b26aad1c2bc9c8a69a5ea882",
+    "work/reference/review.md": "61d960d38c4b22415881f20491da6bb9b26556cd5a231979fdbe07b8b1112dc9",
+    "work/reference/delegate.md": "c8182d25956e15e8b929b19132764bdbc9c09a8fce39ee905375ec6f55593ebb",
+    "work/reference/dispatch.md": "bac1e2bbbd5e54ec1ef8908cefab3b57cab04dff70bfb2e1c07c2ef07e8bac3f",
+    "work/reference/git-boundaries.md": "bba83216f9fa6ddc59d617686fdeee14935830a6127e0b6675cea7628f83c6a5",
+    "reference/adoption.md": "0a859d56fdfce982cedcfd2bbc4a3dc5a92c10f159e1a7cb31ff3a372896f623",
+    "reference/adoption-sources.md": "34ec2431fc35506886fc068d6079058d789d7bacd5a3bd0071d75b7d4b2a06a5",
+    "reference/new-projects.md": "e16aa0c53c4f58717a6118fe2805e1faccc95850a84e33e29ef63af23452ccbb",
+    "reference/identity-lookup.md": "765f9229c20eb5fb6eee9ca4d9755198330990700f5576bf7e7ab2df3d0d4c30",
+    "templates/internal/adoption_dossier_TEMPLATE.md": "d5d907555280e7ff1d46c49b7c274b14cf124eab93fc6caf9128669ab735a907",
+    "work/reference/acceptance.md": "1a172eb7048145a875922978e4364b382497b2bc40ea075cc6130e2ee2f9a947",
+    "work/reference/task-close.md": "bc1140f42f51dd3406a29f7a37b6c78f081ca0422e73681c0348fcd3a53bf7d1",
+    "reference/snapshot.md": "4cd7c902d7ec8e8476bdca2d62c67e84370d7685123496acaf678913f83e8b1f",
+    "work/templates/evidence_TEMPLATE.md": "eee4cd42b13c152f3d61ff294ddad2eb22cd021f3d836586f42640d0b8e03949",
+    "work/templates/handoff_TEMPLATE.md": "4f432c4e123e356a705e6bf4bfa5d8961368444b329c66f18f74583ddafbc3a2",
+    "work/templates/acceptance_TEMPLATE.md": "73dd13282c6e4d8d66fd053305df3674bb858aa664c0e3bb0c2ce367e5a0cbaa",
+    "work/templates/README.md": "34f9b8d05924fe83ef17b8a9e4019e950395829711b0086f9e406635710c8375"
+  },
+  "criteria_unchanged": true,
+  "exact_permitted_delta_paths": [
+    "CHANGELOG.md",
+    "SKILL.md",
+    "VERSION",
+    "decide/SKILL.md",
+    "reference/adoption-sources.md",
+    "reference/adoption.md",
+    "reference/config.md",
+    "reference/glossary.md",
+    "reference/identity-lookup.md",
+    "reference/kernel.md",
+    "reference/new-projects.md",
+    "reference/operating-rules.md",
+    "reference/project-contract.md",
+    "reference/snapshot.md",
+    "release/records.jsonl",
+    "templates/internal/adoption_dossier_TEMPLATE.md",
+    "work/SKILL.md",
+    "work/reference/acceptance.md",
+    "work/reference/delegate.md",
+    "work/reference/dispatch.md",
+    "work/reference/git-boundaries.md",
+    "work/reference/review.md",
+    "work/reference/task-close.md",
+    "work/templates/README.md",
+    "work/templates/acceptance_TEMPLATE.md",
+    "work/templates/evidence_TEMPLATE.md",
+    "work/templates/handoff_TEMPLATE.md"
+  ],
+  "release_checks": [
+    {
+      "args": [
+        "check",
+        "--base",
+        "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+        "--ref",
+        "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934"
+      ],
+      "exit": 0,
+      "stdout": "{\"base\": \"3f663a10379a9bf9d2b33678e8950456bddfbbdf\", \"head\": \"c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934\", \"new_versions\": [\"0.1.30\", \"0.1.31\", \"0.1.32\"], \"product_paths\": [\"SKILL.md\", \"decide/SKILL.md\", \"reference/adoption-sources.md\", \"reference/adoption.md\", \"reference/config.md\", \"reference/glossary.md\", \"reference/identity-lookup.md\", \"reference/kernel.md\", \"reference/new-projects.md\", \"reference/operating-rules.md\", \"reference/project-contract.md\", \"reference/snapshot.md\", \"templates/internal/adoption_dossier_TEMPLATE.md\", \"work/SKILL.md\", \"work/reference/acceptance.md\", \"work/reference/delegate.md\", \"work/reference/dispatch.md\", \"work/reference/git-boundaries.md\", \"work/reference/review.md\", \"work/reference/task-close.md\", \"work/templates/README.md\", \"work/templates/acceptance_TEMPLATE.md\", \"work/templates/evidence_TEMPLATE.md\", \"work/templates/handoff_TEMPLATE.md\"]}\n"
+    },
+    {
+      "args": [
+        "check",
+        "--tag",
+        "v0.1.32",
+        "--ref",
+        "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934"
+      ],
+      "exit": 0,
+      "stdout": "{\"version\": \"0.1.32\"}\n"
+    }
+  ],
+  "not_checked": "Full/slow tests and merge receipt remain with independent integrator; no runtime, human, consumer activation or publication claim."
+}

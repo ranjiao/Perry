@@ -1,0 +1,1 @@
+Use the updated adoption dossier and identity-lookup procedure on a separately authorized adoption. Re-query complete consistent pages before creates and reconcile old/new writers; existing projects are not migrated by installing this release.

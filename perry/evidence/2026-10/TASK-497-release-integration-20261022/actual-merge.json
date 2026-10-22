@@ -1,0 +1,15 @@
+{
+  "command": [
+    "git",
+    "merge",
+    "--no-ff",
+    "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934",
+    "-m",
+    "Integrate independently reviewed DESIGN-024 procedure contracts (0.1.30-0.1.32)"
+  ],
+  "exit": 0,
+  "stdout": "Merge made by the 'ort' strategy.\n CHANGELOG.md                                    | 57 +++++++++++++++\n SKILL.md                                        |  5 ++\n VERSION                                         |  2 +-\n decide/SKILL.md                                 |  7 +-\n reference/adoption-sources.md                   | 10 +--\n reference/adoption.md                           | 37 ++++++++++\n reference/config.md                             |  8 +++\n reference/glossary.md                           | 11 +++\n reference/identity-lookup.md                    | 61 ++++++++++++++++\n reference/kernel.md                             |  5 +-\n reference/new-projects.md                       | 10 +++\n reference/operating-rules.md                    |  9 ++-\n reference/project-contract.md                   | 92 +++++++++++++++++++++++++\n reference/snapshot.md                           | 12 ++++\n release/records.jsonl                           |  3 +\n templates/internal/adoption_dossier_TEMPLATE.md | 30 ++++++++\n work/SKILL.md                                   |  7 +-\n work/reference/acceptance.md                    | 76 ++++++++++++++++++++\n work/reference/delegate.md                      |  5 ++\n work/reference/dispatch.md                      | 63 +++++++++++------\n work/reference/git-boundaries.md                |  7 ++\n work/reference/review.md                        | 41 ++++++-----\n work/reference/task-close.md                    |  9 ++-\n work/templates/README.md                        |  6 ++\n work/templates/acceptance_TEMPLATE.md           | 37 ++++++++++\n work/templates/evidence_TEMPLATE.md             | 13 +++-\n work/templates/handoff_TEMPLATE.md              |  7 ++\n 27 files changed, 580 insertions(+), 50 deletions(-)\n create mode 100644 reference/identity-lookup.md\n create mode 100644 reference/project-contract.md\n create mode 100644 work/reference/acceptance.md\n create mode 100644 work/templates/acceptance_TEMPLATE.md\n",
+  "stderr": "",
+  "base": "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+  "candidate": "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934"
+}

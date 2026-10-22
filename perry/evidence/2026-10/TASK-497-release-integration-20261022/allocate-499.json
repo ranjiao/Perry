@@ -1,0 +1,28 @@
+{
+  "command": [
+    "python3",
+    "release/manage.py",
+    "patch",
+    "--expected-version",
+    "0.1.30",
+    "--date",
+    "2026-10-22",
+    "--phase",
+    "004-guided",
+    "--task",
+    "TASK-499",
+    "--delivery",
+    "TASK-499-design024-reconciliation-lookup-20261022",
+    "--integrator",
+    "PMO-Release-Integrator-DESIGN024",
+    "--notes-file",
+    "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-integration.lkJmmi/TASK-499-notes.md",
+    "--upgrade-file",
+    "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-integration.lkJmmi/TASK-499-upgrade.md",
+    "--breaking-file",
+    "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-integration.lkJmmi/TASK-499-breaking.md"
+  ],
+  "exit": 0,
+  "stdout": "0.1.31\n",
+  "stderr": ""
+}

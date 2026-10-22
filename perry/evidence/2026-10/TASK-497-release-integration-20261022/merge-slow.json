@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "tests/merge-check",
+    "--base",
+    "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+    "--candidate",
+    "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934",
+    "--tier",
+    "slow",
+    "--record",
+    "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-integration.lkJmmi/merge-slow"
+  ],
+  "cwd": "/Users/bytedance/.codex/worktrees/design024-release-integration/Perry",
+  "exit": 0,
+  "seconds": 139.36779069900513,
+  "log": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-integration.lkJmmi/merge-slow.log"
+}

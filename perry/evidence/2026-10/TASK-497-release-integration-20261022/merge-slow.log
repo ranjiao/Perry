@@ -1,0 +1,25 @@
+stage kernel
+........................................................................................................s.......................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 288 tests in 32.936s
+
+OK (skipped=1)
+
+live-store check (session kernel-suite-dabec987ad70):
+  live store absent before and after: /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-obw1xal5/tree/.git/perry/root.db
+stage kernel: green
+stage helpers
+......................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 182 tests in 83.681s
+
+OK
+stage helpers: green
+stage integration-self-tests
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 2.144s
+
+OK
+stage integration-self-tests: green
+{"command": ["bash", "tests/run", "--tier", "slow"], "exit_code": 0, "inputs": [{"ref": "3f663a10379a9bf9d2b33678e8950456bddfbbdf", "role": "base", "sha": "3f663a10379a9bf9d2b33678e8950456bddfbbdf"}, {"ref": "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934", "role": "candidate", "sha": "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934"}], "source_clean": true, "tier": "slow", "transcript_sha256": "5ef0f5f984dc5a7af947e478bfd31db987aef066ecb41cf9a0559f44bc25ebc3", "tree": "3580d10dbcf49b50edc9b9dc48d2bf8ce6b58423", "version": 1}

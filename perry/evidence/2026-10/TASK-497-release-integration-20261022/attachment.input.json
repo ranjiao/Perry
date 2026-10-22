@@ -1,0 +1,14 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "PMO Release Integrator (/root/design024_integrator)",
+    "session": "01a162fa-376d-7ca1-ae74-6d99fd51e751"
+  },
+  "id": "TASK-497",
+  "ref": "evidence/2026-10/TASK-497-release-integration-20261022/README.md",
+  "hash": "sha256:bd85403802c5d3467202b5e6aafaaa7bce912dc6cd2d2951909cee344c007c1d",
+  "expect": {
+    "TASK-497": 1944
+  },
+  "note": "Authorized independent local integration receipt; original source V4 reviewer/evidence preserved. Integrated, unpublished."
+}

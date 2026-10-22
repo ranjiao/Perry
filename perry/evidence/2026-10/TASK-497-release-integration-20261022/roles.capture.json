@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "tools/roles.py",
+    "--root",
+    "/Users/bytedance/proj/Perry"
+  ],
+  "exit": 0,
+  "stdout": "{\n  \"contract\": \"perry-roles/read/2.0\",\n  \"semantics\": [],\n  \"project_root\": \"/Users/bytedance/proj/Perry\",\n  \"declared\": 0,\n  \"cards\": [],\n  \"policy_source\": {\n    \"path\": \"/Users/bytedance/proj/Perry/.perry/safety.json\",\n    \"sha256\": \"1faa74cbb146ced89a9dcdcf63fc311f2d439a9811f927e4817fc877804c2f13\"\n  },\n  \"escalation_union\": [\n    \"setup\",\n    \"~/.claude/skills\",\n    \"~/.agents/skills\",\n    \"ln -s\",\n    \"ln -sf\",\n    \"ln -snf\",\n    \"ln -sfn\",\n    \"brew install\",\n    \"npm install -g\",\n    \"adopt\",\n    \"diagnose\",\n    \"relocate\",\n    \"git mv\",\n    \"claims\",\n    \"state-schema.json\",\n    \"git push\",\n    \"origin\",\n    \"gh release\",\n    \"publish\",\n    \"publishes\",\n    \"publishing\",\n    \"published\",\n    \"push --force\",\n    \"--force-with-lease\",\n    \"rebase\",\n    \"main\",\n    \"rm -rf\",\n    \"rm -fr\",\n    \"rm -f\",\n    \"design/\",\n    \"evidence/\",\n    \"knowledge/\",\n    \"inputs/\",\n    \"git pull\",\n    \"$PERRY_HOME\",\n    \"sqlite3\",\n    \"DROP TABLE\",\n    \"DELETE FROM\",\n    \".git/perry\",\n    \"root.db\",\n    \"perry.db\",\n    \"migrate --down\",\n    \".perry/safety.json\"\n  ],\n  \"errors\": []\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,475 @@
+{
+  "base": "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+  "source_base": "89219446bb50cb7faef2249708d48e9225b5422b",
+  "source": "3fb8839723c7b744ff610d837f3ab47c3adc33b9",
+  "candidate": "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934",
+  "tree": "3580d10dbcf49b50edc9b9dc48d2bf8ce6b58423",
+  "product_paths": [
+    "SKILL.md",
+    "decide/SKILL.md",
+    "reference/adoption-sources.md",
+    "reference/adoption.md",
+    "reference/config.md",
+    "reference/glossary.md",
+    "reference/identity-lookup.md",
+    "reference/kernel.md",
+    "reference/new-projects.md",
+    "reference/operating-rules.md",
+    "reference/project-contract.md",
+    "reference/snapshot.md",
+    "templates/internal/adoption_dossier_TEMPLATE.md",
+    "work/SKILL.md",
+    "work/reference/acceptance.md",
+    "work/reference/delegate.md",
+    "work/reference/dispatch.md",
+    "work/reference/git-boundaries.md",
+    "work/reference/review.md",
+    "work/reference/task-close.md",
+    "work/templates/README.md",
+    "work/templates/acceptance_TEMPLATE.md",
+    "work/templates/evidence_TEMPLATE.md",
+    "work/templates/handoff_TEMPLATE.md"
+  ],
+  "source_identity": {
+    "SKILL.md": {
+      "sha256": "27d8d27daa8830ddacff45aecea0e3ca7330efbb3f7b0fef9d209a2c1adc7bbc",
+      "identical": true
+    },
+    "decide/SKILL.md": {
+      "sha256": "bc4c7af98f07bdd2c17fbd0950aa0169fa10684cda55670bb2e9632d2091955c",
+      "identical": true
+    },
+    "reference/adoption-sources.md": {
+      "sha256": "34ec2431fc35506886fc068d6079058d789d7bacd5a3bd0071d75b7d4b2a06a5",
+      "identical": true
+    },
+    "reference/adoption.md": {
+      "sha256": "0a859d56fdfce982cedcfd2bbc4a3dc5a92c10f159e1a7cb31ff3a372896f623",
+      "identical": true
+    },
+    "reference/config.md": {
+      "sha256": "a8c5c64c7fe09d30ea4b007484d9904f2f81386eda9e1c6cfd8941f12e302bda",
+      "identical": true
+    },
+    "reference/glossary.md": {
+      "sha256": "236c0593813c410090d7010bb9409223bfcfe8ac15155eb338296d2daabb1f10",
+      "identical": true
+    },
+    "reference/identity-lookup.md": {
+      "sha256": "765f9229c20eb5fb6eee9ca4d9755198330990700f5576bf7e7ab2df3d0d4c30",
+      "identical": true
+    },
+    "reference/kernel.md": {
+      "sha256": "389c04f6aa79e0d01581951e22f0548314cd19f64d55bab64dd19ced1d1dadaf",
+      "identical": true
+    },
+    "reference/new-projects.md": {
+      "sha256": "e16aa0c53c4f58717a6118fe2805e1faccc95850a84e33e29ef63af23452ccbb",
+      "identical": true
+    },
+    "reference/operating-rules.md": {
+      "sha256": "425106866c0b15dcc3b7ea61835c744a3d280759b26aad1c2bc9c8a69a5ea882",
+      "identical": true
+    },
+    "reference/project-contract.md": {
+      "sha256": "d4b3ad3f3da0cb83bd585398685e821572e6fd28194b244fbf80d7cc63eef060",
+      "identical": true
+    },
+    "reference/snapshot.md": {
+      "sha256": "4cd7c902d7ec8e8476bdca2d62c67e84370d7685123496acaf678913f83e8b1f",
+      "identical": true
+    },
+    "templates/internal/adoption_dossier_TEMPLATE.md": {
+      "sha256": "d5d907555280e7ff1d46c49b7c274b14cf124eab93fc6caf9128669ab735a907",
+      "identical": true
+    },
+    "work/SKILL.md": {
+      "sha256": "42d0003085165335ba7b6b7414f49a955dd37fd0fcc0a8f3bcddfca4331ab5c5",
+      "identical": true
+    },
+    "work/reference/acceptance.md": {
+      "sha256": "1a172eb7048145a875922978e4364b382497b2bc40ea075cc6130e2ee2f9a947",
+      "identical": true
+    },
+    "work/reference/delegate.md": {
+      "sha256": "c8182d25956e15e8b929b19132764bdbc9c09a8fce39ee905375ec6f55593ebb",
+      "identical": true
+    },
+    "work/reference/dispatch.md": {
+      "sha256": "bac1e2bbbd5e54ec1ef8908cefab3b57cab04dff70bfb2e1c07c2ef07e8bac3f",
+      "identical": true
+    },
+    "work/reference/git-boundaries.md": {
+      "sha256": "bba83216f9fa6ddc59d617686fdeee14935830a6127e0b6675cea7628f83c6a5",
+      "identical": true
+    },
+    "work/reference/review.md": {
+      "sha256": "61d960d38c4b22415881f20491da6bb9b26556cd5a231979fdbe07b8b1112dc9",
+      "identical": true
+    },
+    "work/reference/task-close.md": {
+      "sha256": "bc1140f42f51dd3406a29f7a37b6c78f081ca0422e73681c0348fcd3a53bf7d1",
+      "identical": true
+    },
+    "work/templates/README.md": {
+      "sha256": "34f9b8d05924fe83ef17b8a9e4019e950395829711b0086f9e406635710c8375",
+      "identical": true
+    },
+    "work/templates/acceptance_TEMPLATE.md": {
+      "sha256": "73dd13282c6e4d8d66fd053305df3674bb858aa664c0e3bb0c2ce367e5a0cbaa",
+      "identical": true
+    },
+    "work/templates/evidence_TEMPLATE.md": {
+      "sha256": "eee4cd42b13c152f3d61ff294ddad2eb22cd021f3d836586f42640d0b8e03949",
+      "identical": true
+    },
+    "work/templates/handoff_TEMPLATE.md": {
+      "sha256": "4f432c4e123e356a705e6bf4bfa5d8961368444b329c66f18f74583ddafbc3a2",
+      "identical": true
+    }
+  },
+  "protected_count": 74,
+  "protected_mismatches": [],
+  "criteria": {
+    "TASK-497": {
+      "sha256": "f304e1b0939c2da077e0cf20812f0f5e0d077cd0240540d103113755b8d4414a",
+      "unchanged": true
+    },
+    "TASK-498": {
+      "sha256": "2ae3b1e0d5ffa98c01ec0cd7a0e89a714a9dd71cf291edbdcd9e423aa0573a38",
+      "unchanged": true
+    },
+    "TASK-499": {
+      "sha256": "bafe889eb70f4bac1bf3b980f894792e24c51f7c88b1a8c5bac542de1c7fec3b",
+      "unchanged": true
+    },
+    "TASK-500": {
+      "sha256": "09482901df09ab55c14ba7591609b12918ae2a8b752468fe16562b62419fa758",
+      "unchanged": true
+    }
+  },
+  "main_archive_changed": [],
+  "old_release_bytes_preserved": true,
+  "changed_paths": [
+    "CHANGELOG.md",
+    "SKILL.md",
+    "VERSION",
+    "decide/SKILL.md",
+    "reference/adoption-sources.md",
+    "reference/adoption.md",
+    "reference/config.md",
+    "reference/glossary.md",
+    "reference/identity-lookup.md",
+    "reference/kernel.md",
+    "reference/new-projects.md",
+    "reference/operating-rules.md",
+    "reference/project-contract.md",
+    "reference/snapshot.md",
+    "release/records.jsonl",
+    "templates/internal/adoption_dossier_TEMPLATE.md",
+    "work/SKILL.md",
+    "work/reference/acceptance.md",
+    "work/reference/delegate.md",
+    "work/reference/dispatch.md",
+    "work/reference/git-boundaries.md",
+    "work/reference/review.md",
+    "work/reference/task-close.md",
+    "work/templates/README.md",
+    "work/templates/acceptance_TEMPLATE.md",
+    "work/templates/evidence_TEMPLATE.md",
+    "work/templates/handoff_TEMPLATE.md"
+  ],
+  "unexpected_paths": [],
+  "local_links": [
+    {
+      "source": "SKILL.md",
+      "target": "reference/design-principles.md",
+      "exists": true
+    },
+    {
+      "source": "SKILL.md",
+      "target": "reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "SKILL.md",
+      "target": "reference/next.md",
+      "exists": true
+    },
+    {
+      "source": "SKILL.md",
+      "target": "README.md",
+      "exists": true
+    },
+    {
+      "source": "SKILL.md",
+      "target": "INSTALL.md",
+      "exists": true
+    },
+    {
+      "source": "SKILL.md",
+      "target": "kernel/ARCHITECTURE.md",
+      "exists": true
+    },
+    {
+      "source": "decide/SKILL.md",
+      "target": "../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/adoption-sources.md",
+      "target": "adoption.md",
+      "exists": true
+    },
+    {
+      "source": "reference/adoption.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/adoption.md",
+      "target": "identity-lookup.md",
+      "exists": true
+    },
+    {
+      "source": "reference/config.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/glossary.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/glossary.md",
+      "target": "identity-lookup.md",
+      "exists": true
+    },
+    {
+      "source": "reference/glossary.md",
+      "target": "../work/reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "reference/identity-lookup.md",
+      "target": "snapshot.md",
+      "exists": true
+    },
+    {
+      "source": "reference/identity-lookup.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/identity-lookup.md",
+      "target": "snapshot.md",
+      "exists": true
+    },
+    {
+      "source": "reference/kernel.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "../modes/README.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "../packs/README.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "../templates/scaffolds/README.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "../templates/process/README.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "first-run.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "adoption.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "identity-lookup.md",
+      "exists": true
+    },
+    {
+      "source": "reference/new-projects.md",
+      "target": "../work/reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "reference/operating-rules.md",
+      "target": "project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "reference/operating-rules.md",
+      "target": "../work/reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "reference/project-contract.md",
+      "target": "../tests/README.md",
+      "exists": true
+    },
+    {
+      "source": "reference/project-contract.md",
+      "target": "../release/README.md",
+      "exists": true
+    },
+    {
+      "source": "reference/project-contract.md",
+      "target": "../work/reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "reference/snapshot.md",
+      "target": "../work/reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "reference/snapshot.md",
+      "target": "identity-lookup.md",
+      "exists": true
+    },
+    {
+      "source": "work/SKILL.md",
+      "target": "../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/SKILL.md",
+      "target": "reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/acceptance.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/acceptance.md",
+      "target": "../templates/acceptance_TEMPLATE.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/acceptance.md",
+      "target": "review.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/acceptance.md",
+      "target": "task-close.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/delegate.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/delegate.md",
+      "target": "acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/dispatch.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/dispatch.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/dispatch.md",
+      "target": "acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/git-boundaries.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/review.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/review.md",
+      "target": "acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/review.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/review.md",
+      "target": "../../tests/README.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/review.md",
+      "target": "../../reference/next.md",
+      "exists": true
+    },
+    {
+      "source": "work/reference/task-close.md",
+      "target": "acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "work/templates/README.md",
+      "target": "../SKILL.md",
+      "exists": true
+    },
+    {
+      "source": "work/templates/README.md",
+      "target": "../../templates/internal/README.md",
+      "exists": true
+    },
+    {
+      "source": "work/templates/README.md",
+      "target": "../../packs/software-ops/templates/README.md",
+      "exists": true
+    },
+    {
+      "source": "work/templates/README.md",
+      "target": "acceptance_TEMPLATE.md",
+      "exists": true
+    },
+    {
+      "source": "work/templates/README.md",
+      "target": "../reference/acceptance.md",
+      "exists": true
+    },
+    {
+      "source": "work/templates/README.md",
+      "target": "../../reference/project-contract.md",
+      "exists": true
+    }
+  ]
+}

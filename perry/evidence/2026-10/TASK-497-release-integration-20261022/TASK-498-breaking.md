@@ -1,0 +1,1 @@
+Procedure clarification can refuse unresolved ownership, escaped references or missing required verification. No kernel/process/API change; the existing lexical dispatch false-refusal remains disclosed.

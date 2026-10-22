@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bin/perry",
+    "item",
+    "get",
+    "--root",
+    "/Users/bytedance/proj/Perry",
+    "--input",
+    "@/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-497-release-integration-20261022/after-attachment.input.json"
+  ],
+  "exit": 0,
+  "stdout": "{\"ok\": true, \"surface\": \"1.1\", \"command\": \"item get\", \"effect\": \"read\", \"events\": [], \"store_seq\": 1945, \"warnings\": [], \"result\": {\"item\": {\"id\": \"TASK-497\", \"type\": \"task\", \"state\": \"done\", \"fields\": {\"evidence\": \"evidence/2026-10/TASK-497-conformance/review-round-2/review.md\", \"next_action\": \"Source delivery accepted at V4 on 3fb8839723c7b744ff610d837f3ab47c3adc33b9; separate independent integration/release remains. No consumer activation or publication.\", \"owner\": \"PMO Agent\", \"priority\": \"P1\", \"reason\": null, \"summary\": \"Complete the user-approved first delivery through three bounded implementation tasks and independent ten-case acceptance. Kernel and process template stay unchanged; consumer projects are excluded. KR attribution is unresolved and excluded from progress.\", \"title\": \"Deliver DESIGN-024 general procedure contracts\", \"track\": \"intake\", \"verification\": \"V4\", \"verified_by\": {\"kind\": \"agent\", \"name\": \"DESIGN-024 independent reviewer (/root/design024_review)\", \"session\": \"01a16294-6e70-7822-9d10-b84ee69f8435\"}}, \"seq\": 1945, \"created_at\": \"2026-10-22T07:32:00Z\", \"updated_at\": \"2026-10-22T09:47:28Z\", \"relations\": [{\"kind\": \"implements\", \"from\": \"TASK-497\", \"to\": \"DESIGN-024\"}, {\"kind\": \"parent\", \"from\": \"TASK-498\", \"to\": \"TASK-497\"}, {\"kind\": \"parent\", \"from\": \"TASK-499\", \"to\": \"TASK-497\"}, {\"kind\": \"parent\", \"from\": \"TASK-500\", \"to\": \"TASK-497\"}], \"attachments\": [{\"ref\": \"evidence/2026-10/TASK-497-conformance/README.md\", \"hash\": \"sha256:ca0c97be3f788ba75ca08c797d90478492f30ca7e986e608450b78c60483e4ec\"}, {\"ref\": \"evidence/2026-10/TASK-497-conformance/review-round-1/review.md\", \"hash\": \"sha256:590dd4d653e698d1c0be8c9a5bc01dc268f1b73aefd0d18185efe1bed7647e0c\"}, {\"ref\": \"evidence/2026-10/TASK-497-conformance/review-round-2/review.md\", \"hash\": \"sha256:fbf58cbd934e9e14819edf6b63757720c86e5f42b2ad55b1acd004556ba4aa49\"}, {\"ref\": \"evidence/2026-10/TASK-497-release-integration-20261022/README.md\", \"hash\": \"sha256:bd85403802c5d3467202b5e6aafaaa7bce912dc6cd2d2951909cee344c007c1d\"}, {\"ref\": \"evidence/2026-10/TASK-497-spec.md\", \"hash\": \"sha256:f304e1b0939c2da077e0cf20812f0f5e0d077cd0240540d103113755b8d4414a\"}], \"startable\": false, \"blocked_by\": [], \"rollup\": null}}, \"error\": null}\n",
+  "stderr": ""
+}

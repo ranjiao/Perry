@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bash",
+    "tests/run",
+    "--tier",
+    "full"
+  ],
+  "cwd": "/Users/bytedance/.codex/worktrees/design024-release-integration/Perry",
+  "exit": 0,
+  "seconds": 127.94533181190491,
+  "log": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-integration.lkJmmi/direct-full.log"
+}

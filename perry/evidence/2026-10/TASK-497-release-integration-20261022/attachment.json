@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bin/perry",
+    "attach",
+    "add",
+    "--root",
+    "/Users/bytedance/proj/Perry",
+    "--input",
+    "@/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-497-release-integration-20261022/attachment.input.json"
+  ],
+  "exit": 0,
+  "stdout": "{\"ok\": true, \"surface\": \"1.1\", \"command\": \"attach add\", \"effect\": \"written\", \"events\": [1945], \"store_seq\": 1945, \"warnings\": [], \"result\": {\"attachment\": {\"item\": \"TASK-497\", \"ref\": \"evidence/2026-10/TASK-497-release-integration-20261022/README.md\", \"hash\": \"sha256:bd85403802c5d3467202b5e6aafaaa7bce912dc6cd2d2951909cee344c007c1d\"}}, \"error\": null}\n",
+  "stderr": ""
+}

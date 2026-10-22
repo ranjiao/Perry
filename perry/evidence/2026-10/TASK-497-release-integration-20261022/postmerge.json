@@ -1,0 +1,20 @@
+{
+  "base": "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+  "candidate": "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934",
+  "merge": "52e5780ddae948d1c8989b368b0396722209f317",
+  "tree": "3580d10dbcf49b50edc9b9dc48d2bf8ce6b58423",
+  "receipt_tree_equal": true,
+  "parents": [
+    "3f663a10379a9bf9d2b33678e8950456bddfbbdf",
+    "c4fbc75de7ea067e9360d9df7a74b7ebe3fe5934"
+  ],
+  "version": "0.1.32",
+  "primary_branch": "main",
+  "clean": true,
+  "diff_check": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "candidate_to_actual_tree_diff": ""
+}

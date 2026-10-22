@@ -1,0 +1,15 @@
+from pathlib import Path
+import subprocess,json
+run=Path(__file__).parent
+root=Path('/Users/bytedance/.codex/worktrees/design024-release-integration/Perry')
+entries=[('498','project-contracts','Define project artifact ownership, confined references, retained evidence subjects and actual-project verification across execution and review. Keep domain lifecycle separate from Perry approval and preserve independent Git-code integration.','Read reference/project-contract.md and apply the actual project ownership, source-root and verification declarations. No automatic consumer activation or migration is performed.','Procedure clarification can refuse unresolved ownership, escaped references or missing required verification. No kernel/process/API change; the existing lexical dispatch false-refusal remains disclosed.'),('499','reconciliation-lookup','Add established-project writer reconciliation, package/provider/integration distinctions and exact scoped-identity/domain-role lookup using existing native queries, summaries and attachments. Preserve partial receipts and explicit resume choices.','Use the updated adoption dossier and identity-lookup procedure on a separately authorized adoption. Re-query complete consistent pages before creates and reconcile old/new writers; existing projects are not migrated by installing this release.','No native alias, role filter, uniqueness guard or additional adoption stage is added. Existing ambiguous identity or writer authority must be reconciled before another create.'),('500','scoped-acceptance','Add finite per-subject acceptance records and an optional narrative template; distinguish provider delivery, integration, package, independent review and actual human sign-off. Retain ten isolated conformance cases without claiming live acceptance.','Use scoped acceptance when a review needs multiple criteria. Preserve original failures and untested required gates, and compare evidence applicability to the exact proposed subject. No new mutable acceptance register is installed.','Required failed, untested, unreadable or applicability-unknown evidence prevents closure. Parent membership and completed children do not grant package/human acceptance; no native entity, result enum or automatic rollup is added.')]
+for n,(task,slug,notes,upgrade,breaking) in enumerate(entries,30):
+    files={}
+    for name,value in [('notes',notes),('upgrade',upgrade),('breaking',breaking)]:
+        p=run/f'TASK-{task}-{name}.md';p.write_text(value+'\n');files[name]=p
+    cmd=['python3','release/manage.py','patch','--expected-version',f'0.1.{n-1}','--date','2026-10-22','--phase','004-guided','--task',f'TASK-{task}','--delivery',f'TASK-{task}-design024-{slug}-20261022','--integrator','PMO-Release-Integrator-DESIGN024']
+    for name,p in files.items():cmd.extend([f'--{name}-file',str(p)])
+    r=subprocess.run(cmd,cwd=root,text=True,capture_output=True)
+    (run/f'allocate-{task}.json').write_text(json.dumps({'command':cmd,'exit':r.returncode,'stdout':r.stdout,'stderr':r.stderr},indent=2)+'\n')
+    print(task,r.returncode,r.stdout,r.stderr)
+    if r.returncode:raise SystemExit(r.returncode)

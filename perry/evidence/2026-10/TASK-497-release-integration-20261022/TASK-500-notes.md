@@ -1,0 +1,1 @@
+Add finite per-subject acceptance records and an optional narrative template; distinguish provider delivery, integration, package, independent review and actual human sign-off. Retain ten isolated conformance cases without claiming live acceptance.

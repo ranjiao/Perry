@@ -1,0 +1,1 @@
+Required failed, untested, unreadable or applicability-unknown evidence prevents closure. Parent membership and completed children do not grant package/human acceptance; no native entity, result enum or automatic rollup is added.

@@ -1,0 +1,1 @@
+Add established-project writer reconciliation, package/provider/integration distinctions and exact scoped-identity/domain-role lookup using existing native queries, summaries and attachments. Preserve partial receipts and explicit resume choices.

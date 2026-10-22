@@ -1,0 +1,1 @@
+Use scoped acceptance when a review needs multiple criteria. Preserve original failures and untested required gates, and compare evidence applicability to the exact proposed subject. No new mutable acceptance register is installed.

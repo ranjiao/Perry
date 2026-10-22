@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "tools/document_checks.py",
+    "startup",
+    "--root",
+    "/Users/bytedance/proj/Perry",
+    "--state-root",
+    "perry"
+  ],
+  "exit": 0,
+  "stdout": "{\n  \"version\": 1,\n  \"recovery\": {\n    \"blocking\": false,\n    \"errors\": []\n  },\n  \"interrupted\": [],\n  \"draft_errors\": []\n}\n",
+  "stderr": ""
+}
