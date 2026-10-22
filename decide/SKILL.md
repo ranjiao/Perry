@@ -31,8 +31,11 @@ Help only prints the procedure index; it does not run startup or write.
 
 ## Ownership
 
-Decide alone writes narratives under `design/` and `decisions/` and structured
-native design/ADR metadata. Documents hold the problem, alternatives, rationale,
+Decide alone writes Perry-governed narratives under `design/` and `decisions/`
+and structured native design/ADR metadata. Specialist product specifications
+retain their domain owner, validity and revision; they are not native approval
+records merely because of their name. Apply the [project contract](../reference/project-contract.md)
+before claiming an existing path or changing another role's artifact. Documents hold the problem, alternatives, rationale,
 authority and consequences; they do not duplicate current structured headers or
 execution status. Native state is the only status/title/date/successor record.
 Attach exact state-root-relative paths and SHA256 after owned narrative writes.

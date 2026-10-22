@@ -65,3 +65,11 @@ Preference prose and structured safety are the accepted native arrangement.
 Actual local H/V5 evidence is dated under
 `perry/evidence/2026-10/TASK-494-formal-cutover-20261020/FINAL.md`.
 A source instruction does not itself change or approve a project's preferences.
+
+## Domain artifacts and verification
+
+Keep domain sources, catalogs and validity/revision metadata with their actual
+owner. Use the [project contract](project-contract.md) to agree source anchors,
+open attachment refs outside the narrative root safely, preserve evidence subjects
+and select actual project verification methods. These are authored conventions;
+they add no native configuration key, alias index or kernel path resolver.

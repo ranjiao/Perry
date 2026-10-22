@@ -91,6 +91,13 @@ Commit status: {{committed / uncommitted / pushed / not pushed}}.
 {{Exact query filters, store seq, selected IDs/titles and exclusions. Query every
 page when claiming complete totals. This is dated evidence, not a new board.}}
 
+## Acceptance scopes and pending gates (when applicable)
+
+{{Link actual criterion records; show tested/proposed subjects, per-scope results,
+evaluators, exclusions and missing required integration/human gates. Follow
+scoped acceptance; native task completion is not package or human acceptance.
+This handoff is dated evidence, not a second status writer.}}
+
 ## 8. Resume instructions
 
 1. Read the root startup/recovery procedure and actual project preferences.

@@ -78,3 +78,15 @@ Read active project packs and hooks for vocabulary, optional procedures and
 high-stakes boundaries after safety. Help lists pack commands as conditional
 without reading project config. The user's explicit request overrides any
 recommendation; never silently start a different task.
+
+## Scoped evidence summaries
+
+Use [scoped acceptance](../work/reference/acceptance.md) when explaining what
+delivery or acceptance evidence establishes. Query native task state/relations
+for the finite population, then inspect the applicable criterion/evidence records.
+Show subject/version, assessed scope, actual outcome/evaluator, missing required
+gates and read limits. Keep these authored judgments distinct from native facts.
+Parent links and completed children establish no package acceptance. Do not
+invent an aggregate percentage or carry an old pass across an unverified subject.
+Original-ID/domain-role questions use [identity lookup](identity-lookup.md).
+Generated summaries are dated projections, never new mutable state registers.

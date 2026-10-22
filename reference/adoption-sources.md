@@ -37,10 +37,12 @@ tier-C signals is still `medium` at best.
 | `docs_tree` | `doc/`, `docs/`, `wiki/` | Everything else written for humans | `knowledge`, `design`, `arch` |
 | `manifest` | `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod` | Name, description, scripts, deps | project metadata, `arch` |
 
-**Note on `roadmap`**: an unchecked box is the single highest-yield adoption
-signal in existence — it is a task the user already wrote, already scoped, and
-already declined to finish. Treat it as `high` confidence and expect most of the
-board to come from here when the file exists.
+**Roadmap authority:** an unchecked box is a strong declarative candidate,
+not proof that it remains authorized, belongs to the current milestone or is
+still unstarted. Cross-check its owner, scope and actual delivery evidence under
+[adoption reconciliation](adoption.md#established-project-reconciliation).
+Keep package summaries distinct from role-local subtasks. A tier caps confidence;
+it never grants approval or makes the newest source the lifecycle authority.
 
 ### Tier B — behavioral
 

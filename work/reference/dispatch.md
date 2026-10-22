@@ -185,7 +185,7 @@ Host helpers are not kernel capabilities and are not persisted as stage/cadence 
 Release only the slot this execution owns.
 
 1. Read the agent's RESULT block. Required fields:
-   - `Branch: <name>` — always. It is what the primary checkout merges (`git-boundaries.md`), so it is required on every project whatever the push answer is.
+   - Git code delivery: `Branch: <name>` and exact commit, for independent integration. For a non-Git/non-code deliverable record `n/a` with the retained immutable subject; do not invent a branch.
    - `PR URL:` — **only where the project's structured policy, role union and user instructions permit a push.** Where `git push` / `origin` are escalated, the compliant agent opened no PR and has no truthful value for this field; requiring one there would make the honest answer unwritable and step 4 below gates the `review` transition on required fields being present. On such a project the field is `n/a — push is escalated on this project`, and that is a complete answer rather than an excuse.
    - `Files changed: <count>` + bullet list
    - `Tests: <pass>/<total>` + command used
@@ -204,7 +204,10 @@ Integration uses the actual combined-tree gate and an independent integrator.
 
 ## RESULT contract
 
-Return task ID/title, status, branch and exact commit, changed files, tests with
+Apply the [project contract](../../reference/project-contract.md) and
+[scoped acceptance](acceptance.md): record applicable verification and exact
+subject, and separate provider delivery from package/human acceptance.
+Return task ID/title, status, branch and exact commit when applicable, changed files, checks with
 commands/results, acceptance coverage, known limits and next action. Notes include
 actual executor root, scan arguments, durable evidence store, real start path and
 latest delivery path. Name any push/PR failure if those actions were authorized.
@@ -215,7 +218,7 @@ Do not claim V4 from an implementing session or forge human V5 acceptance.
 
 ```
 === RESULT ===
-Branch: <name>          # always — this is what the primary checkout merges
+Branch: <name>          # Git code; otherwise n/a plus retained immutable subject
 PR URL: <url>           # only where policy and user instructions permit a push; otherwise
                         #   "n/a — push is escalated on this project"
 Files changed: <count>
@@ -229,6 +232,7 @@ Notes: <anything unusual>
 ```
 
 **On Tests when a round runs a tier:** report the exact command, exit and
-receipt/log path. Current Perry tiers are `bash tests/run --tier full` and
-`bash tests/run --tier slow`; there is no affected tier or duration-based selection facade.
+receipt/log path. Select actual project checks through the project contract.
+For Perry source only, tiers are `bash tests/run --tier full` and
+`bash tests/run --tier slow`; other projects do not inherit those paths.
 A targeted command proves only its selected checks, never repository-wide green.

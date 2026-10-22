@@ -19,8 +19,11 @@ proves semantic acceptance or independent review.
 
 Query the task, attachments and relevant events with complete paging. Read the
 written criteria before dispatching. Missing/unreadable criteria stop the review;
-the reviewer must not invent the bar. Pin exact base and candidate commit SHAs
-and the criteria's source commit/hash. A branch name alone is not reproducible.
+the reviewer must not invent the bar. Apply the [project contract](../../reference/project-contract.md):
+for Git code, pin exact base/candidate commits and criteria hash; for non-Git or
+non-code work, pin the retained immutable subject and criteria. A branch name or
+a fingerprint without retained source is insufficient. Scope acceptance using
+[acceptance.md](acceptance.md); delivery and human acceptance remain distinct.
 
 The criteria must name a finite enumeration, its size, the command/source that
 produced it, and visible exclusions. A universal negative over an unnamed tree
@@ -32,8 +35,9 @@ round pretending they are accessible.
 ## 2 · The prompt
 
 Use a host-valid fresh-context reviewer and the normal dispatch isolation and
-high-stakes gates. Give it `review-constraints.md`, exact base/head SHAs, criteria
-path/hash, actual source roots and the author's test/architecture receipts. The
+high-stakes gates. Give it `review-constraints.md`, the exact immutable subject
+(base/head SHAs for Git code), criteria path/hash, actual source roots and the
+author's applicable test/architecture receipts. The
 reviewer did not write the implementation and is not being asked to agree with
 it. Retain the actual completion event/result, not just a launched process.
 
@@ -49,19 +53,22 @@ it. Retain the actual completion event/result, not just a launched process.
 
 ### What the reviewer runs
 
-Run the focused native/helper modules needed by the finite criteria, plus
-independent adversarial cases. `tests/run --tier full` and `--tier slow` are the
-new stdlib acceptance suite; the removed legacy affected selector and corpus are
-not executed or claimed. Read `tests/README.md` and `tests/run --help` for the
-actual surface. Rerun broad checks only for new changes, failures or unresolved
-coverage. Keep each command, input, immutable subject, result and test limit.
-A focused green is not a complete green suite.
+Use the actual project's declared methods under the [project contract](../../reference/project-contract.md).
+Run relevant targeted checks and independent adversarial cases; use required
+full/integration gates when applicable. For research or non-code artifacts,
+inspect the declared sources and artifact rather than inventing a code runner.
+Missing required methods, environments or evidence prevent acceptance of that
+scope. Keep commands/inspections, inputs, immutable subject, results and limits.
+Rerun broad checks only for new changes, failures or unresolved coverage.
 
-Independent integration must construct and test the exact merged candidate via
-`tests/merge-check --base <immutable-base> --candidate <immutable-head>
---tier full --record <external-directory>` (and required slow tier). Verify its
-receipt with `--verify-receipt <receipt-path>`. No reviewer self-merges or treats
-author-base green as merged-state validation. Release rules still apply.
+For **Perry source only**, the new stdlib full/slow suite and exact-merge helper
+are defined in [tests/README.md](../../tests/README.md); use
+`bash tests/run --tier full` (plus required slow checks) and independent
+`python3 tests/merge-check --base <immutable-base> --candidate <immutable-head>
+--tier full --record <external-directory>`, verifying its receipt. Other
+projects use their declared equivalent, not these paths. No reviewer self-merges
+or treats author-base green as merged-state validation. Applicable release
+rules remain binding; no source-only check constitutes live activation.
 
 ## 3 · The verdict block
 
