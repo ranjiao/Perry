@@ -2,7 +2,9 @@
 
 Use only when a concrete review needs this record; it can be a section in an
 existing spec/evidence report. Fill actual values and remove unused rows.
-Follow [scoped acceptance](../reference/acceptance.md). This is dated narrative,
+Follow the loaded skill's scoped-acceptance procedure. Replace all source and
+evidence references with actual project references before saving; do not carry
+installation-relative links into a project report. This is dated narrative,
 not a live board, new native field set or proof of independent/human approval.
 
 ## Scope and subject
