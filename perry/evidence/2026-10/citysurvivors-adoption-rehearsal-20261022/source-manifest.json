@@ -1,0 +1,247 @@
+{
+  "source_root": "/Users/bytedance/proj/wargame/CitySurvivors",
+  "captured_at": "2026-10-22T10:26:41.789385+00:00",
+  "head": "a4a716ec2520a92bd0178ed4dd083a9c069e16a4",
+  "source_status_sha256": "105097f7671e69be2fd94569c5de09a3fd3945d111326e74ca3fd970ff149a8e",
+  "entries": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "9f6ec13f7ac22faedd90cc580bb79d9b857dc7e94cb91989090438938f606263",
+      "bytes": 6908,
+      "untracked": false
+    },
+    {
+      "path": "README.md",
+      "sha256": "cf05a0a0367b1ff21fdd59298626ddf0d4b2fe6d10c506a192e1b8d20e5fed9f",
+      "bytes": 2077,
+      "untracked": false
+    },
+    {
+      "path": "todo.md",
+      "sha256": "1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f",
+      "bytes": 56357,
+      "untracked": false
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "a90d8424f525d69cfa19b7d3e63407732cdd4466203ea1cc032d9f9dc7dba09f",
+      "bytes": 5661,
+      "untracked": false
+    },
+    {
+      "path": "docs/tech/README.md",
+      "sha256": "80bae6521afe5905615d28181ddb189812fd70fa3417a0ed0593ad6d3154835e",
+      "bytes": 4880,
+      "untracked": false
+    },
+    {
+      "path": "docs/tech/todo.md",
+      "sha256": "95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6",
+      "bytes": 40532,
+      "untracked": false
+    },
+    {
+      "path": "docs/art/README.md",
+      "sha256": "9a1b1b5a31b188842bf48881e589ffc43952b7e1f9749f6a85557f94c6cd38fa",
+      "bytes": 4888,
+      "untracked": false
+    },
+    {
+      "path": "docs/art/todo.md",
+      "sha256": "1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50",
+      "bytes": 63439,
+      "untracked": false
+    },
+    {
+      "path": "docs/design/README.md",
+      "sha256": "93725f75e8a5926b7945a4396e24584fdc3b15f868970ab51ffb744c7c374ac8",
+      "bytes": 6485,
+      "untracked": false
+    },
+    {
+      "path": "docs/design/prototype-scope.md",
+      "sha256": "43c77e873a2e465e7fff3fa3fefa5633e85c9087c74b1838589ceff13432a19f",
+      "bytes": 9439,
+      "untracked": false
+    },
+    {
+      "path": "docs/design/game-design.md",
+      "sha256": "f23fb038ef1d177bab822c44a018f3c3ed344591ce3c9bfa4660fe5c761a3b95",
+      "bytes": 13692,
+      "untracked": false
+    },
+    {
+      "path": "docs/decisions/README.md",
+      "sha256": "caac1988bb986815e633a77b54364ae382bed8e658b664050230de44e1427be2",
+      "bytes": 17319,
+      "untracked": false
+    },
+    {
+      "path": "docs/production/documentation-standard.md",
+      "sha256": "4c2974c07dbdd33f18939c38c5acf33499d6c7e775fb2f0d9a4aee2c45d39e24",
+      "bytes": 9066,
+      "untracked": false
+    },
+    {
+      "path": "docs/production/project-structure.md",
+      "sha256": "98fafef4d6b8daed149356118dcf13b8ff7e642db5b53a343772c424fb4e861d",
+      "bytes": 5076,
+      "untracked": false
+    },
+    {
+      "path": "docs/production/documentation-handoff.md",
+      "sha256": "ea6c57d2db3dd976eead741accaba971c1863c67c820ba9f416ee1b4ffa9e449",
+      "bytes": 6800,
+      "untracked": false
+    },
+    {
+      "path": "docs/tech/current-build.md",
+      "sha256": "717d425a714805fbc61e31ddb0fbedac841213372ba792eee6c2212398c5df70",
+      "bytes": 5185,
+      "untracked": false
+    },
+    {
+      "path": "docs/tech/cbd-path-recovery.md",
+      "sha256": "eb9eda4ca0e8cd04395eb7f22e557ec1176e5de685085a891dd4be293113ae42",
+      "bytes": 5363,
+      "untracked": true
+    },
+    {
+      "path": "docs/tech/cbd-pressure.md",
+      "sha256": "7a30ef4682aa872c2d409b632ba3d354d80c5181d3e537d122f3c92256bf9024",
+      "bytes": 6118,
+      "untracked": true
+    },
+    {
+      "path": "docs/tech/m1-cbd-integration.md",
+      "sha256": "93d790149943aecbcf6fe4f65a1dbd3a370476a844ba41457f855b8c36b97467",
+      "bytes": 8484,
+      "untracked": true
+    },
+    {
+      "path": "docs/production/m1-cbd-handoff.md",
+      "sha256": "8d39be892a8bf76978d648080091fb4a89beb6d1021e24f9729e2b8afdf0251a",
+      "bytes": 11024,
+      "untracked": false
+    },
+    {
+      "path": "docs/production/m1-rule-fixes-handoff.md",
+      "sha256": "26a9cd015ec1266e0f3099426ab2b80cc8a1a5e3f201c3bb9043abe74cc88eb5",
+      "bytes": 10511,
+      "untracked": false
+    },
+    {
+      "path": "docs/tech/evidence/2026-10-22-documentation-review.md",
+      "sha256": "a1307385799a0e0a88888b8304f4f8601e690d550dca6d1e183ab490d7e443bb",
+      "bytes": 8657,
+      "untracked": true
+    },
+    {
+      "path": "docs/tech/evidence/classification.md",
+      "sha256": "a65091a79b0138d84befeb61c299f7a88975649fdd29fdd1db2d4ef95c622469",
+      "bytes": 19558,
+      "untracked": true
+    },
+    {
+      "path": "docs/design/m1-combat-test-matrix.md",
+      "sha256": "4f561d531be48874ae3fae10474308d1209487f34bc717901c0a03c7819a5176",
+      "bytes": 11500,
+      "untracked": true
+    },
+    {
+      "path": "docs/qa/2026-10-21-cbd-pressure-validation.md",
+      "sha256": "866092977225a2b62d6d458f981c789d3eae5cd511758cc840052fa6a04513b6",
+      "bytes": 8741,
+      "untracked": true
+    },
+    {
+      "path": "docs/tech/asset-integration.md",
+      "sha256": "8456c1fbbd47a360064083a7a3986f1d0be261a1c53274ecf07b49b7e75ae2fc",
+      "bytes": 7804,
+      "untracked": false
+    },
+    {
+      "path": "docs/tech/ui-layout-contract.md",
+      "sha256": "2f511511c0aff902fdb121f81b790b521e4e8e8e79a696fe33f55de22dbe60db",
+      "bytes": 12481,
+      "untracked": true
+    },
+    {
+      "path": "docs/tech/hud-layout-editor.md",
+      "sha256": "5f8efc381ce0eb66f76c70ba83850a5fb1b20ead24473ffde53b124e4b6194fe",
+      "bytes": 8245,
+      "untracked": true
+    },
+    {
+      "path": "docs/art/asset-delivery.md",
+      "sha256": "756c2331312ca0b3562765d7e6ef61f7417a056ce8fe73a9f5d5d01aeb71c078",
+      "bytes": 4469,
+      "untracked": true
+    },
+    {
+      "path": "docs/decisions/ADR-013-first-milestone-wave-defense.md",
+      "sha256": "3b823c4107c9e2add705167005d03e668306ffdccc33bb6a18c536b74729466e",
+      "bytes": 2318,
+      "untracked": false
+    },
+    {
+      "path": "docs/decisions/ADR-022-documentation-governance.md",
+      "sha256": "2c2fd9d5bacaaf5d2b018949cff0aa6641fba2a386219b7ef42f57c6c0855353",
+      "bytes": 2592,
+      "untracked": false
+    },
+    {
+      "path": "docs/decisions/ADR-024-six-character-attack-mechanics.md",
+      "sha256": "1463e6637de707a459fa5677a31166ebf7ef5079e77e1c97c3e27f94ad94d6b5",
+      "bytes": 2936,
+      "untracked": true
+    },
+    {
+      "path": "game/README.md",
+      "sha256": "7d0fccfa7fe9367bc69f1b0804469221ce1cf6787a5b5e4cd5a4a03b1464feac",
+      "bytes": 4914,
+      "untracked": false
+    },
+    {
+      "path": "game/assets/runtime-manifest.json",
+      "sha256": "7af4fffa6981c575d6bf6bf21af4e650b727cc864a210c8820e4970c8a007cdc",
+      "bytes": 33168,
+      "untracked": false
+    },
+    {
+      "path": "assets/manifest.md",
+      "sha256": "939f0c3e691309135679e365fa3acd86e4bca6e040aac61779c75ab7b869b868",
+      "bytes": 141427,
+      "untracked": false
+    },
+    {
+      "path": "docs/art/evidence/2026-10-22-art-documentation-review.md",
+      "sha256": "f2bf9219a01e530c8006c2c1d9bf7e945cf13f16f8c289b0a11663cdb4dbc4d4",
+      "bytes": 7417,
+      "untracked": true
+    },
+    {
+      "path": "docs/art/documentation-dispositions.md",
+      "sha256": "3bdfe4e4b35bb7fb36e40b029a7d089d7281e8b79edbd44b6ed2c9695feca67e",
+      "bytes": 25318,
+      "untracked": true
+    },
+    {
+      "path": "docs/art/assets/fengren-motion-transition.md",
+      "sha256": "c84854bd2e37f98cba600095d2e829083d21bc455077a5fae8cdce6f39f3b3db",
+      "bytes": 7601,
+      "untracked": true
+    },
+    {
+      "path": "docs/art/assets/clockwork-bear-rig-v003.md",
+      "sha256": "881ae0b6b52315294d5492aa5b021e9898df38ec8ce304265c6576f12cb333e4",
+      "bytes": 8208,
+      "untracked": true
+    }
+  ],
+  "unavailable": [
+    "docs/art/evidence/2026-10-22-documentation-review.md"
+  ],
+  "changed_during_capture": [],
+  "bounds": "Finite governance/task/reference capture only. All selected tracked/untracked bytes retained. This is not a full code/asset backup or engine acceptance subject; excluded .git, binary assets, generated output, credentials and unrelated files. Live activation requires a new coherent comparison and separately bounded backup."
+}

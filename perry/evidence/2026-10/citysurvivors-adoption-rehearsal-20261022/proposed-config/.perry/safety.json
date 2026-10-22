@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "approval_ref": "",
+  "rules": [
+    {
+      "id": "installation",
+      "label": "Host and system installation",
+      "patterns": [
+        "setup",
+        "ln -s",
+        "ln -sf",
+        "ln -snf",
+        "ln -sfn",
+        "brew install",
+        "npm install -g"
+      ]
+    },
+    {
+      "id": "external-project",
+      "label": "Writing another project's namespace",
+      "patterns": [
+        "adopt",
+        "diagnose",
+        "relocate",
+        "git mv"
+      ]
+    },
+    {
+      "id": "publication",
+      "label": "Remote publication and destructive history",
+      "patterns": [
+        "git push",
+        "gh release",
+        "publish",
+        "push --force",
+        "--force-with-lease",
+        "tag deletion"
+      ]
+    },
+    {
+      "id": "filesystem",
+      "label": "Destructive filesystem operations",
+      "patterns": [
+        "rm -rf",
+        "rm -fr",
+        "rm -f",
+        "bulk delete"
+      ]
+    },
+    {
+      "id": "database",
+      "label": "Database mutation, migration or replacement",
+      "patterns": [
+        "sqlite3",
+        "DROP TABLE",
+        "DELETE FROM",
+        ".git/perry",
+        "root.db",
+        "perry.db",
+        "migrate --down"
+      ]
+    },
+    {
+      "id": "policy",
+      "label": "Changing safety policy or self-update",
+      "patterns": [
+        ".perry/safety.json",
+        "git pull"
+      ]
+    },
+    {
+      "id": "cross-role",
+      "label": "跨角色与共享规范写入需原负责人或用户具体授权",
+      "patterns": [
+        "docs/design/",
+        "docs/tech/",
+        "docs/art/",
+        "AGENTS.md",
+        "todo.md"
+      ]
+    },
+    {
+      "id": "spend",
+      "label": "付费生成与下载/购买需既有具体授权",
+      "patterns": [
+        "paid API",
+        "Tripo",
+        "billing",
+        "purchase"
+      ]
+    },
+    {
+      "id": "messaging",
+      "label": "不自动跨会话通信/后台协调",
+      "patterns": [
+        "send_message_to_thread",
+        "create_thread",
+        "background coordination"
+      ]
+    },
+    {
+      "id": "live-activation",
+      "label": "本轮禁止正式接管或复制演练库到live",
+      "patterns": [
+        "live activation",
+        "copy rehearsal database",
+        "正式切换"
+      ]
+    }
+  ]
+}

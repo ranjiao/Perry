@@ -1,0 +1,690 @@
+[
+  {
+    "id": "fengren",
+    "source": "assets/exports/characters/fengren/v002/fengren.glb",
+    "runtime": "game/assets/characters/fengren/fengren.glb",
+    "sha256": "b48384333b186ed98e5f835a62a96e4a2066aeb998a9613563a5c9672583ac68",
+    "source_review": "pending",
+    "editable_source": "see art handoff; runtime copy is not editable master"
+  },
+  {
+    "id": "qianya",
+    "source": "assets/exports/characters/qianya/v001/qianya.glb",
+    "runtime": "game/assets/characters/qianya/qianya.glb",
+    "sha256": "dfebe59b29461e6b6a01aa21c53c94004f5e4af39456cf5dd5db7c9baa8985cd",
+    "source_review": "pending",
+    "editable_source": "see art handoff; runtime copy is not editable master"
+  },
+  {
+    "id": "wpn_assault_rifle_01",
+    "source": "assets/exports/weapons/wpn_assault_rifle_01/v002/wpn_assault_rifle_01.glb",
+    "runtime": "game/assets/weapons/wpn_assault_rifle_01/wpn_assault_rifle_01.glb",
+    "sha256": "5abecc9cb986d053af45c6f17cec9e74044253b6bd445d30c7080168dc1f7b2c",
+    "source_review": "pending",
+    "editable_source": "see art handoff; runtime copy is not editable master"
+  },
+  {
+    "id": "lujiazui_city_v002",
+    "source": "assets/exports/environment/lujiazui_city/v002/lujiazui_city.glb",
+    "runtime": "game/assets/environment/lujiazui_v002/city.glb",
+    "sha256": "3636fdd16ac21d7036a8f89fbe069fece240b6ae0cbc6e5e6130b8f813b37448",
+    "source_review": "pending",
+    "editable_source": "see docs/art/environment/lujiazui-city-v002.md; unchanged runtime copy",
+    "postprocess": {
+      "producer": "tools/analysis/city_stream/build_city_stream.py",
+      "handoff": "tools/analysis/city_stream/handoff-v1.json",
+      "manifest": "game/assets/environment/lujiazui_v002/stream/build_0aad1ec4e0bcda2a/manifest.json",
+      "sha256": "f524f800085a8b31fcb06fcc4a874d0ba5ed183c1a531535a0df93a0f706379d",
+      "build_id": "0aad1ec4e0bcda2a",
+      "engine": "4.6.3.stable.official.7d41c59c4"
+    }
+  },
+  {
+    "id": "prop_chair",
+    "source": "assets/exports/environment/lujiazui_direct/v002/cafe_chair.glb",
+    "runtime": "game/assets/props/chair.glb",
+    "sha256": "dce238fe2e7e55806becb831ba6ed73088b52a88b2e9d2b944296dc1de202676",
+    "license": "Original project geometry; see source asset catalog",
+    "status": "runtime copy; interactive integration pending"
+  },
+  {
+    "id": "prop_bin",
+    "source": "assets/exports/environment/lujiazui_direct/v002/bin_single.glb",
+    "runtime": "game/assets/props/bin.glb",
+    "sha256": "d42f641c1bb49befb84cefa5e51fe613f97a1064c75fedc0820b78db8457baee",
+    "license": "Original project geometry; see source asset catalog",
+    "status": "runtime copy; interactive integration pending"
+  },
+  {
+    "id": "prop_rail",
+    "source": "assets/exports/environment/lujiazui_direct/v002/barrier_rail.glb",
+    "runtime": "game/assets/props/rail.glb",
+    "sha256": "ec86fce1e214744f227ff03f7215e806cc8b1ec83177d25419716a3429de2fd1",
+    "license": "Original project geometry; see source asset catalog",
+    "status": "runtime copy; interactive integration pending"
+  },
+  {
+    "id": "prop_pole",
+    "source": "assets/exports/environment/lujiazui_direct/v002/lamp_single.glb",
+    "runtime": "game/assets/props/pole.glb",
+    "sha256": "b9560e72fd74a8496a0cc8239cf46a1b0694ae3506c5a92464049a5c1bf6b1c9",
+    "license": "Original project geometry; see source asset catalog",
+    "status": "runtime copy; interactive integration pending"
+  },
+  {
+    "id": "prop_car",
+    "source": "assets/exports/environment/lujiazui_city/v004/props/city_car.glb",
+    "runtime": "game/assets/props/car.glb",
+    "sha256": "3a7b110c21079764b0698ccbbb82c277eb09373d9232389f178d15c73fded86e",
+    "license": "Original project geometry; see source asset catalog",
+    "status": "runtime copy; interactive integration pending"
+  },
+  {
+    "id": "lujiazui_city_v005",
+    "source": "assets/exports/environment/lujiazui_city/v005/lujiazui_city.glb",
+    "runtime": "game/assets/environment/lujiazui_v005/city.glb",
+    "sha256": "7f9ce6db87fb55707f7b444cc3b9dfc6beb5f9c72ab8f5d5920e6846c0d83d83",
+    "source_review": "pending; runtime integration candidate",
+    "editable_source": "see art m1-cbd-layout and map v005 handoff; runtime copy is not editable master",
+    "postprocess": {
+      "producer": "tools/analysis/city_stream/build_city_stream.py",
+      "handoff": "tools/analysis/city_stream/handoff-cbd-v005.json",
+      "manifest": "game/assets/environment/lujiazui_v005/stream/build_60377e07fa1026da/manifest.json",
+      "sha256": "d972c9766c0aa97cdc9d20bbbd995871afc6bd7aea09530a3d4a168a639a1e32",
+      "build_id": "60377e07fa1026da",
+      "engine": "4.6.3.stable.official.7d41c59c4"
+    }
+  },
+  {
+    "id": "m1_cbd_overlay_v001",
+    "source": "assets/exports/environment/m1_cbd/v001/cbd_overlay.glb",
+    "runtime": "game/assets/environment/m1_cbd_v001/cbd_overlay.glb",
+    "sha256": "49ac59b0ea155d8dee3178c84b0cd3a74b715a267281119843a0755d44d620b5",
+    "source_review": "pending; runtime integration candidate",
+    "editable_source": "see art m1-cbd-layout and map v005 handoff; runtime copy is not editable master"
+  },
+  {
+    "id": "m1_cbd_ingress_candidates_v001",
+    "source": "assets/exports/environment/m1_cbd/v001/cbd_ingress_candidates.glb",
+    "runtime": "game/assets/environment/m1_cbd_v001/cbd_ingress_candidates.glb",
+    "sha256": "c0beceb8bff8eb551654a487c778df56de5cd4209adbe4b3b6a4f14ced101687",
+    "source_review": "pending; runtime integration candidate",
+    "editable_source": "see art m1-cbd-layout and map v005 handoff; runtime copy is not editable master"
+  },
+  {
+    "id": "lab_display:characters/yousun_v002.glb",
+    "source": "assets/exports/characters/yousun/v002/yousun.glb",
+    "runtime": "game/assets/lab/characters/yousun_v002.glb",
+    "sha256": "576ca9a6c3cb2014b8c9d2a40779a14573377ea51eeb8713af0c5352fa599ee1",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:characters/fengren_v003.glb",
+    "source": "assets/exports/characters/fengren/v003/fengren.glb",
+    "runtime": "game/assets/lab/characters/fengren_v003.glb",
+    "sha256": "a7f93ec49cc380a3f7b732de5212594cdcdec1b398f5ded798202203f1b06199",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_assault_rifle_01.glb",
+    "source": "assets/exports/weapons/wpn_assault_rifle_01/v003/wpn_assault_rifle_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_assault_rifle_01.glb",
+    "sha256": "ff76b3c3b37dadad389aff13f1aa1c0a34bf380cd6518393f6cb31bc5ed2271d",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_assault_rifle_01.json",
+    "source": "assets/exports/weapons/wpn_assault_rifle_01/v003/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_assault_rifle_01.json",
+    "sha256": "d8a7902db4634f3f87247975f41f9c02ab8f25424c505d55cdc0a5718d0af985",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_precision_rifle_01.glb",
+    "source": "assets/exports/weapons/wpn_precision_rifle_01/v002/wpn_precision_rifle_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_precision_rifle_01.glb",
+    "sha256": "e0e18860c8bad65d80259b67bfb50c0e3692710fd564567630394fad204c06cf",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_precision_rifle_01.json",
+    "source": "assets/exports/weapons/wpn_precision_rifle_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_precision_rifle_01.json",
+    "sha256": "3660d9e55924ec06359c4c64a740c5fa42538037e48cb08c0f1c39ab7afbc8e2",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_quad_machinegun_01.glb",
+    "source": "assets/exports/weapons/wpn_quad_machinegun_01/v002/wpn_quad_machinegun_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_quad_machinegun_01.glb",
+    "sha256": "2c2b7da008b90a1f80121c51a5bac4b828764f003a1dd7fd07b715ee72357a8f",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_quad_machinegun_01.json",
+    "source": "assets/exports/weapons/wpn_quad_machinegun_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_quad_machinegun_01.json",
+    "sha256": "b21ba601435e21df6eaabb37ae135a4f8661c397d3f60814ab0127cbd7817e5b",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_power_gauntlets_01.glb",
+    "source": "assets/exports/weapons/wpn_power_gauntlets_01/v002/wpn_power_gauntlets_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_power_gauntlets_01.glb",
+    "sha256": "b91ae511e5fd17e63ffd9dcc320817ad7f2ea8dc03b6ed7cc42f97606301923e",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_power_gauntlets_01.json",
+    "source": "assets/exports/weapons/wpn_power_gauntlets_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_power_gauntlets_01.json",
+    "sha256": "3330acc083b33fafb895d96fc669c863e8a7c6149bfcef2fd03edaecce47667f",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_twin_grenade_01.glb",
+    "source": "assets/exports/weapons/wpn_twin_grenade_01/v002/wpn_twin_grenade_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_twin_grenade_01.glb",
+    "sha256": "6724feb5e3be3d42eff20f1b640694cf359a8b66cc075eedc7aa0f2036cdc65c",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_twin_grenade_01.json",
+    "source": "assets/exports/weapons/wpn_twin_grenade_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_twin_grenade_01.json",
+    "sha256": "d468426e47960a003b62bf846be274976bae124ab5de9e09b0a9fffc98012e04",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_command_pistol_01.glb",
+    "source": "assets/exports/weapons/wpn_command_pistol_01/v002/wpn_command_pistol_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_command_pistol_01.glb",
+    "sha256": "0b65db9ac148d6213fdf37105c88c0618b0b4c3b5dfbffa9293d1c15f9e5f7ca",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_command_pistol_01.json",
+    "source": "assets/exports/weapons/wpn_command_pistol_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_command_pistol_01.json",
+    "sha256": "ce02fde3cae7433d867403d40359b37314f9c1322877fe4082b53f0625458288",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_smg_01.glb",
+    "source": "assets/exports/weapons/wpn_smg_01/v002/wpn_smg_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_smg_01.glb",
+    "sha256": "510337385f6d0bff2b4d4689286c21bf4ae7e8338fd8d373952ca97c57880c2d",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_smg_01.json",
+    "source": "assets/exports/weapons/wpn_smg_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_smg_01.json",
+    "sha256": "d1639c5028058f127e4e24bdc4698a481a400e3d1bc2a7e123fe3b3b9b83eff7",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_shotgun_01.glb",
+    "source": "assets/exports/weapons/wpn_shotgun_01/v002/wpn_shotgun_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_shotgun_01.glb",
+    "sha256": "acacfffb9a079053cee82a22b29ffc5ffb438a2b57458ec7b5574ba3ec78ba76",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_shotgun_01.json",
+    "source": "assets/exports/weapons/wpn_shotgun_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_shotgun_01.json",
+    "sha256": "ca7f271e1e982725bc98696f77f0008b048473b71ca644bede7c363fc3f843b8",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_service_pistol_01.glb",
+    "source": "assets/exports/weapons/wpn_service_pistol_01/v002/wpn_service_pistol_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_service_pistol_01.glb",
+    "sha256": "5a0d107844f03df253a3ef7759a91de00777f30c8b752cf09aec2280bb75e1f5",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_service_pistol_01.json",
+    "source": "assets/exports/weapons/wpn_service_pistol_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_service_pistol_01.json",
+    "sha256": "897fb3c5e3d18b9ef1c52cd655b0557e4f30148a65c005d492f3cd5d47b493b1",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_gatling_01.glb",
+    "source": "assets/exports/weapons/wpn_gatling_01/v002/wpn_gatling_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_gatling_01.glb",
+    "sha256": "861b7842f4f0dbb86c95e6edd05096a901fcdcf57aad6005e4c94910d369b43f",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_gatling_01.json",
+    "source": "assets/exports/weapons/wpn_gatling_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_gatling_01.json",
+    "sha256": "4d56e8825465cc9f5c6c494b2a31ca633cca31792ad71097c0f9e7cd8b717858",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_laser_01.glb",
+    "source": "assets/exports/weapons/wpn_laser_01/v002/wpn_laser_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_laser_01.glb",
+    "sha256": "427e4f2ffd0c8511051ab02f630505ff677b4d9d38cbc4610f0a369bd5f15bb6",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_laser_01.json",
+    "source": "assets/exports/weapons/wpn_laser_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_laser_01.json",
+    "sha256": "546a99af625f159f2d5cfd4de759771240b759b206f96e50917f06e1b4332bb0",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_heavy_rocket_01.glb",
+    "source": "assets/exports/weapons/wpn_heavy_rocket_01/v002/wpn_heavy_rocket_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_heavy_rocket_01.glb",
+    "sha256": "03266c9b2f94015ef70f36d057457536c5b94b7376a9803e404ae9a0c60eea09",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_heavy_rocket_01.json",
+    "source": "assets/exports/weapons/wpn_heavy_rocket_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_heavy_rocket_01.json",
+    "sha256": "fe87a525bbf3fbe77bfaaf25e2e12fe7290971eef71932e53895cd0226543977",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_railgun_01.glb",
+    "source": "assets/exports/weapons/wpn_railgun_01/v002/wpn_railgun_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_railgun_01.glb",
+    "sha256": "5032285f8785ed0093806f30cd4b61a515c4d7d6599ab750be852e1aca35d950",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_railgun_01.json",
+    "source": "assets/exports/weapons/wpn_railgun_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_railgun_01.json",
+    "sha256": "b00a1520f06085b112b7ff905bae953395fcdefbb902d3b82d3ac7fa21af9e19",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_arc_01.glb",
+    "source": "assets/exports/weapons/wpn_arc_01/v002/wpn_arc_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_arc_01.glb",
+    "sha256": "084b6f1c811c57454f0bf8317d926d062489ef77e72dae9c0dbebd12d6935d1b",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_arc_01.json",
+    "source": "assets/exports/weapons/wpn_arc_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_arc_01.json",
+    "sha256": "a52d0354f023559632ed10f84d33664b460301ebd90d12e5741a3b87d22d353d",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_q3_rocket_01.glb",
+    "source": "assets/exports/weapons/wpn_q3_rocket_01/v002/wpn_q3_rocket_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_q3_rocket_01.glb",
+    "sha256": "480cea57fa8505336689ad0dcf048bc9b44b2416ad161a90a726eaa98eae50f3",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_q3_rocket_01.json",
+    "source": "assets/exports/weapons/wpn_q3_rocket_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_q3_rocket_01.json",
+    "sha256": "75945cb7c7694a61110feea9fdc9c60ed01b13f32ce1cd850fd1ec09a90a9d6e",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_energy_sword_01.glb",
+    "source": "assets/exports/weapons/wpn_energy_sword_01/v002/wpn_energy_sword_01.glb",
+    "runtime": "game/assets/lab/weapons/wpn_energy_sword_01.glb",
+    "sha256": "30c242f6029dd8300d548781edf36f008232786e9d70d1db0c0d315e6abe528d",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapons/wpn_energy_sword_01.json",
+    "source": "assets/exports/weapons/wpn_energy_sword_01/v002/interface.json",
+    "runtime": "game/assets/lab/weapons/wpn_energy_sword_01.json",
+    "sha256": "9dd97e36a14531a55339b9fd85b4701a8dbde4b1db65037f8d78f55024aa6b1f",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/arc.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/arc.tscn",
+    "runtime": "game/assets/lab/weapon_fx/arc.tscn",
+    "sha256": "988fbc92b7cdaa3a9921e951488dbbd862c97ecc6245b6459f834e9e44a31d48",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/gat.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/gat.tscn",
+    "runtime": "game/assets/lab/weapon_fx/gat.tscn",
+    "sha256": "7655d60ae665671dd8d828c531cc295e2376f901d3f23e20a7771279fd934718",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/h1.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/h1.tscn",
+    "runtime": "game/assets/lab/weapon_fx/h1.tscn",
+    "sha256": "44febcf8f168ac07ed205508f9e61f941bfd0f6dc2e1357d9b66d801f8c845ac",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/h2.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/h2.tscn",
+    "runtime": "game/assets/lab/weapon_fx/h2.tscn",
+    "sha256": "af7255d322535ce6c70e91f08c62f55de0c8f597727654dffafca5a3ab28b7bb",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/h3.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/h3.tscn",
+    "runtime": "game/assets/lab/weapon_fx/h3.tscn",
+    "sha256": "df480c84b7dd75b3b3585169b0df42fb0d6a9a6d3a5885fd7a47ae4c57fcac7f",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/h4.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/h4.tscn",
+    "runtime": "game/assets/lab/weapon_fx/h4.tscn",
+    "sha256": "627ea07a85675ff484c362b91e0e0ae741ed541a02a0622ff69ef660efa29301",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/h5.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/h5.tscn",
+    "runtime": "game/assets/lab/weapon_fx/h5.tscn",
+    "sha256": "c95e466e9184009b2813a9c0c42ed24400be4f26b74084f39f283b0ff9c9efac",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/h6.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/h6.tscn",
+    "runtime": "game/assets/lab/weapon_fx/h6.tscn",
+    "sha256": "44bce53ec714f60e21879f6bf23d869c1c39e18d5f81f85894738003d0564650",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/las.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/las.tscn",
+    "runtime": "game/assets/lab/weapon_fx/las.tscn",
+    "sha256": "415ec9130f2fa541b0629f5868b0131955487b74864d8d5bdfd08b3aeffd6a77",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/p.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/p.tscn",
+    "runtime": "game/assets/lab/weapon_fx/p.tscn",
+    "sha256": "da5b73d446b2b9c06ed33829a429f506c56af22f14681fabd6d25af7a7cbb196",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/q3.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/q3.tscn",
+    "runtime": "game/assets/lab/weapon_fx/q3.tscn",
+    "sha256": "5542da68c0edca3af63fb3dc3c7207e1241b219c58b052444fba0f9b3fb0d1d5",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/rail.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/rail.tscn",
+    "runtime": "game/assets/lab/weapon_fx/rail.tscn",
+    "sha256": "df8fc06721c7f5b5ecb71b9c7161ed73f2255e4f5c6e2ee88e3a5f549fb10927",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/rpg.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/rpg.tscn",
+    "runtime": "game/assets/lab/weapon_fx/rpg.tscn",
+    "sha256": "003345affb823152a164eec3464389fab6ba053cb90b9dc8e2f59eda9b20863e",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/sg.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/sg.tscn",
+    "runtime": "game/assets/lab/weapon_fx/sg.tscn",
+    "sha256": "52340bafc5171fc677f18f65a7173b86a5bc23fe03b4a7e0de0b48524c38c32d",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/smg.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/smg.tscn",
+    "runtime": "game/assets/lab/weapon_fx/smg.tscn",
+    "sha256": "3b6e3f37522f96926d1693e13372308b3ab9d14a3dbee5651f19180bba46fb15",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/sword.tscn",
+    "source": "assets/exports/vfx/weapon_suite/v002/sword.tscn",
+    "runtime": "game/assets/lab/weapon_fx/sword.tscn",
+    "sha256": "53909065cc9b23e3122bcd5ac0292430712142678dfde93739841179c2b6076d",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:weapon_fx/weapon_effect.gd",
+    "source": "assets/exports/vfx/weapon_suite/v002/weapon_effect.gd",
+    "runtime": "game/assets/lab/weapon_fx/weapon_effect.gd",
+    "sha256": "e01d0fd25410b1a49f9bfafb5989378f5f4da97a126df912a52939b6a711f1bd",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/water_surface.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/water_surface.tscn",
+    "runtime": "game/assets/lab/environment_fx/water_surface.tscn",
+    "sha256": "772e44f758f55a91f1d8e3039f9a7138ff9ccbc0ac1456692c1f560f2ca6e069",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/fountain.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/fountain.tscn",
+    "runtime": "game/assets/lab/environment_fx/fountain.tscn",
+    "sha256": "a3fc37b50be21f4134bf7848f6323350ec2e0ea1709b55c8ad0085c6689dcacb",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/warning_circle.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/warning_circle.tscn",
+    "runtime": "game/assets/lab/environment_fx/warning_circle.tscn",
+    "sha256": "1be5cee28e951913ed343f22cd3a67cb9cabf4111d694ecf48bee59d5ebb9196",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/airstrike_strip.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/airstrike_strip.tscn",
+    "runtime": "game/assets/lab/environment_fx/airstrike_strip.tscn",
+    "sha256": "0771b141fa561a640e8d7d374fb6d565d14958b3a590f914d9f3b36508f13915",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/supply_beacon.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/supply_beacon.tscn",
+    "runtime": "game/assets/lab/environment_fx/supply_beacon.tscn",
+    "sha256": "63b6bee48f2cb858acbe99b4eb20b7e4f0c0626bacfe21b7ec60ec5d33478e7e",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/evacuation_zone.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/evacuation_zone.tscn",
+    "runtime": "game/assets/lab/environment_fx/evacuation_zone.tscn",
+    "sha256": "041f80daf0fb24c4a5991398ee043b0aabbaf0a0fa41562141e7718d5bee4067",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/pearl_charge.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/pearl_charge.tscn",
+    "runtime": "game/assets/lab/environment_fx/pearl_charge.tscn",
+    "sha256": "c6a3a6596fdb5a4a5b54d7bcfae860a85f7a86066fb1a4c4476084529966d0c9",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/pearl_beam.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/pearl_beam.tscn",
+    "runtime": "game/assets/lab/environment_fx/pearl_beam.tscn",
+    "sha256": "f0a9114ed383315075fbbc5093ae2c4a737cd84f9d3f5283c471f7839af32fe5",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/pearl_impact.tscn",
+    "source": "assets/exports/environment/lujiazui_effects/v001/pearl_impact.tscn",
+    "runtime": "game/assets/lab/environment_fx/pearl_impact.tscn",
+    "sha256": "b96a2339eb1004e79ee9b5ac17b6433a397b9abd6b88c301d594ac6e6fafa37b",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/environment_effect.gd",
+    "source": "assets/exports/environment/lujiazui_effects/v001/environment_effect.gd",
+    "runtime": "game/assets/lab/environment_fx/environment_effect.gd",
+    "sha256": "c9855402675541e11eeb99451aae02287d7112f03ab785f08088848d1f39acc9",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/water_surface.gdshader",
+    "source": "assets/exports/environment/lujiazui_effects/v001/water_surface.gdshader",
+    "runtime": "game/assets/lab/environment_fx/water_surface.gdshader",
+    "sha256": "b2b7f42180b55710648ae5675cdb8a826deda27a4703a9cf0ca49bf7b0bef708",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "lab_display:environment_fx/lamp_emission.gdshader",
+    "source": "assets/exports/environment/lujiazui_effects/v001/lamp_emission.gdshader",
+    "runtime": "game/assets/lab/environment_fx/lamp_emission.gdshader",
+    "sha256": "b4784617f1436467aeec0cf5b611d06b3e362faf210ffcb85c82056a8768684e",
+    "purpose": "lab_display_only",
+    "source_review": "see art manifest; not gameplay acceptance"
+  },
+  {
+    "id": "ui_m1_health_frame_v004",
+    "source": "assets/exports/ui/m1_hud/v004/frames/health.png",
+    "runtime": "game/assets/ui/m1_hud/health.png",
+    "sha256": "5a4bd293e204b693a84e78b25dc4752182192a4db1853b5329bb63fe65f341ca",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_wave_frame_v004",
+    "source": "assets/exports/ui/m1_hud/v004/frames/wave.png",
+    "runtime": "game/assets/ui/m1_hud/wave.png",
+    "sha256": "ceadda96d96419f92c3b25969df15501877d81a359978a8bd59e1f0fe77292fc",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_ammo_frame_v004",
+    "source": "assets/exports/ui/m1_hud/v004/frames/ammo.png",
+    "runtime": "game/assets/ui/m1_hud/ammo.png",
+    "sha256": "440048c43a955fc1982f626623c4bcc6784796007b35fbbc54f096b94973fa12",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_rocket_boot_icon_v004",
+    "source": "assets/exports/ui/m1_hud/v004/icons/rocket_boot.png",
+    "runtime": "game/assets/ui/m1_hud/rocket_boot.png",
+    "sha256": "0c55cdd600df4a15a8806c5771284dd9d1ecfe06000cc497d904366ed6c97616",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_fengren_icon_v004",
+    "source": "assets/exports/ui/m1_hud/v004/icons/fengren.png",
+    "runtime": "game/assets/ui/m1_hud/fengren.png",
+    "sha256": "ca13029c94b230e89b4ab4a5de6fb664f4f5773c29ec15c39dc2ae7e1ef56730",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_tiezhen_icon_v004",
+    "source": "assets/exports/ui/m1_hud/v004/icons/tiezhen.png",
+    "runtime": "game/assets/ui/m1_hud/tiezhen.png",
+    "sha256": "05a92663d9e06ac975934b4f9ecb01a9bea9e7209103735e45913ffb436d204b",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_rifle_icon_v005",
+    "source": "assets/exports/ui/m1_hud/v005/icons/rifle.png",
+    "runtime": "game/assets/ui/m1_hud/rifle.png",
+    "sha256": "54967ccbd80ca459083224d6a3318ebd705bdfc6e23be6ac8e1d22827ab3e479",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  },
+  {
+    "id": "ui_m1_machinegun_icon_v004",
+    "source": "assets/exports/ui/m1_hud/v004/icons/machinegun.png",
+    "runtime": "game/assets/ui/m1_hud/machinegun.png",
+    "sha256": "bf3d7ecac570ebae1a87d2149da29f713e6090b364e08abb5e71e4c9b0c25f9b",
+    "source_review": "pending",
+    "usage": "combat HUD; v005 selected mixed-version package",
+    "import_settings": "lossless PNG; linear CanvasItem filter; keep aspect; no mipmaps"
+  }
+]

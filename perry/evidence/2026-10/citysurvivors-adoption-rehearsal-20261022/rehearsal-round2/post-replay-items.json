@@ -1,0 +1,1261 @@
+[
+  {
+    "id": "TASK-001",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] CS-030 按[ADR-014](docs/decisions/ADR-014-character-asset-interface.md)交米制／−Z朝前／脚底原点的M1角色、映射／挂点和片段包；接续已有程序退回，修锋刃换弹起止与移动持枪衔接，不更换角色或武器范围",
+      "summary": "CitySurvivors:project.todo:CS-030; 责任角色=美术; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P0",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 129,
+    "created_at": "2026-10-22T10:35:50Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-016",
+        "to": "TASK-001"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-017",
+        "to": "TASK-001"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-018",
+        "to": "TASK-001"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-030-source-spec.md",
+        "hash": "sha256:99ec2628b1c8423398eee8568f0cd3beef65e5b9e9bc8d0427d5141bd6a19f15"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-002",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] CS-031 接CS-030角色与配套武器、权威状态动画和挂点；钳牙保留尺寸、身体／双钳分区命中与导航包络分开。收到动作修正版后回接验证并更新运行manifest",
+      "summary": "CitySurvivors:project.todo:CS-031; 责任角色=程序; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P0",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 140,
+    "created_at": "2026-10-22T10:35:50Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-030",
+        "to": "TASK-002"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-031",
+        "to": "TASK-002"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-032",
+        "to": "TASK-002"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-031-source-spec.md",
+        "hash": "sha256:ce2ad8abd1eee136260075bc3ba089850d57375430171d068a830fb57c313a2b"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-003",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] CS-061 按[重构交接](docs/production/test-ground-refactor-handoff.md)分A／B批交单核心／长射道、快捷预设与快速复位、标准靶／真实钳牙、可信测量及视觉观察；复用战斗／网络并留旧模式回归",
+      "summary": "CitySurvivors:project.todo:CS-061; 责任角色=程序; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 137,
+    "created_at": "2026-10-22T10:35:50Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-027",
+        "to": "TASK-003"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-028",
+        "to": "TASK-003"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-029",
+        "to": "TASK-003"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-061-source-spec.md",
+        "hash": "sha256:db04e3d0737545828150a7d247fe985eac80a11ccb4ca1b80969dbec323d14cf"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-004",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] CS-065 按[CBD补充交接](docs/production/m1-cbd-handoff.md#钳牙威胁试玩退回cs-065)先复现并修小物／窄口队列／追逐停滞，再分Q2追速、Q3攻击、Q4密度交对照；记录真实接敌与可交战量，保留原版回归",
+      "summary": "CitySurvivors:project.todo:CS-065; 责任角色=程序; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P0",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 134,
+    "created_at": "2026-10-22T10:35:50Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-023",
+        "to": "TASK-004"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-024",
+        "to": "TASK-004"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-025",
+        "to": "TASK-004"
+      },
+      {
+        "kind": "parent",
+        "from": "TASK-026",
+        "to": "TASK-004"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-065-source-spec.md",
+        "hash": "sha256:dab5ca9e81d827e3048b02d34a385e02cda7f2982d5ef30cc6ae9a4b1509ab9f"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-005",
+    "type": "task",
+    "state": "not_started",
+    "fields": {
+      "title": "[隔离演练] CS-066 在程序同版修复候选上复测两枪追逐／小群／CBD三波，区分卡路恢复、接近／出手与密度收益，记录原话与回退结果",
+      "summary": "CitySurvivors:project.todo:CS-066; 责任角色=策划; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "演练候选状态，不开展游戏生产。正式迁移前由原维护者确认当前状态、优先级、验收层级和具体接续。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 21,
+    "created_at": "2026-10-22T10:35:51Z",
+    "updated_at": "2026-10-22T10:35:51Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-066-source-spec.md",
+        "hash": "sha256:624632cc9c1bf37e9a32a9d45cf56479afacb2ee0bef40b3c0a63c340cc9e5f4"
+      }
+    ],
+    "startable": true,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-006",
+    "type": "task",
+    "state": "not_started",
+    "fields": {
+      "title": "[隔离演练] CS-068 以[人物唯一源](docs/design/characters.md)和[攻击规则](docs/design/characters/attack-rules.md)对齐旧角色引用，人物正文不另抄维护；只在美术领域保留视觉制作／资产差异与证据",
+      "summary": "CitySurvivors:project.todo:CS-068; 责任角色=美术; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "演练候选状态，不开展游戏生产。正式迁移前由原维护者确认当前状态、优先级、验收层级和具体接续。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 24,
+    "created_at": "2026-10-22T10:35:51Z",
+    "updated_at": "2026-10-22T10:35:51Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-068-source-spec.md",
+        "hash": "sha256:fc186bf2af50663b1f2fa3883d446a2ef17085ab87671b9042b8703753d644e4"
+      }
+    ],
+    "startable": true,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-007",
+    "type": "task",
+    "state": "not_started",
+    "fields": {
+      "title": "[隔离演练] CS-076 按[视觉设定任务](#cs-076-全员角色视觉设定)制作16人同尺度人体／装配对照与角色设定图，先细化四名代表；表现体型、具象主题、性格反差及武器操作姿态",
+      "summary": "CitySurvivors:project.todo:CS-076; 责任角色=美术; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "演练候选状态，不开展游戏生产。正式迁移前由原维护者确认当前状态、优先级、验收层级和具体接续。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 27,
+    "created_at": "2026-10-22T10:35:51Z",
+    "updated_at": "2026-10-22T10:35:51Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-076-source-spec.md",
+        "hash": "sha256:96f22fd8bc41b808b67d92b2eac9049a72c05ada5a29770283be23d04b6aa331"
+      }
+    ],
+    "startable": true,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-008",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] CS-078 按用途整理程序／QA文档，分清组件专业说明、协作接口、测试场与HUD工具使用指南、任务工作稿及历史证据",
+      "summary": "CitySurvivors:project.todo:CS-078; 责任角色=程序; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 130,
+    "created_at": "2026-10-22T10:35:51Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-021",
+        "to": "TASK-008"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-078-source-spec.md",
+        "hash": "sha256:0fb06a084ad0fad9957c95d2e3e3acef74f71e597d345c14e3810bd8cb3e8e59"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-009",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] CS-079 按用途整理美术文档，分清风格／经验、任务过程、唯一资产总表、对外交付、素材选择／预览指南与历史证据",
+      "summary": "CitySurvivors:project.todo:CS-079; 责任角色=美术; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 126,
+    "created_at": "2026-10-22T10:35:51Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-011",
+        "to": "TASK-009"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-079-source-spec.md",
+        "hash": "sha256:411f0524466dc3c574bae9ddfdad10a82c15489492a51f8af6b50032b21ac3bb"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-010",
+    "type": "task",
+    "state": "not_started",
+    "fields": {
+      "title": "[隔离演练] CS-080 复核CS-078／079用途分类、指南可用性、唯一源、入链与固定输入例外，汇总项目总入口和跨角色状态",
+      "summary": "CitySurvivors:project.todo:CS-080; 责任角色=策划; 生命周期维护=策划; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P1",
+      "owner": "PMO Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "Simulation: package remains pending actual criteria.",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 141,
+    "created_at": "2026-10-22T10:35:52Z",
+    "updated_at": "2026-10-22T10:36:00Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../todo.md",
+        "hash": "sha256:1f221b5ce959ac46a19212880d004f2c3d85d8c7d5fd1b46fad8c9d30d922b7f"
+      },
+      {
+        "ref": "evidence/CS-080-source-spec.md",
+        "hash": "sha256:2208f8de3f4451d69f462710ea109fd7a126da9ba02642f9f1a7eaaadb8c70a5"
+      }
+    ],
+    "startable": true,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-011",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-089 分类／读者／维护方式；长期方法与过程分开；交付／预览指南；路径SHA与U01～U06检查",
+      "summary": "CitySurvivors:art.todo:ART-089; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 126,
+    "created_at": "2026-10-22T10:35:52Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-011",
+        "to": "TASK-009"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-089-source-spec.md",
+        "hash": "sha256:e4544c2b5cc71c00f83607e724882a28d9b5e0e59a38af5b17f84c6aa83bda34"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-012",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-088 保留已认可本体v002，交骨架、权重与空手待机／行走／原地跑、关节探针和引擎验证",
+      "summary": "CitySurvivors:art.todo:ART-088; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 46,
+    "created_at": "2026-10-22T10:35:52Z",
+    "updated_at": "2026-10-22T10:35:52Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-088-source-spec.md",
+        "hash": "sha256:189d02f8c1347b74fb638a481b0be6bf7a8f41b7461d99cd93dd7e322704367c"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-013",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-087 用本地UI工具完成全UI结构；审阅后再推进概念与独立组件",
+      "summary": "CitySurvivors:art.todo:ART-087; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 50,
+    "created_at": "2026-10-22T10:35:52Z",
+    "updated_at": "2026-10-22T10:35:53Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-087-source-spec.md",
+        "hash": "sha256:21ab01d8a0c659411d4dd7fe2ca162bc3e7a4f71233bdcd3ed12fd585d834613"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-014",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-086 按新加入先选人、再来一局回选人、原局重连恢复身份，交标题至结算完整流程及界面／资源缺口",
+      "summary": "CitySurvivors:art.todo:ART-086; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 54,
+    "created_at": "2026-10-22T10:35:53Z",
+    "updated_at": "2026-10-22T10:35:53Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-086-source-spec.md",
+        "hash": "sha256:be1b4df72a7ef03921d61bde2b5bc1298d1455e2b609d2d3bef68accd0e26702"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-015",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-085 沿已采用方块设计整理现有Tripo本体，人体参考、块面和手部交v002及新旧实图",
+      "summary": "CitySurvivors:art.todo:ART-085; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 58,
+    "created_at": "2026-10-22T10:35:53Z",
+    "updated_at": "2026-10-22T10:35:53Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-085-source-spec.md",
+        "hash": "sha256:b01ad44fb21045f34d6d724c9be88fab4095a3137e7c5e6edd0d6c0706516f54"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-016",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-076 保留锋刃骨架／蒙皮／握点与换弹权威时长，修共享持枪准备和换弹起止；对照上下身分层、掌心与枪口连续性",
+      "summary": "CitySurvivors:art.todo:ART-076; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 127,
+    "created_at": "2026-10-22T10:35:53Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-016",
+        "to": "TASK-001"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-076-source-spec.md",
+        "hash": "sha256:e309c6115c8a0f6192ee9b953390857b8dd701dfa620a055a0a388dbae8442d1"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-017",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-043 按ADR-014交锋刃／钳牙兵GLB：米制、−Z、脚底原点，钳牙兵补钳骨与8片段，锋刃10片段与持枪IK，骨骼映射表与`weapon_r`",
+      "summary": "CitySurvivors:art.todo:ART-043; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 128,
+    "created_at": "2026-10-22T10:35:53Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-017",
+        "to": "TASK-001"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-043-source-spec.md",
+        "hash": "sha256:6551d47d4b2a05eeb9ece3ba0cd3b6798c18ae9ee0379422b0b91fdf43b9ef83"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-018",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] ART-044 保持身体和枪网格，修正左手托枪及换弹枪靠近眼睛；交 v002 配套人物／武器、对照与接触检查",
+      "summary": "CitySurvivors:art.todo:ART-044; 责任角色=美术; 生命周期维护=美术; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 129,
+    "created_at": "2026-10-22T10:35:54Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-018",
+        "to": "TASK-001"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/art/todo.md",
+        "hash": "sha256:1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50"
+      },
+      {
+        "ref": "evidence/ART-044-source-spec.md",
+        "hash": "sha256:06fc55cdf2a7826eb23f9c5a58c94df37308601a852165b41839daa2ef3b8aed"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-019",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-094 Frame与嵌套层级、局部坐标、逐层选择、整体移动、隐藏／锁定／透明度继承、复制与v1／v2兼容",
+      "summary": "CitySurvivors:tech.todo:DEV-094; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 74,
+    "created_at": "2026-10-22T10:35:54Z",
+    "updated_at": "2026-10-22T10:35:54Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-094-source-spec.md",
+        "hash": "sha256:737b4aeafea3b9afd7bbd27ffd54df6a3f434299b44f650e987f4c569abe4aa8"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-020",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-096 分别从Agent与人工操作角度检查接口易用性并修正问题",
+      "summary": "CitySurvivors:tech.todo:DEV-096; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 78,
+    "created_at": "2026-10-22T10:35:54Z",
+    "updated_at": "2026-10-22T10:35:54Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-096-source-spec.md",
+        "hash": "sha256:47b1527f6666199d8c727a7b5b24b02959009d40131bf33cddbfb71a8ed030b4"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-021",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-092 程序用途／读者／维护方式分类、指南／组件／接口分离、固定消费者与U01～U06检查",
+      "summary": "CitySurvivors:tech.todo:DEV-092; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 130,
+    "created_at": "2026-10-22T10:35:54Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-021",
+        "to": "TASK-008"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-092-source-spec.md",
+        "hash": "sha256:898d2ef983aa1f3a5cbe015c791258525a19d02764a7e651a8848664f7278f30"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-022",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-089 ART-062 v0.5运行接入，生命／弹药／冷却／倒地／队友／波次和分辨率",
+      "summary": "CitySurvivors:tech.todo:DEV-089; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 86,
+    "created_at": "2026-10-22T10:35:55Z",
+    "updated_at": "2026-10-22T10:35:55Z",
+    "relations": [],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-089-source-spec.md",
+        "hash": "sha256:b747155dde48bf981e47000cc0ecebdb414cad661fdc38bae2bf82ce492886a6"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-023",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-077 CS-065 P01／02：同版小物／E后绕掩体、导航移动一致、队列与有效重寻路",
+      "summary": "CitySurvivors:tech.todo:DEV-077; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 131,
+    "created_at": "2026-10-22T10:35:55Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-023",
+        "to": "TASK-004"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-077-source-spec.md",
+        "hash": "sha256:5f897bad2daa26a4a324804f859db157bfdab1365353dbe2e2a5081f14e3f371"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-024",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-078 CS-065 P03／04：Q2追速、Q3攻击许可／锁向错峰、Q4有限密度与恢复守恒",
+      "summary": "CitySurvivors:tech.todo:DEV-078; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 132,
+    "created_at": "2026-10-22T10:35:55Z",
+    "updated_at": "2026-10-22T10:35:58Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-024",
+        "to": "TASK-004"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-078-source-spec.md",
+        "hash": "sha256:bd44e65a84715b932bd2855603eb001653ab2f51c5ccfadc5014e2dcd1ca1551"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-025",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-079 CS-065 P05／06：出生→显形→E→接敌／攻击可观测，三波／重开／联机及体验交接",
+      "summary": "CitySurvivors:tech.todo:DEV-079; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 133,
+    "created_at": "2026-10-22T10:35:56Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-025",
+        "to": "TASK-004"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-079-source-spec.md",
+        "hash": "sha256:58b70db8a1530a448790f8042c1b5705a4fa6ce5df4d6b456a6cfa52243f5688"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-026",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-080 CS-065 P06：四人22只尾部耗时及目标机长局",
+      "summary": "CitySurvivors:tech.todo:DEV-080; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 134,
+    "created_at": "2026-10-22T10:35:56Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-026",
+        "to": "TASK-004"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-080-source-spec.md",
+        "hash": "sha256:58c50f33df7c0ffa3ae2801e9b2aad76a19a9ec4996250709dfa54fc12b970c7"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-027",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-081 CS-061 A：同地64×56米核心、快捷预设、单人开始／重来、常驻工具条、标准靶／真实钳牙隔离",
+      "summary": "CitySurvivors:tech.todo:DEV-081; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 135,
+    "created_at": "2026-10-22T10:35:56Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-027",
+        "to": "TASK-003"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-081-source-spec.md",
+        "hash": "sha256:5a62485230b6a48e948695b9450c0ea15c4ffafbc5fa500afd769d8841a5f9f7"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-028",
+    "type": "task",
+    "state": "not_started",
+    "fields": {
+      "title": "[隔离演练] DEV-083 CS-061后续：501米长射道、其他旧机制与完整联机／设备矩阵",
+      "summary": "CitySurvivors:tech.todo:DEV-083; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "演练候选状态，不开展游戏生产。正式迁移前由原维护者确认当前状态、优先级、验收层级和具体接续。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 136,
+    "created_at": "2026-10-22T10:35:56Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-028",
+        "to": "TASK-003"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-083-source-spec.md",
+        "hash": "sha256:c508ced9c2db190cd6b2f5cc0aad7516f0219f8288451ffd7f0dec95ffffae8e"
+      }
+    ],
+    "startable": true,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-029",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-084 主菜单／旧命令统一，同房五分类、互斥布置与展示清理",
+      "summary": "CitySurvivors:tech.todo:DEV-084; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 137,
+    "created_at": "2026-10-22T10:35:56Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-029",
+        "to": "TASK-003"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-084-source-spec.md",
+        "hash": "sha256:ba6e04bbfdd67471a7888746fa866f46a40c8a95b8663564712a4d30c3120b4b"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-030",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-038 运行副本、骨骼映射、AnimationTree、枪口与换弹联动、死亡外观清理",
+      "summary": "CitySurvivors:tech.todo:DEV-038; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 138,
+    "created_at": "2026-10-22T10:35:57Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-030",
+        "to": "TASK-002"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-038-source-spec.md",
+        "hash": "sha256:ac0a03567f68f56b188e7cf2f287fa1c4dbe1b740a3972ea7b2bbdfd862bcab3"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-031",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-039 实际渲染、角色／弹道／M1检查、带模型动画的ENet加入重连与导出规则",
+      "summary": "CitySurvivors:tech.todo:DEV-039; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 139,
+    "created_at": "2026-10-22T10:35:57Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-031",
+        "to": "TASK-002"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-039-source-spec.md",
+        "hash": "sha256:80aaf7899d3bd6dea43594ddb9f284f61ce5880a024eac30fee2aabc763b8efd"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  },
+  {
+    "id": "TASK-032",
+    "type": "task",
+    "state": "review",
+    "fields": {
+      "title": "[隔离演练] DEV-066 记录混合脱离及结束跳变，交明确时刻／骨骼／截图给导演协调美术",
+      "summary": "CitySurvivors:tech.todo:DEV-066; 责任角色=程序; 生命周期维护=程序; 仅隔离映射；源状态和未测保留于附件；无实际验收、无KR归属。",
+      "priority": "P2",
+      "owner": "User + Agent",
+      "track": "intake",
+      "verification": "V4",
+      "next_action": "仅隔离导入候选，等待原维护者对账及实际验收，不表示V4通过。",
+      "evidence": null,
+      "reason": null,
+      "verified_by": null
+    },
+    "seq": 140,
+    "created_at": "2026-10-22T10:35:57Z",
+    "updated_at": "2026-10-22T10:35:59Z",
+    "relations": [
+      {
+        "kind": "parent",
+        "from": "TASK-032",
+        "to": "TASK-002"
+      }
+    ],
+    "attachments": [
+      {
+        "ref": "../docs/tech/todo.md",
+        "hash": "sha256:95f8a57f1385ab5ec2657242679d41f3b32f5cc410d6ae81f53bc98d3f2895a6"
+      },
+      {
+        "ref": "evidence/DEV-066-source-spec.md",
+        "hash": "sha256:f4b29eaf6fb2ef8496571519aabebac11feaf6d0086574ce866157225be744d1"
+      }
+    ],
+    "startable": false,
+    "blocked_by": [],
+    "rollup": null
+  }
+]

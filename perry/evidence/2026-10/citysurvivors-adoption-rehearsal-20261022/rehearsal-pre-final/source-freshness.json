@@ -1,0 +1,10 @@
+{
+  "checked_paths": 39,
+  "changed_since_capture": [
+    "docs/art/todo.md",
+    "assets/manifest.md"
+  ],
+  "live_perry_exists": false,
+  "live_document_root_exists": false,
+  "limit": "Finite read-only comparison, not a complete source freeze or code/asset rollback backup."
+}

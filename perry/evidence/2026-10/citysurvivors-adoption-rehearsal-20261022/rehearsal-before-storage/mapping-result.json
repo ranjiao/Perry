@@ -1,0 +1,306 @@
+{
+  "native_scope": "isolated trial-main only; never copy these IDs into live records",
+  "mapping": {
+    "CS-030": "TASK-001",
+    "CS-031": "TASK-002",
+    "CS-061": "TASK-003",
+    "CS-065": "TASK-004",
+    "CS-066": "TASK-005",
+    "CS-068": "TASK-006",
+    "CS-076": "TASK-007",
+    "CS-078": "TASK-008",
+    "CS-079": "TASK-009",
+    "CS-080": "TASK-010",
+    "ART-089": "TASK-011",
+    "ART-088": "TASK-012",
+    "ART-087": "TASK-013",
+    "ART-086": "TASK-014",
+    "ART-085": "TASK-015",
+    "ART-076": "TASK-016",
+    "ART-043": "TASK-017",
+    "ART-044": "TASK-018",
+    "DEV-094": "TASK-019",
+    "DEV-096": "TASK-020",
+    "DEV-092": "TASK-021",
+    "DEV-089": "TASK-022",
+    "DEV-077": "TASK-023",
+    "DEV-078": "TASK-024",
+    "DEV-079": "TASK-025",
+    "DEV-080": "TASK-026",
+    "DEV-081": "TASK-027",
+    "DEV-083": "TASK-028",
+    "DEV-084": "TASK-029",
+    "DEV-038": "TASK-030",
+    "DEV-039": "TASK-031",
+    "DEV-066": "TASK-032"
+  },
+  "first_apply": {
+    "created": [
+      "CS-030",
+      "CS-031",
+      "CS-061",
+      "CS-065",
+      "CS-066",
+      "CS-068",
+      "CS-076",
+      "CS-078",
+      "CS-079",
+      "CS-080",
+      "ART-089",
+      "ART-088",
+      "ART-087",
+      "ART-086",
+      "ART-085",
+      "ART-076",
+      "ART-043",
+      "ART-044",
+      "DEV-094",
+      "DEV-096",
+      "DEV-092",
+      "DEV-089",
+      "DEV-077",
+      "DEV-078",
+      "DEV-079",
+      "DEV-080",
+      "DEV-081",
+      "DEV-083",
+      "DEV-084",
+      "DEV-038",
+      "DEV-039",
+      "DEV-066"
+    ],
+    "matched": [],
+    "seq_before": 2,
+    "seq_after": 125,
+    "before_pages": [
+      {
+        "seq": 2,
+        "ids": [],
+        "truncated": false,
+        "next_after": null
+      }
+    ]
+  },
+  "repeat_apply": {
+    "created": [],
+    "matched": [
+      "CS-030",
+      "CS-031",
+      "CS-061",
+      "CS-065",
+      "CS-066",
+      "CS-068",
+      "CS-076",
+      "CS-078",
+      "CS-079",
+      "CS-080",
+      "ART-089",
+      "ART-088",
+      "ART-087",
+      "ART-086",
+      "ART-085",
+      "ART-076",
+      "ART-043",
+      "ART-044",
+      "DEV-094",
+      "DEV-096",
+      "DEV-092",
+      "DEV-089",
+      "DEV-077",
+      "DEV-078",
+      "DEV-079",
+      "DEV-080",
+      "DEV-081",
+      "DEV-083",
+      "DEV-084",
+      "DEV-038",
+      "DEV-039",
+      "DEV-066"
+    ],
+    "seq_before": 140,
+    "seq_after": 140,
+    "before_pages": [
+      {
+        "seq": 140,
+        "ids": [
+          "TASK-001",
+          "TASK-002",
+          "TASK-003",
+          "TASK-004",
+          "TASK-005",
+          "TASK-006",
+          "TASK-007"
+        ],
+        "truncated": true,
+        "next_after": "TASK-007"
+      },
+      {
+        "seq": 140,
+        "ids": [
+          "TASK-008",
+          "TASK-009",
+          "TASK-010",
+          "TASK-011",
+          "TASK-012",
+          "TASK-013",
+          "TASK-014"
+        ],
+        "truncated": true,
+        "next_after": "TASK-014"
+      },
+      {
+        "seq": 140,
+        "ids": [
+          "TASK-015",
+          "TASK-016",
+          "TASK-017",
+          "TASK-018",
+          "TASK-019",
+          "TASK-020",
+          "TASK-021"
+        ],
+        "truncated": true,
+        "next_after": "TASK-021"
+      },
+      {
+        "seq": 140,
+        "ids": [
+          "TASK-022",
+          "TASK-023",
+          "TASK-024",
+          "TASK-025",
+          "TASK-026",
+          "TASK-027",
+          "TASK-028"
+        ],
+        "truncated": true,
+        "next_after": "TASK-028"
+      },
+      {
+        "seq": 140,
+        "ids": [
+          "TASK-029",
+          "TASK-030",
+          "TASK-031",
+          "TASK-032"
+        ],
+        "truncated": false,
+        "next_after": null
+      }
+    ]
+  },
+  "capture_seq": 140,
+  "pages": [
+    {
+      "seq": 140,
+      "ids": [
+        "TASK-001",
+        "TASK-002",
+        "TASK-003",
+        "TASK-004",
+        "TASK-005",
+        "TASK-006",
+        "TASK-007"
+      ],
+      "truncated": true,
+      "next_after": "TASK-007"
+    },
+    {
+      "seq": 140,
+      "ids": [
+        "TASK-008",
+        "TASK-009",
+        "TASK-010",
+        "TASK-011",
+        "TASK-012",
+        "TASK-013",
+        "TASK-014"
+      ],
+      "truncated": true,
+      "next_after": "TASK-014"
+    },
+    {
+      "seq": 140,
+      "ids": [
+        "TASK-015",
+        "TASK-016",
+        "TASK-017",
+        "TASK-018",
+        "TASK-019",
+        "TASK-020",
+        "TASK-021"
+      ],
+      "truncated": true,
+      "next_after": "TASK-021"
+    },
+    {
+      "seq": 140,
+      "ids": [
+        "TASK-022",
+        "TASK-023",
+        "TASK-024",
+        "TASK-025",
+        "TASK-026",
+        "TASK-027",
+        "TASK-028"
+      ],
+      "truncated": true,
+      "next_after": "TASK-028"
+    },
+    {
+      "seq": 140,
+      "ids": [
+        "TASK-029",
+        "TASK-030",
+        "TASK-031",
+        "TASK-032"
+      ],
+      "truncated": false,
+      "next_after": null
+    }
+  ],
+  "roles": {
+    "策划": [
+      "CS-066",
+      "CS-080"
+    ],
+    "美术": [
+      "CS-030",
+      "CS-068",
+      "CS-076",
+      "CS-079",
+      "ART-089",
+      "ART-088",
+      "ART-087",
+      "ART-086",
+      "ART-085",
+      "ART-076",
+      "ART-043",
+      "ART-044"
+    ],
+    "程序": [
+      "CS-031",
+      "CS-061",
+      "CS-065",
+      "CS-078",
+      "DEV-094",
+      "DEV-096",
+      "DEV-092",
+      "DEV-089",
+      "DEV-077",
+      "DEV-078",
+      "DEV-079",
+      "DEV-080",
+      "DEV-081",
+      "DEV-083",
+      "DEV-084",
+      "DEV-038",
+      "DEV-039",
+      "DEV-066"
+    ]
+  },
+  "states": {
+    "review": 27,
+    "not_started": 5
+  }
+}

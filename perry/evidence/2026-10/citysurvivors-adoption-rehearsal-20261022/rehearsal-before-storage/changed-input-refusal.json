@@ -1,0 +1,5 @@
+{
+  "actual_error": "captured source changed: todo.md",
+  "source": "isolated changed-source only",
+  "native_calls_after_changed_capture": 0
+}

@@ -1,0 +1,25 @@
+{
+  "result": "PASS within isolated mapping/replay bounds",
+  "records": 32,
+  "link_only_inventory": 225,
+  "parent_edges": 15,
+  "native_calls": 470,
+  "initial_pages": 5,
+  "repeat_additional_creates": 0,
+  "partial_resume_new": 27,
+  "partial_resume_matched": 5,
+  "export_replay_count": 32,
+  "all_business_acceptance_pending": true,
+  "source_drift": [],
+  "live_activation": false,
+  "temporary_roots": [
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/exact-replay/trial-main",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/exact-replay/trial-partial",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/exact-replay/trial-replay"
+  ],
+  "stores": [
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/exact-replay/stores/trial-main.db",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/exact-replay/stores/trial-partial.db",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/exact-replay/stores/trial-replay.db"
+  ]
+}

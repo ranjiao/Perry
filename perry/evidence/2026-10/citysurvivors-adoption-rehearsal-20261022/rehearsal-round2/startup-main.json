@@ -1,0 +1,12 @@
+{
+  "exit": 0,
+  "result": {
+    "version": 1,
+    "recovery": {
+      "blocking": false,
+      "errors": []
+    },
+    "interrupted": [],
+    "draft_errors": []
+  }
+}

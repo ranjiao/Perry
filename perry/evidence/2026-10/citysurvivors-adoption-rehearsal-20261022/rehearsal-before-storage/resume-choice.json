@@ -1,0 +1,9 @@
+{
+  "simulated": true,
+  "actor": "fixture owner choice, not human approval",
+  "choice": "Resume",
+  "scope": "same32 candidate mappings in trial-partial only",
+  "stage": "commit",
+  "step": "board",
+  "authority_for_live": false
+}

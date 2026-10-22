@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-10-22T10:52:51.311419+00:00",
+  "source_root": "/Users/bytedance/proj/wargame/CitySurvivors",
+  "source_head_now": "c9e6d2035764529e91bcc7fba1f8c90160553639",
+  "source_anchor_exists": false,
+  "source_document_root_exists": false,
+  "perry_live_store_seq_unchanged": 1946,
+  "source_drift": [
+    "docs/art/todo.md",
+    "assets/manifest.md"
+  ],
+  "live_activation": false,
+  "source_freeze": false
+}

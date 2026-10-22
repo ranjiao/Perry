@@ -1,0 +1,12 @@
+{
+  "stop_after_startup": true,
+  "no_native_call_before_choice": true,
+  "completed_source_ids": [
+    "CS-030",
+    "CS-031",
+    "CS-061",
+    "CS-065",
+    "CS-066"
+  ],
+  "remaining_count": 27
+}

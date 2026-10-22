@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "recovery": {
+    "blocking": false,
+    "errors": []
+  },
+  "interrupted": [
+    {
+      "path": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/citysurvivors-adoption-8i06is1j/final-storage-replay/trial-partial/.perry/adoption/2026-10-22-dossier.md",
+      "pipeline": "adoption",
+      "stage": "commit",
+      "step": "board",
+      "updated": "2026-10-22T00:00:00Z",
+      "action": "ask user; never auto-resume"
+    }
+  ],
+  "draft_errors": []
+}

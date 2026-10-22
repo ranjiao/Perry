@@ -1,0 +1,8 @@
+{
+  "docs/tech/evidence/classification.md": {
+    "encoding": "gzip",
+    "artifact": "archived-source-bytes/classification.md.gz",
+    "archive_sha256": "df8bb9e4d077757d3eff5cca911892992643fcc523399a28706e9d698ea155fa",
+    "source_sha256": "a65091a79b0138d84befeb61c299f7a88975649fdd29fdd1db2d4ef95c622469"
+  }
+}

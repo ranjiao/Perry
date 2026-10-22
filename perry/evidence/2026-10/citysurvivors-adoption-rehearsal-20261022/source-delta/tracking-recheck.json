@@ -1,0 +1,200 @@
+{
+  "note": "Other sessions committed captured WIP after capture. Capture metadata remains historical; these later observations do not replace it.",
+  "paths": [
+    {
+      "path": "AGENTS.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "todo.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/todo.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/todo.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/design/README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/design/prototype-scope.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/design/game-design.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/decisions/README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/production/documentation-standard.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/production/project-structure.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/production/documentation-handoff.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/current-build.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/cbd-path-recovery.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/cbd-pressure.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/m1-cbd-integration.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/production/m1-cbd-handoff.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/production/m1-rule-fixes-handoff.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/evidence/2026-10-22-documentation-review.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/evidence/classification.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/design/m1-combat-test-matrix.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/qa/2026-10-21-cbd-pressure-validation.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/asset-integration.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/ui-layout-contract.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/tech/hud-layout-editor.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/asset-delivery.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/decisions/ADR-013-first-milestone-wave-defense.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/decisions/ADR-022-documentation-governance.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/decisions/ADR-024-six-character-attack-mechanics.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "game/README.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "game/assets/runtime-manifest.json",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "assets/manifest.md",
+      "capture_untracked": false,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/evidence/2026-10-22-art-documentation-review.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/documentation-dispositions.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/assets/fengren-motion-transition.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    },
+    {
+      "path": "docs/art/assets/clockwork-bear-rig-v003.md",
+      "capture_untracked": true,
+      "later_untracked": false
+    }
+  ]
+}

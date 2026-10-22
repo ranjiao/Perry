@@ -1,0 +1,5 @@
+{
+  "art-owned": "ALLOW only within isolated task scope; no actual domain edit performed",
+  "art-cross-role": "REFUSE by agent: program-owned file outside art May touch, even if structural helper passes. Handoff to program owner required.",
+  "domain-design-lexical": "REFUSE automated dispatch: actual helper classifies design path as decide-owned. Preserve raw refusal; no bypass or permission expansion. Manual original-owner work requires its own authority."
+}

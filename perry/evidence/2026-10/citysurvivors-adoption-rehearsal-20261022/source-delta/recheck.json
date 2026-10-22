@@ -1,0 +1,19 @@
+{
+  "captured_head": "a4a716ec2520a92bd0178ed4dd083a9c069e16a4",
+  "later_head": "c9e6d2035764529e91bcc7fba1f8c90160553639",
+  "entries": [
+    {
+      "path": "docs/art/todo.md",
+      "captured_sha256": "1a0fa579cd998414c104f783fd57f52397632bc75443fa6e0b30f6dc3c37ad50",
+      "current_sha256": "bab7fc99995aba95b6ad1da2d90ff0f4c9b735a151b72bd1f1e9576edd429c8c"
+    },
+    {
+      "path": "assets/manifest.md",
+      "captured_sha256": "939f0c3e691309135679e365fa3acd86e4bca6e040aac61779c75ab7b869b868",
+      "current_sha256": "31979a0f24d1b09ae0785130f8837082ab5275c8c59e06b157a404c0b10b1b5d"
+    }
+  ],
+  "original_capture_retained": true,
+  "live_activation_ready": false,
+  "why": "Concurrent external work changed selected inputs. The recorded rehearsal remains about the frozen snapshot; fresh source reconciliation is mandatory before live activation."
+}

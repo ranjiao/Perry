@@ -1,0 +1,8 @@
+{
+  "actual_error": "('ambiguous scoped source identity', 'CitySurvivors:project.todo:CS-030')",
+  "before_seq": 142,
+  "after_seq": 142,
+  "population": 33,
+  "additional_creates": 0,
+  "limit": "Agent reconciliation refuses; no native uniqueness guarantee."
+}

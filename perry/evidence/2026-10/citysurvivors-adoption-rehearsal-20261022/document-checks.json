@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-10-22T10:52:51.310455+00:00",
+  "inventory": 257,
+  "selected": 32,
+  "link_only": 225,
+  "native_calls": 597,
+  "parent_edges": 15,
+  "states": {
+    "review": 27,
+    "not_started": 5,
+    "done": 0
+  },
+  "actual_verifiers_awarded": 0,
+  "role_cards": 3,
+  "all39source_bytes_verified_including_lossless_archive": true,
+  "native_roots_stores_external": true,
+  "preview_only_selected_state_rows_changed": true,
+  "authored_link_targets": 310,
+  "missing_authored_links": [],
+  "raw_trace_members_verified": 2387,
+  "live_policy_unarmed": true,
+  "limits": "Finite author checks only; captured specialist link/anchor completeness, GUI, game, engine, device, human and live switching excluded."
+}
