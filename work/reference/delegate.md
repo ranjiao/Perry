@@ -12,6 +12,11 @@ any declared role card, its knowledge subscriptions (with stale flags), scope,
 escalations and acceptance floor. Missing optional roles do not justify inventing
 one. The project and role escalation lists are a union; neither cancels the other.
 
+Apply the [project contract](../../reference/project-contract.md) for artifact
+ownership, exact subject, safe refs and actual project verification. Preserve
+domain-role restrictions and identify the scope of acceptance; use
+[scoped acceptance](acceptance.md) for provider/consumer handoffs.
+
 ## Required fields in the rendered prompt
 
 - Task ID and Objective/KR linkage

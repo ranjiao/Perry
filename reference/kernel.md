@@ -90,7 +90,10 @@ replacing dependencies; do not drop another session's new edge.
 `expect`. Preserve the original ref exactly, resolving it against the documented
 state root when the host opens it. A `sha256:` hash pins bytes; the kernel never
 opens the document or checks its semantics. Keep the task's `evidence` field as
-a authored text reference; never split legacy evidence into attachments by regex.
+an authored text reference; never split legacy evidence into attachments by regex.
+For opening domain artifacts outside the narrative root, apply the skill-side
+[project contract](project-contract.md). The kernel still treats refs as opaque:
+confinement, source anchors, ownership and hash applicability are caller checks.
 
 ## Asks and risks
 

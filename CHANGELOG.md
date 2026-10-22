@@ -2,6 +2,63 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.32 — 2026-10-22
+
+patch · phase 004-guided · TASK-500 · delivery TASK-500-design024-scoped-acceptance-20261022
+
+### Changes
+
+Add finite per-subject acceptance records and an optional narrative template; distinguish provider delivery, integration, package, independent review and actual human sign-off. Retain ten isolated conformance cases without claiming live acceptance.
+
+
+### Upgrade notes
+
+Use scoped acceptance when a review needs multiple criteria. Preserve original failures and untested required gates, and compare evidence applicability to the exact proposed subject. No new mutable acceptance register is installed.
+
+
+### Breaking changes
+
+Required failed, untested, unreadable or applicability-unknown evidence prevents closure. Parent membership and completed children do not grant package/human acceptance; no native entity, result enum or automatic rollup is added.
+
+
+## 0.1.31 — 2026-10-22
+
+patch · phase 004-guided · TASK-499 · delivery TASK-499-design024-reconciliation-lookup-20261022
+
+### Changes
+
+Add established-project writer reconciliation, package/provider/integration distinctions and exact scoped-identity/domain-role lookup using existing native queries, summaries and attachments. Preserve partial receipts and explicit resume choices.
+
+
+### Upgrade notes
+
+Use the updated adoption dossier and identity-lookup procedure on a separately authorized adoption. Re-query complete consistent pages before creates and reconcile old/new writers; existing projects are not migrated by installing this release.
+
+
+### Breaking changes
+
+No native alias, role filter, uniqueness guard or additional adoption stage is added. Existing ambiguous identity or writer authority must be reconciled before another create.
+
+
+## 0.1.30 — 2026-10-22
+
+patch · phase 004-guided · TASK-498 · delivery TASK-498-design024-project-contracts-20261022
+
+### Changes
+
+Define project artifact ownership, confined references, retained evidence subjects and actual-project verification across execution and review. Keep domain lifecycle separate from Perry approval and preserve independent Git-code integration.
+
+
+### Upgrade notes
+
+Read reference/project-contract.md and apply the actual project ownership, source-root and verification declarations. No automatic consumer activation or migration is performed.
+
+
+### Breaking changes
+
+Procedure clarification can refuse unresolved ownership, escaped references or missing required verification. No kernel/process/API change; the existing lexical dispatch false-refusal remains disclosed.
+
+
 ## 0.1.29 — 2026-10-20
 
 patch · phase 004-guided · TASK-494 · delivery TASK-494-native-cutover-20261020

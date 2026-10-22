@@ -34,6 +34,27 @@ Cluster related outcomes when useful; preserve the evidence and actual scope.
 An objective, KR or attribution remains a proposal until the user declares it.
 A source's rationale can be transcribed; inferred intent is never a past ADR.
 
+## Source capture and per-fact writers
+
+{{Retain the finite source inventory, immutable revision or restorable snapshot,
+untracked inputs, exclusions, read/capture time and any concurrent-edit gap.
+Hashing alone is not a source lock or complete backup.}}
+
+| Fact or artifact | Current authoritative source/owner | Writer after activation | Conflict or retirement decision |
+|---|---|---|---|
+| {{lifecycle / domain rule / adopted version / historical evidence}} | {{actual source and owner}} | {{native / original domain owner / external link-only}} | {{actual decision or unresolved}} |
+
+## Confirmed identity and granularity
+
+| Source scope + original ID | Package/provider/integration/acceptance | Native ID or link-only source | Role declaration | Actual resolution |
+|---|---|---|---|---|
+| {{exact scoped identity}} | {{distinct outcome}} | {{actual returned identity; never guess}} | {{spec/card anchor and path or unknown}} | {{create / exact match / link-only / declined / historical / unresolved}} |
+
+This is a dated run receipt, not a live identity registry. Native summaries own
+confirmed task source identities; specs cite them. Before creates/resume, follow
+all affected native query pages and compare actual results/receipts. Preserve
+ambiguous mappings rather than selecting by number, title or timestamp.
+
 ## Actual declarations and decisions
 
 {{Record the user's exact words, source/time, scope and any approved edits.
@@ -50,6 +71,15 @@ Native IDs come from the CLI. Goals owns goal/phase state and attribution; work
 owns tasks/asks/risks; decide owns designs/ADRs. No BOARD.md, frozen register or
 journal is written. Keep declined/deferred rows and reasons for later rechecks.
 Do not repeat a completed write after a partial run; inspect its actual result.
+
+## Activation and recovery boundary
+
+{{Record isolated rehearsal root/store and actual graph/reference/repeat/recovery
+results; actual live-switch authority; fresh source comparison; each old writer's
+retirement or link-only ownership; backup and recovery limits. Keep operation
+receipts for partial writes. Never replay a whole batch, dual-write a status or
+copy a rehearsal database into a live store. Nonterminal recovery still requires
+the user's actual resume choice. No new stage/step names are introduced.}}
 
 ## Resume and completion evidence
 

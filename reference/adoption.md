@@ -47,6 +47,43 @@ helper; an unknown value blocks instead of hiding an interrupted run.
    Compare the materialized set with the confirmed candidates; unresolved rows
    stay visible. Mark a dossier complete only when its agreed rows reconcile.
 
+## Established-project reconciliation
+
+Apply the [project contract](project-contract.md) and [identity lookup](identity-lookup.md).
+During harvest/infer, distinguish delivery packages, provider tasks, integration
+and acceptance work; do not deduplicate them by similar titles. Preserve original
+IDs with source scope and each source's actual authority, date and read bounds.
+An unchecked TODO, recent edit or completed asset does not declare current scope,
+implementation authorization or acceptance. Record work directly authorized by
+the user even when a global summary has not yet caught up.
+
+Before confirm/materialize, document each fact's current writer and proposed
+writer after activation: task lifecycle, domain rules, adopted artifact version
+or historical evidence. Domain artifacts stay with their owner. Classify each
+candidate as create, exact existing match, link-only, declined, historical or
+unresolved; retain rejected/deferred decisions. A delayed summary can coexist
+with a newer provider delivery while package acceptance is pending. Incompatible
+claims need owner reconciliation, not an automatic newest-timestamp choice.
+
+Use the existing dossier sections for source captures, per-fact writer inventory,
+confirmed source-to-native mappings and actual receipts. A dated mapping is not
+a live registry. One authorized writer re-queries the affected native population
+before creates and after partial writes. Original ID alone is not a globally
+unique key; ambiguity or conflicting concurrent writers stops another create.
+
+Rehearse mappings, graph, references, repeat/resume behavior and export/recovery
+only in explicitly isolated roots/stores. Before live activation require actual
+project-specific authority, fresh source comparison and a bounded recovery plan.
+Retire each old state writer or leave its external writer authoritative for
+link-only work; never mirror a second mutable lifecycle. Read-only projections
+must identify their native capture and are never edited as another state source.
+No directory move or snapshot copy alters the store anchor.
+
+An interrupted or partial activation retains per-operation receipts and source
+bytes. After the user's actual resume choice, reconcile committed native writes,
+remaining mappings and old/new writer ownership before continuing. Do not replay
+the whole batch or overwrite populated state. No new recovery stage is added.
+
 ## Recheck and re-adoption
 
 On a later recheck, retain the original source snapshot and user decisions.

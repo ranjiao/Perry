@@ -47,3 +47,14 @@ The kernel derives met/fraction and one-level child rollup from typed metric
 fields. The skill declares and runs measuring commands and checks meaning and
 consent. Imported legacy assertions keep their provenance; a prose target,
 structural pass, closed task or historical score is not a new measurement.
+
+## Existing-project composition
+
+| Term | Meaning and authority |
+|---|---|
+| domain artifact | Product source, specialist specification, asset/catalog or domain evidence maintained by the project's declared owner; its path alone grants no Perry lane ownership. |
+| scoped source identity | Original identifier plus its source namespace/anchor and version where necessary; skill-side matching is not a native alias index. |
+| acceptance scope | The concrete provider, integration or package outcome a task's completion proves; it is assessed against that task's own written criteria. |
+
+Operational rules: [project contract](project-contract.md), [identity lookup](identity-lookup.md)
+and [scoped acceptance](../work/reference/acceptance.md).
