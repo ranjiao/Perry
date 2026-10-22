@@ -17,10 +17,10 @@ ENV=dict(os.environ,PERRY_KERNEL_TESTING='1')
 counter=0
 def write(p,s):
     p.parent.mkdir(parents=True,exist_ok=True);p.write_text(s)
-def native(label,args,body=None):
+def native(label,args,body=None,root=None,store=None):
     global counter
     counter+=1;prefix=f'{counter:02d}-{label}'
-    cmd=[str(SOURCE/'bin/perry'),*args,'--root',str(ROOT),'--store',str(STORE)]
+    cmd=[str(SOURCE/'bin/perry'),*args,'--root',str(root or ROOT),'--store',str(store or STORE)]
     if body is not None:
         f=OUT/(prefix+'.input.json');write(f,json.dumps(body,ensure_ascii=False,indent=2)+'\n');cmd+=['--input','@'+str(f)]
     p=subprocess.run(cmd,env=ENV,text=True,capture_output=True)
@@ -86,20 +86,38 @@ outside=OUT/'outside.txt';write(outside,'Synthetic out-of-anchor reference; not 
 write(OUT/'reference-path-observations.json',json.dumps({'agreed_root':str(ROOT),'domain_ref':'../docs/design/spec.md','resolved_domain':str((ROOT/'perry/../docs/design/spec.md').resolve()),'symlink_ref':'outside-link','resolved_symlink':str((ROOT/'perry/outside-link').resolve()),'escape':not (ROOT/'perry/outside-link').resolve().is_relative_to(ROOT)},indent=2))
 
 # Preserve the actual safety refusal and repair only the intentionally created fixture link.
-+p=subprocess.run([sys.executable,str(SOURCE/'tools/document_checks.py'),'startup','--root',str(ROOT),'--state-root','perry'],capture_output=True,text=True)
-+write(OUT/'symlink-startup-refusal.json',p.stdout);assert json.loads(p.stdout)['recovery']['blocking']
-+link=ROOT/'perry/outside-link';assert link.is_symlink() and link.resolve()==outside.resolve();link.unlink()
-+write(OUT/'repair-note.txt','Removed only the intentional synthetic out-of-root symlink after preserving the startup refusal. No native state query or write occurred while recovery was blocking.\n')
-+
-+snap=OUT/'git-snapshot-source';snap.mkdir();subprocess.run(['git','init','-q',str(snap)],check=True)
+p=subprocess.run([sys.executable,str(SOURCE/'tools/document_checks.py'),'startup','--root',str(ROOT),'--state-root','perry'],capture_output=True,text=True)
+write(OUT/'symlink-startup-refusal.json',p.stdout);assert json.loads(p.stdout)['recovery']['blocking']
+link=ROOT/'perry/outside-link';assert link.is_symlink() and link.resolve()==outside.resolve();link.unlink()
+write(OUT/'repair-note.txt','Removed only the intentional synthetic out-of-root symlink after preserving the startup refusal. No native state query or write occurred while recovery was blocking.\n')
+
+snap=OUT/'git-snapshot-source';snap.mkdir();subprocess.run(['git','init','-q',str(snap)],check=True)
 write(snap/'untracked.txt','before capture\n');saved=OUT/'retained-capture/untracked.txt';saved.parent.mkdir();shutil.copy2(snap/'untracked.txt',saved)
 old_hash=hashlib.sha256(saved.read_bytes()).hexdigest();write(snap/'untracked.txt','changed after capture\n');new_hash=hashlib.sha256((snap/'untracked.txt').read_bytes()).hexdigest();assert old_hash!=new_hash
 status=subprocess.check_output(['git','-C',str(snap),'status','--porcelain'],text=True)
 write(OUT/'snapshot-observations.json',json.dumps({'source_root':str(snap),'retained_bytes':str(saved),'status':status,'old_sha256':old_hash,'current_sha256':new_hash,'same':old_hash==new_hash,'limits':'One finite untracked source fixture; not a consumer backup.'},indent=2))
 
+# Independent resumed-run fixture: simulated owner input is explicit test data,
+# not a real user's live consent, and all native actors remain agents.
+resume_root=OUT/'resume-project';(resume_root/'.perry/adoption').mkdir(parents=True);(resume_root/'perry').mkdir()
+resume_store=OUT/'resume-isolated.db'
+native('resume-init',['init'],{'actor':ACTOR,'state_root':'perry'},root=resume_root,store=resume_store)
+native('resume-template',['template','apply'],{'actor':ACTOR,'template':json.loads((SOURCE/'templates/process/perry.json').read_text())},root=resume_root,store=resume_store)
+resumed=native('resume-existing-task',['item','create'],{'actor':ACTOR,'type':'task','fields':{'title':'Existing resumed source task','summary':'Source scope: resumed-list. Original ID: 7. Existing exact mapping.','priority':'P1','verification':'V3'}},root=resume_root,store=resume_store)['result']['item']
+write(resume_root/'.perry/adoption/resume.md','---\nadoption: 1\nstage: commit\nstep: board\nupdated: "2026-10-22T00:00:00Z"\n---\n\nExisting mapping: resumed-list / 7 -> '+resumed['id']+'\n')
+p=subprocess.run([sys.executable,str(SOURCE/'tools/document_checks.py'),'startup','--root',str(resume_root),'--state-root','perry'],capture_output=True,text=True)
+write(OUT/'resume-startup.json',p.stdout);assert json.loads(p.stdout)['interrupted']
+write(OUT/'resume-owner-input.json',json.dumps({'kind':'explicit synthetic scenario input, not live human authority','choice':'resume','stage':'commit','step':'board','scope_unchanged':True,'mapping':{'source_scope':'resumed-list','original_id':'7','native':resumed['id']}},indent=2))
+# Applying the supplied fixture choice permits this isolated exact-match lookup;
+# it does not make another create, change the real project or forge a human actor.
+q1=native('resume-post-choice-query',['query'],{'type':'task','limit':1},root=resume_root,store=resume_store)
+q2=native('resume-reconciled-query',['query'],{'type':'task','limit':1},root=resume_root,store=resume_store)
+assert q1['result']['total']==q2['result']['total']==1 and q1['store_seq']==q2['store_seq']
+write(OUT/'resume-reconciliation.json',json.dumps({'scenario_choice':'resume-owner-input.json','source_scope':'resumed-list','original_id':'7','existing_native':resumed['id'],'before_seq':q1['store_seq'],'after_seq':q2['store_seq'],'total':q2['result']['total'],'additional_creates':0,'limits':'Explicit simulated owner input in an isolated fixture only; not actual consumer resume or live consent.'},indent=2))
+
 # All required native evidence is captured before installing the interruption marker.
 final=native('final-native',['query'],{'limit':100})
-write(OUT/'case-index.json',json.dumps({'root':str(ROOT),'store':str(STORE),'source_checkout':str(SOURCE),'package':package['id'],'provider':provider['id'],'consumer':consumer['id'],'missing_role':unknown['id'],'draft_design':decision['id'],'final_seq':final['store_seq'],'cases':{'S01':['final-native','provider-spec.md'],'S02':['source-identity-recheck.json'],'S03':['paging-summary.json','provider-spec.md','consumer-spec.md'],'S04':['cross-domain-packet.json','cross-domain-result.json'],'S05':['docs/design/spec.md','draft_design'],'S06':['custom-check.json','perry/criteria.md'],'S07':['perry/criteria.md'],'S08':['checks/custom.py','custom-check.json','research/brief.md'],'S09':['snapshot-observations.json','retained-capture/untracked.txt'],'S10':['partial-native-receipt.json','interrupted-startup.json']}},indent=2))
+write(OUT/'case-index.json',json.dumps({'root':str(ROOT),'store':str(STORE),'source_checkout':str(SOURCE),'package':package['id'],'provider':provider['id'],'consumer':consumer['id'],'missing_role':unknown['id'],'draft_design':decision['id'],'final_seq':final['store_seq'],'cases':{'S01':['final-native','provider-spec.md'],'S02':['source-identity-recheck.json','resume-owner-input.json','resume-reconciliation.json'],'S03':['paging-summary.json','provider-spec.md','consumer-spec.md'],'S04':['cross-domain-packet.json','cross-domain-result.json'],'S05':['docs/design/spec.md','draft_design'],'S06':['custom-check.json','perry/criteria.md'],'S07':['perry/criteria.md'],'S08':['checks/custom.py','custom-check.json','research/brief.md'],'S09':['snapshot-observations.json','retained-capture/untracked.txt'],'S10':['partial-native-receipt.json','interrupted-startup.json']}},indent=2))
 write(OUT/'partial-native-receipt.json',json.dumps({'actual_completed_provider':provider['id'],'native_seq':final['store_seq'],'remaining':'Consumer/package acceptance pending; original source still has a legacy lifecycle writer. No activation occurred.'},indent=2))
 write(ROOT/'.perry/adoption/fixture.md','---\nadoption: 1\nstage: commit\nstep: board\nupdated: "2026-10-22T00:00:00Z"\n---\n\n# Synthetic interrupted adoption\n\nPending actual resume choice. The source writer is not retired. An existing native receipt does not authorize replay.\n')
 p=subprocess.run([sys.executable,str(SOURCE/'tools/document_checks.py'),'startup','--root',str(ROOT),'--state-root','perry'],capture_output=True,text=True)

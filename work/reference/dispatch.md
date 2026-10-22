@@ -9,6 +9,17 @@ permission to reroute. Manual mode uses `delegate.md`. An already authorized
 execution choice remains valid; do not request it again merely because a field
 is absent from a migrated item.
 
+## Subject and executor route
+
+Apply the [project contract](../../reference/project-contract.md) before selecting
+an executor. The Git tree/base/commit/merge instructions below apply to Git-code
+deliveries. For non-Git or non-code work, name the explicit source anchor, retained
+immutable subject and an isolated output directory. Do not initialize Git or
+invent a branch just to satisfy a dispatch example. If an automated adapter
+requires Git, use the manual handoff route in `delegate.md` and disclose that
+adapter limitation; do not bypass its preflight or invent invocation flags.
+All routes retain actual scope, safety, independent review and sign-off gates.
+
 ## Preflight
 
 Read the item, spec, bound, acceptance criteria, relevant locked design and role
@@ -20,12 +31,14 @@ inspect the checkout and existing dispatch bookkeeping as separate evidence.
 
 ## The tree the agent works in
 
-> **A dispatched agent works in its own git worktree. The primary checkout is
+> **For a Git-code delivery, a dispatched agent works in its own git worktree. The primary checkout is
 > never switched by an agent; it merges the agent's branch afterwards, and that
 > merge is the only code operation it performs.**
 
-This is the rule; `git-boundaries.md` and `delegate.md` reference it and do not
-restate it. It governs every executor, not only the native subagents.
+This is the Git-code rule; `git-boundaries.md` and `delegate.md` reference it.
+It governs every executor producing Git code, not only native subagents.
+Non-Git/non-code work uses the subject/output isolation route above; these
+exceptions never relax worktree and integration rules for Git-code deliveries.
 
 **What each side does.**
 
@@ -93,11 +106,14 @@ independent integrator handles the verified branch in the primary checkout.
 
 ### Where the agent puts a scratch file
 
-Scratch stays outside the checkout. Derive the project bucket, then allocate a
-fresh run directory once for each dispatch/review and retain its absolute path:
+Scratch stays outside the active source. Resolve the actual project anchor first
+(Git common project or declared non-Git root); the bucket does not require a
+Git command. Allocate one fresh run directory for each dispatch/review and
+retain its exact absolute path:
 
 ```sh
-PERRY_SCRATCH_BASE="${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"
+PERRY_TASK_ANCHOR="/absolute/confirmed-project"  # actual agreed anchor
+PERRY_SCRATCH_BASE="${TMPDIR:-/tmp}/perry-scratch/$(basename "$PERRY_TASK_ANCHOR")"
 mkdir -p "$PERRY_SCRATCH_BASE"
 PERRY_SCRATCH=$(mktemp -d "$PERRY_SCRATCH_BASE/run-XXXXXXXX")
 ```
@@ -120,7 +136,7 @@ path does not isolate a reviewed tree or authorize mutation of it.
 - Use the `Agent` tool with `subagent_type: general-purpose`.
 - Build prompt = **bounded architecture context + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + standard RESULT format. The author reports implementation facts, not an architecture verdict.
 - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
-- **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
+- **For Git code, pass `isolation: "worktree"`; it is not optional.** For non-Git/non-code work use an adapter that supports the isolated output route above, or fall back to manual delegation. Never manufacture a repository or bypass an adapter requirement.
 - **Provide the exact allocated scratch run path** from § Where the agent puts a scratch file; do not hand out a shared bucket or ask another agent to guess a unique name.
 - Sub-agent shares parent cwd, and that is a fact about the *process*, not a licence for the *tree*: without `isolation`, the agent's `git checkout -b` moves the shared working tree, and every other lane's writes land on its branch. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
 
