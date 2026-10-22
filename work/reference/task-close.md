@@ -1,7 +1,10 @@
 # Close or drop a task
 
 Read `$PERRY_HOME/reference/kernel.md`, the task and its written criteria, attachments and recent events.
-For `close-task`, verify each criterion against the actual artifact/tests, not the
+Use [scoped acceptance](acceptance.md) and the actual project verification
+contract. Inspect this task's provider/integration/package scope; terminal child
+tasks alone do not close a parent. For `close-task`, verify each required criterion
+against the exact applicable artifact/tests, not the
 presence of an evidence string. Report unrun checks and known limits explicitly.
 Apply selected pack runbook/knowledge procedures when relevant; an explicit
 project verification requirement remains binding even if a pack is disabled.
@@ -18,6 +21,10 @@ fabricate a historical start. `budget-boundary.md` describes an optional handoff
 - V5: restate what the human is approving, including limits, and wait for the named
   human's actual sign-off. Use a human actor only to record that authorized action.
 - V6: apply the project's written V6 criterion; do not invent a substitute.
+
+Required failed, untested, unreadable or applicability-unknown evidence prevents
+closure. Preserve earlier verdicts and follow-up scope instead of reopening a
+terminal item through an unsupported transition.
 
 Move the item using transition `done`, atomically setting `evidence` (and V4's
 `verified_by`), with the last read seq in `expect`. A kernel guard verifies shape,

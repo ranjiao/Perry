@@ -45,9 +45,16 @@ requires its owning procedure. Existing explicit authority persists; do not ask
 again for an already authorized action. Integration and live activation remain
 separate actions with their own authority.
 
+Use the [project contract](project-contract.md) to distinguish Perry-governed
+records from domain artifacts and to open agreed source references. A structural
+helper refusal remains a refusal; report its documented path-classification
+limits rather than treating a semantic ownership judgment as a bypass.
+
 ## Evidence, review and acceptance
 
-Before moving a task to done, read its criteria, open the deliverables and verify
+Apply [scoped acceptance](../work/reference/acceptance.md), including the actual
+project verification methods and evidence subject. Before moving a task to done,
+read its criteria, open the deliverables and verify
 each criterion against actual behavior/evidence. Missing evidence, failed checks,
 or an unreadable artifact stop closure. Record unrun checks and limits. A field
 containing an evidence path proves only that the field is present.

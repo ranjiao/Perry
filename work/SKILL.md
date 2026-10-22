@@ -8,8 +8,11 @@ description: The `/perry work` lane of the perry skill, not a separate command. 
 This is a lane of `/perry`, not a separate command; it is loaded by the root router. User commands start with
 `/perry work`. `goals` owns OKR and phase documents; `decide` owns designs and ADRs.
 Read their documents freely. Ask before a write outside this lane's ownership.
-Work is the only writer of `evidence/`, `weekly/` and `handoff/`.
-Never write to OKR files or `decisions/` from work; goals and decide own them.
+Work is the only writer of Perry-governed `evidence/`, `weekly/` and `handoff/`.
+Never write goals' OKR narratives or decide's decision narratives from work.
+Product specifications and domain evidence retain their actual project owner;
+apply the [project contract](../reference/project-contract.md), not a directory-name claim.
+Task closure and multi-criterion summaries follow [scoped acceptance](reference/acceptance.md).
 
 ## Startup by route
 

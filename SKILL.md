@@ -78,6 +78,11 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 
 **Two changes from the previous contract, and why neither needed a second signature; why the sign-off is recorded at this precision**: `reference/hand-off-contract.md`.
 
+The table governs Perry-owned records and narratives, not every product file
+with a similar directory name. Domain artifacts retain their declared owner.
+Apply [project artifact and verification contracts](reference/project-contract.md)
+for references, domain lifecycle and the intersection of lane/role/task authority.
+
 **What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing task items; `work` writing `decisions/`; `decide` writing work evidence. All lanes have stopped writing `journal/`.
 
 ## Mandatory first move: combined snapshot

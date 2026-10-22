@@ -11,3 +11,9 @@ Shared hook/policy/workflow templates belong to
 runbook and incident templates belong to the
 [software-ops pack](../../packs/software-ops/templates/README.md). Their location
 does not change the owning lane or user approval requirements for generated files.
+
+For multi-criterion reviews, use [acceptance_TEMPLATE.md](acceptance_TEMPLATE.md)
+as an optional section in an existing report/spec. Follow
+[scoped acceptance](../reference/acceptance.md) and the
+[project contract](../../reference/project-contract.md). A document template is
+authored narrative, distinct from the unchanged native process template.

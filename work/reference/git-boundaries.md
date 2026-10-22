@@ -2,6 +2,13 @@
 
 ## Git Role Boundaries
 
+These Git rules apply to code deliveries in Git repositories. Non-Git/non-code
+subjects use the [project contract](../../reference/project-contract.md) for
+retained source and applicable verification; never fabricate a branch or commit.
+That alternative does not waive these isolation/integration rules for Git code.
+Perry lane ownership applies to Perry-governed records, while actual domain-role
+restrictions remain additive for product artifacts.
+
 Each role owns its own deliverable's commit. PMO never commits code; Coding never edits PMO docs. This boundary keeps commit history readable and prevents one agent from silently rewriting another's lane.
 
 | Role | Works in | Commits | Pushes | Opens PR | Merges to main |

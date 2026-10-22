@@ -16,6 +16,13 @@
 
 {{What this evidence file proves was done.}}
 
+## Subject and acceptance scope
+
+{{Name provider delivery, integration or package scope; immutable tested and
+proposed subjects, source anchor, configurations/environment, criteria version
+and exclusions. Explain applicability of older evidence. Follow the project
+contract; a hash or HEAD alone is not a complete retained working tree.}}
+
 ## Method
 
 {{How the deliverable was produced. Commands run, files changed, sources consulted, hypotheses tested.}}
@@ -26,7 +33,11 @@
 
 ## Verification
 
-{{The test / check / sign-off that justifies marking the task `done` or `review`.}}
+{{Use scoped acceptance: per-criterion required/optional condition, exact subject,
+actual result, evaluator, evidence and exclusions. Keep untested or applicability-
+unknown gates visible. Distinguish delivery, integration, independent review and
+named human approval. Use acceptance_TEMPLATE.md only when useful; do not create
+a second live board or infer a parent pass from completed children.}}
 
 - {{verification step 1, e.g., "command output snapshot"}}
 - {{verification step 2, e.g., "test passed"}}

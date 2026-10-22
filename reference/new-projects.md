@@ -125,3 +125,13 @@ populated store. Project-specific migration and rollback evidence remain require
 
 No new CLI, loader, scheduler, template variant or domain pack is introduced by
 this guide. Execution stays with the Agent and the existing native contract.
+
+## Preserve established conventions
+
+For existing projects, use [adoption reconciliation](adoption.md#established-project-reconciliation)
+to agree per-fact writers and the finite source/native mapping before activation.
+Keep specialist document lifecycle, role ownership and existing catalogs under
+the [project contract](project-contract.md). Original-ID and domain-role queries
+use [existing-capability lookup](identity-lookup.md); multi-criterion results use
+[scoped acceptance](../work/reference/acceptance.md). No new native role/alias
+field, automatic acceptance summary or duplicated live board is implied.
