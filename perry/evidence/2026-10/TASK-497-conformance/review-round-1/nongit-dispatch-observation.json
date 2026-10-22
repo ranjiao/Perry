@@ -1,0 +1,7 @@
+{
+  "input": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-review-n132to49/nongit-research-subject",
+  "git_exit": 128,
+  "git_stderr": "fatal: not a git repository (or any of the parent directories): .git\n",
+  "procedure_return": "BLOCKED on contradictory dispatch preconditions: retained non-code artifact can be inspected, but dispatch requires worktree/base/branch. Do not invent Git or quietly waive the rule.",
+  "declared_method": "source/artifact inspection, no numerical metric"
+}

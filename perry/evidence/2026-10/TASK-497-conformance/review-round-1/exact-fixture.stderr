@@ -1,0 +1,4 @@
+  File "/Users/bytedance/.codex/worktrees/design024-independent-review/Perry/perry/evidence/2026-10/TASK-497-conformance/fixture-driver.py", line 89
+    +p=subprocess.run([sys.executable,str(SOURCE/'tools/document_checks.py'),'startup','--root',str(ROOT),'--state-root','perry'],capture_output=True,text=True)
+    ^^
+SyntaxError: cannot assign to expression here. Maybe you meant '==' instead of '='?

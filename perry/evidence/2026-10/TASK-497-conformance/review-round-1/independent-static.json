@@ -1,0 +1,49 @@
+{
+  "base": "89219446bb50cb7faef2249708d48e9225b5422b",
+  "candidate": "ffdbc0c539545626e88b1f8d0b259575307b06f1",
+  "product_paths": [
+    "SKILL.md",
+    "decide/SKILL.md",
+    "reference/adoption-sources.md",
+    "reference/adoption.md",
+    "reference/config.md",
+    "reference/glossary.md",
+    "reference/identity-lookup.md",
+    "reference/kernel.md",
+    "reference/new-projects.md",
+    "reference/operating-rules.md",
+    "reference/project-contract.md",
+    "reference/snapshot.md",
+    "templates/internal/adoption_dossier_TEMPLATE.md",
+    "work/SKILL.md",
+    "work/reference/acceptance.md",
+    "work/reference/delegate.md",
+    "work/reference/dispatch.md",
+    "work/reference/git-boundaries.md",
+    "work/reference/review.md",
+    "work/reference/task-close.md",
+    "work/templates/README.md",
+    "work/templates/acceptance_TEMPLATE.md",
+    "work/templates/evidence_TEMPLATE.md",
+    "work/templates/handoff_TEMPLATE.md"
+  ],
+  "product_count": 24,
+  "out_of_scope": [],
+  "protected_count": 74,
+  "changed_protected": [],
+  "local_links": 58,
+  "missing_links": [],
+  "manifest_count": 94,
+  "manifest_mismatches": [],
+  "criteria_sha256": {
+    "TASK-497": "f304e1b0939c2da077e0cf20812f0f5e0d077cd0240540d103113755b8d4414a",
+    "TASK-498": "2ae3b1e0d5ffa98c01ec0cd7a0e89a714a9dd71cf291edbdcd9e423aa0573a38",
+    "TASK-499": "bafe889eb70f4bac1bf3b980f894792e24c51f7c88b1a8c5bac542de1c7fec3b",
+    "TASK-500": "09482901df09ab55c14ba7591609b12918ae2a8b752468fe16562b62419fa758"
+  },
+  "diff_check": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+}

@@ -204,13 +204,15 @@ Release only the slot this execution owns.
    - Git code delivery: `Branch: <name>` and exact commit, for independent integration. For a non-Git/non-code deliverable record `n/a` with the retained immutable subject; do not invent a branch.
    - `PR URL:` — **only where the project's structured policy, role union and user instructions permit a push.** Where `git push` / `origin` are escalated, the compliant agent opened no PR and has no truthful value for this field; requiring one there would make the honest answer unwritable and step 4 below gates the `review` transition on required fields being present. On such a project the field is `n/a — push is escalated on this project`, and that is a complete answer rather than an excuse.
    - `Files changed: <count>` + bullet list
-   - `Tests: <pass>/<total>` + command used
+   - Verification: actual commands or inspections, outcomes and exclusions. Use numerical test counts only when that method produces them; non-code/source inspection does not invent a test total.
    - `Cycle time: <minutes>` (for calibration)
    - `Notes:` (anything unusual)
 
- Inspect committed diff, checkout/base,
-objective tests, architecture compliance, checkpoint task/stage/baseline and freshness.
-Missing/stale evidence is a failure annotation, not a passed check. A failed executor
+ Inspect the actual immutable subject, deliverables, applicable checks and evidence
+freshness. For Git code, inspect committed diff and checkout/base. For eligible
+architecture work, also verify compliance and checkpoint task/stage/baseline;
+otherwise record why those receipts are not applicable, not invented placeholders.
+Missing/stale required evidence is a gap, not a passed check. A failed executor
 returns a concrete next_action or `block` with a reason. Never silently retry a
 high-stakes action or infer success from process exit alone.
 
@@ -224,9 +226,10 @@ Apply the [project contract](../../reference/project-contract.md) and
 [scoped acceptance](acceptance.md): record applicable verification and exact
 subject, and separate provider delivery from package/human acceptance.
 Return task ID/title, status, branch and exact commit when applicable, changed files, checks with
-commands/results, acceptance coverage, known limits and next action. Notes include
-actual executor root, scan arguments, durable evidence store, real start path and
-latest delivery path. Name any push/PR failure if those actions were authorized.
+commands or inspections/results, acceptance coverage, known limits and next action.
+Notes identify the actual executor/source root and retained subject/evidence.
+Include scan arguments and real start/delivery checkpoint paths only when eligible;
+otherwise record their non-applicability. Name any push/PR failure if authorized.
 Do not claim V4 from an implementing session or forge human V5 acceptance.
 <!-- next-close: work dispatch -->
 
@@ -241,7 +244,7 @@ Files changed: <count>
   - path/file1.py
   - path/file2.py
   ...
-Tests: <pass>/<total> (command: <pytest ...>)
+Verification: <actual command/inspection, outcome and limits; test counts if applicable>
 Cycle time: <minutes>
 Notes: <anything unusual>
 === END RESULT ===
