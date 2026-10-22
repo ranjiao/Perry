@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/Users/bytedance/.codex/worktrees/design024-procedure-contracts/Perry/bin/perry",
+    "attach",
+    "add",
+    "--root",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/author-resume-replay/project",
+    "--store",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/author-resume-replay/isolated.db",
+    "--input",
+    "@/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/author-resume-replay/08-attach.input.json"
+  ],
+  "exit": 0,
+  "stderr": ""
+}

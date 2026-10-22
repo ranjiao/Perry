@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "armed": true,
+  "policy_source": {
+    "path": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/author-resume-replay/project/.perry/safety.json",
+    "sha256": "a11727c5fb4e116b2e7b4b373095f29f8b89d9e02d7540c43c40959bddc8142d"
+  },
+  "matches": [
+    "docs/program"
+  ],
+  "errors": [
+    "high-stakes operation needs actual user authorization; matching is only a screening fact"
+  ],
+  "blocked": true,
+  "limit": "Does not judge naming versus doing, adequacy, or authenticity of authorization. Skill must read the spec and instruction source."
+}

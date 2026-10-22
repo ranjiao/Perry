@@ -1,0 +1,17 @@
+{
+  "scope_and_id": [
+    {
+      "scope": "provider-list",
+      "original_id": "7",
+      "native": "TASK-002"
+    },
+    {
+      "scope": "integration-list",
+      "original_id": "7",
+      "native": "TASK-003"
+    }
+  ],
+  "query_seq": 9,
+  "event_delta": 0,
+  "decision": "Existing exact matches inspected; no creates repeated. This is an author observation, not V4."
+}

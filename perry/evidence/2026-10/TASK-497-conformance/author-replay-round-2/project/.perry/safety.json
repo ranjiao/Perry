@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "approval_ref": "Synthetic test policy for explicitly authorized isolated fixtures; not live human sign-off",
+  "rules": [
+    {
+      "id": "foreign",
+      "label": "Fixture cross-domain source",
+      "patterns": [
+        "docs/program"
+      ]
+    }
+  ]
+}

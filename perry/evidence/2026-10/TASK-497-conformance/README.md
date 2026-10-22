@@ -40,3 +40,13 @@ The initial fixture orchestration incorrectly expected the interrupted card whil
 The dispatch helper still classifies some lane ownership by path segments. A legitimate domain path can be structurally refused. The new project contract documents this limitation and forbids bypass; no helper/ACL behavior change is claimed. Extending that helper is outside this first delivery.
 
 No source test or synthetic trace proves consumer activation, real engine/LAN/device behavior, human acceptance, published release or integration into main. Release allocation and independent exact-merge verification belong to later integration, under the unchanged release rules. The source candidate is locally committed only.
+
+## Round-1 review and bounded correction
+
+[Actual independent round-1 report](review-round-1/review.md) returned V4 FAIL for all four tasks on ffdbc0c5. It records three bounded findings: accidental replay patch markers, unconditional Git dispatch requirements (including completion), and absent post-explicit-resume evidence. Its full source gate passed, but that did not grant acceptance. The exact failure and report are preserved.
+
+The corrected source/evidence-driver subject is `45c1d1f0c2e76ef85481b5f36933b106fa00f93d`. Git tree/base/scratch/executor/completion requirements now apply to Git-code deliveries. Non-Git/non-code work uses an explicit immutable subject and isolated output; a Git-bound automated adapter falls back to manual handoff without inventing a repository, flags, numeric tests or architecture receipts. The generated acceptance template also avoids installation-relative links.
+
+The retained driver compiles and the author executed its corrected form in a new external output. `author-replay-round-2/` retains 26 explicit-root/test-store native calls. A separate resumed-run fixture contains a clearly labeled **simulated owner choice**, actual post-choice exact-match queries at seq 3→3, total one existing source identity and zero additional creates. No native human actor or live consent is fabricated. The final primary S10 fixture still stops on its interrupted startup with no later native call. This is synthetic method evidence, not a real consumer migration/resume.
+
+`static-checks-round-2.json` records the fresh product link/whitespace/protected-tree checks. Round-2 independent semantic review, replay and exact-candidate full gate remain pending; earlier results and failures are historical, not upgraded by this correction.

@@ -1,0 +1,18 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "type": "design",
+  "fields": {
+    "title": "Synthetic decision draft"
+  },
+  "relations": [],
+  "attachments": [
+    {
+      "ref": "../docs/design/spec.md",
+      "hash": "sha256:d0abe93b0533ae55247ce19c9a1f31c451359e9a573b3c25c1b04517baefba91"
+    }
+  ]
+}
