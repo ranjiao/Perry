@@ -1,0 +1,11 @@
+{
+  "source": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/nongit-input",
+  "isolated_output": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/nongit-output",
+  "git_exit": 128,
+  "git_stderr": "fatal: not a git repository (or any of the parent directories): .git\n",
+  "route": "manual source/artifact handoff without Git metadata",
+  "verification": "Source and brief opened by independent reviewer; supported explanation retained in review-result.md",
+  "branch": "n/a",
+  "required_command_missing": false,
+  "numeric_test_count": "not applicable"
+}

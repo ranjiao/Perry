@@ -1,0 +1,9 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16294-6e70-7822-9d10-b84ee69f8435"
+  },
+  "state_root": "perry",
+  "note": "Isolated synthetic procedure fixtures, never a consumer adoption."
+}

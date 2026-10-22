@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "type": "task",
+  "fields": {
+    "title": "Synthetic unassigned task",
+    "summary": "Source scope: incoming-list. Original ID: 8. No explicit domain-role association is available.",
+    "priority": "P1",
+    "verification": "V3",
+    "track": "main"
+  },
+  "relations": [],
+  "attachments": []
+}

@@ -1,0 +1,1 @@
+{"ok": true, "surface": "1.1", "command": "attach add", "effect": "written", "events": [1937], "store_seq": 1937, "warnings": [], "result": {"attachment": {"item": "TASK-498", "ref": "evidence/2026-10/TASK-497-conformance/review-round-2/review.md", "hash": "sha256:fbf58cbd934e9e14819edf6b63757720c86e5f42b2ad55b1acd004556ba4aa49"}}, "error": null}

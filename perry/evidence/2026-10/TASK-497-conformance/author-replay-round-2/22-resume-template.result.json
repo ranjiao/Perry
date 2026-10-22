@@ -1,0 +1,1 @@
+{"ok": true, "surface": "1.1", "command": "template apply", "effect": "written", "events": [2], "store_seq": 2, "warnings": [], "result": {"name": "perry", "version": 2, "previous_version": null}, "error": null}

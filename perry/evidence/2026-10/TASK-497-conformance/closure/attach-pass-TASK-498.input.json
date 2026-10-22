@@ -1,0 +1,14 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "Codex work",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "id": "TASK-498",
+  "ref": "evidence/2026-10/TASK-497-conformance/review-round-2/review.md",
+  "hash": "sha256:fbf58cbd934e9e14819edf6b63757720c86e5f42b2ad55b1acd004556ba4aa49",
+  "expect": {
+    "TASK-498": 1930
+  },
+  "note": "Attach actual independent round-2 V4 PASS on immutable candidate 3fb8839723c7b744ff610d837f3ab47c3adc33b9. Prior FAIL remains retained."
+}

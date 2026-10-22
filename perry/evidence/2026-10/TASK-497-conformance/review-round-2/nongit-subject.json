@@ -1,0 +1,20 @@
+{
+  "inclusion": [
+    "source.md",
+    "brief.md"
+  ],
+  "exclusions": [
+    "native state",
+    "consumer projects",
+    "unrelated source",
+    "Git metadata"
+  ],
+  "files": {
+    "source.md": "a26eb72ef04a5413ba8b9b3ecdcfaf64d6cb700bb288d93df51b742b36ad0b41",
+    "brief.md": "e34489b569a68dbc6ce02fb300d95d3d7fe639b985335d3dd49309632d3d5245"
+  },
+  "source_anchor": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/nongit-input",
+  "restorable_bytes": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/nongit-input",
+  "test_output": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/nongit-output",
+  "method": "Actual source/artifact inspection; no numerical measurement is required."
+}

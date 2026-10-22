@@ -1,0 +1,17 @@
+{
+  "document_root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-review-n132to49/supplemental-fixtures/project/perry",
+  "domain_ref": "../docs/design/spec.md",
+  "target": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-review-n132to49/supplemental-fixtures/project/docs/design/spec.md",
+  "within_agreed_project": true,
+  "sha256": "d0abe93b0533ae55247ce19c9a1f31c451359e9a573b3c25c1b04517baefba91",
+  "matches_pinned_hash": true,
+  "decision": "Open authorized domain ref at existing location. Preserve current/revision2 separately from design_draft. Reject escaped symlink using recorded pre-removal resolution; no opening out-of-root target for this check.",
+  "escaped_symlink_record": {
+    "agreed_root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-review-n132to49/supplemental-fixtures/project",
+    "domain_ref": "../docs/design/spec.md",
+    "resolved_domain": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-review-n132to49/supplemental-fixtures/project/docs/design/spec.md",
+    "symlink_ref": "outside-link",
+    "resolved_symlink": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-review-n132to49/supplemental-fixtures/outside.txt",
+    "escape": true
+  }
+}

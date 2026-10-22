@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/Users/bytedance/.codex/worktrees/design024-procedure-contracts/Perry/bin/perry",
+    "query",
+    "--root",
+    "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/synthetic/project",
+    "--store",
+    "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/synthetic/isolated.db",
+    "--input",
+    "@/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/synthetic/18-recheck-after.input.json"
+  ],
+  "exit": 0,
+  "stderr": ""
+}

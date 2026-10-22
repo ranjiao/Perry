@@ -1,0 +1,12 @@
+{
+  "kind": "explicit synthetic scenario input, not live human authority",
+  "choice": "resume",
+  "stage": "commit",
+  "step": "board",
+  "scope_unchanged": true,
+  "mapping": {
+    "source_scope": "resumed-list",
+    "original_id": "7",
+    "native": "TASK-001"
+  }
+}

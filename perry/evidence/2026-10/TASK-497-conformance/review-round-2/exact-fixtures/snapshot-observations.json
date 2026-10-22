@@ -1,0 +1,9 @@
+{
+  "source_root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/git-snapshot-source",
+  "retained_bytes": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/retained-capture/untracked.txt",
+  "status": "?? untracked.txt\n",
+  "old_sha256": "e429f35f1b905ad3f20563e114e5a70d7ce3857a08fbc71e790ee7cbd911932f",
+  "current_sha256": "cbefb7b96f9a8f001297387518cc367b038687cc5cedf8dff09cdd8635ef6964",
+  "same": false,
+  "limits": "One finite untracked source fixture; not a consumer backup."
+}

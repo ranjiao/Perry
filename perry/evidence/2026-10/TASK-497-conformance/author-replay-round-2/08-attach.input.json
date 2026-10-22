@@ -1,0 +1,13 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "id": "TASK-002",
+  "ref": "provider-spec.md",
+  "hash": "sha256:a6c37494da9a9859361dce4e6dbebab44f5c26253eb14b405aa49a51b8c45cec",
+  "expect": {
+    "TASK-002": 4
+  }
+}

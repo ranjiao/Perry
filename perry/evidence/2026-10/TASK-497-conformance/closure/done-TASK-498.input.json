@@ -1,0 +1,22 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "Codex work",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "id": "TASK-498",
+  "transition": "done",
+  "expect": {
+    "TASK-498": 1937
+  },
+  "set": {
+    "evidence": "evidence/2026-10/TASK-497-conformance/review-round-2/review.md",
+    "verified_by": {
+      "kind": "agent",
+      "name": "DESIGN-024 independent reviewer (/root/design024_review)",
+      "session": "01a16294-6e70-7822-9d10-b84ee69f8435"
+    },
+    "next_action": "Source delivery accepted at V4 on 3fb8839723c7b744ff610d837f3ab47c3adc33b9; separate independent integration/release remains. No consumer activation or publication."
+  },
+  "note": "Record the actual independent reviewer verdict against unchanged written criteria. Source delivery only; no human V5, consumer migration, release or main integration is claimed."
+}

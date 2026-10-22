@@ -1,0 +1,33 @@
+{
+  "unchanged_product_paths": [
+    "SKILL.md",
+    "decide/SKILL.md",
+    "reference/adoption-sources.md",
+    "reference/adoption.md",
+    "reference/config.md",
+    "reference/glossary.md",
+    "reference/identity-lookup.md",
+    "reference/kernel.md",
+    "reference/new-projects.md",
+    "reference/operating-rules.md",
+    "reference/project-contract.md",
+    "reference/snapshot.md",
+    "templates/internal/adoption_dossier_TEMPLATE.md",
+    "work/SKILL.md",
+    "work/reference/acceptance.md",
+    "work/reference/delegate.md",
+    "work/reference/git-boundaries.md",
+    "work/reference/review.md",
+    "work/reference/task-close.md",
+    "work/templates/README.md",
+    "work/templates/evidence_TEMPLATE.md",
+    "work/templates/handoff_TEMPLATE.md"
+  ],
+  "amended_product_paths": [
+    "work/reference/dispatch.md",
+    "work/templates/acceptance_TEMPLATE.md"
+  ],
+  "author_corrected_source_subject": "45c1d1f0c2e76ef85481b5f36933b106fa00f93d",
+  "review_candidate": "3fb8839723c7b744ff610d837f3ab47c3adc33b9",
+  "same_product_bytes": true
+}

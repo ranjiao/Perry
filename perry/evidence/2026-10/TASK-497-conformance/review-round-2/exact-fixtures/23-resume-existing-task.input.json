@@ -1,0 +1,14 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16294-6e70-7822-9d10-b84ee69f8435"
+  },
+  "type": "task",
+  "fields": {
+    "title": "Existing resumed source task",
+    "summary": "Source scope: resumed-list. Original ID: 7. Existing exact mapping.",
+    "priority": "P1",
+    "verification": "V3"
+  }
+}

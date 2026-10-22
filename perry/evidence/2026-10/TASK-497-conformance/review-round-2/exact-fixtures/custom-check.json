@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "/Users/bytedance/.local/bin/python3",
+    "checks/custom.py"
+  ],
+  "exit": 0,
+  "stdout": "custom source criterion passed; integration and human review not checked\n",
+  "scope": "synthetic provider source only"
+}

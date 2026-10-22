@@ -1,0 +1,15 @@
+{
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16294-6e70-7822-9d10-b84ee69f8435"
+  },
+  "id": "TASK-002",
+  "transition": "done",
+  "set": {
+    "evidence": "Actual isolated custom-check.json: source delivery only; runtime integration and human review excluded."
+  },
+  "expect": {
+    "TASK-002": 7
+  }
+}

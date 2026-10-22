@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/Users/bytedance/.codex/worktrees/design024-review-round2/Perry/bin/perry",
+    "query",
+    "--root",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+    "--store",
+    "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db",
+    "--input",
+    "@/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/14-paged-query.input.json"
+  ],
+  "exit": 0,
+  "stderr": ""
+}

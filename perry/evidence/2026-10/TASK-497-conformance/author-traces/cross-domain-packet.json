@@ -1,0 +1,14 @@
+{
+  "root": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-implementation-o2je3pon/synthetic/project",
+  "scope": [
+    "docs/program/target.md"
+  ],
+  "spec": "Asset provider may read but not edit docs/program; this requested write lacks that owner authority.",
+  "lane": "work",
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16258-66d7-7e31-a275-9c13df587793"
+  },
+  "authorization": null
+}

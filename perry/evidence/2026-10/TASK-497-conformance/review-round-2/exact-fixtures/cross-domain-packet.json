@@ -1,0 +1,14 @@
+{
+  "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+  "scope": [
+    "docs/program/target.md"
+  ],
+  "spec": "Asset provider may read but not edit docs/program; this requested write lacks that owner authority.",
+  "lane": "work",
+  "actor": {
+    "kind": "agent",
+    "name": "synthetic-fixture-driver",
+    "session": "01a16294-6e70-7822-9d10-b84ee69f8435"
+  },
+  "authorization": null
+}

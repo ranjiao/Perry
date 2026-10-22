@@ -1,0 +1,1 @@
+Removed only the intentional synthetic out-of-root symlink after preserving the startup refusal. No native state query or write occurred while recovery was blocking.

@@ -1,0 +1,11 @@
+{
+  "scenario_choice": "resume-owner-input.json",
+  "source_scope": "resumed-list",
+  "original_id": "7",
+  "existing_native": "TASK-001",
+  "before_seq": 3,
+  "after_seq": 3,
+  "total": 1,
+  "additional_creates": 0,
+  "limits": "Explicit simulated owner input in an isolated fixture only; not actual consumer resume or live consent."
+}

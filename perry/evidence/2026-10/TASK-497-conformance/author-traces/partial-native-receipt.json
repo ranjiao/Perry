@@ -1,0 +1,5 @@
+{
+  "actual_completed_provider": "TASK-002",
+  "native_seq": 10,
+  "remaining": "Consumer/package acceptance pending; original source still has a legacy lifecycle writer. No activation occurred."
+}

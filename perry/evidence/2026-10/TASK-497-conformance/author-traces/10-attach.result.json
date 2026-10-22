@@ -1,0 +1,1 @@
+{"ok": true, "surface": "1.1", "command": "attach add", "effect": "written", "events": [8], "store_seq": 8, "warnings": [], "result": {"attachment": {"item": "TASK-003", "ref": "consumer-spec.md", "hash": "sha256:0fc4945377ff93058b324ba115dd32530cd07707ac72b5f5f77383129005aca5"}}, "error": null}

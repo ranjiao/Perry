@@ -1,0 +1,1 @@
+{"ok": true, "surface": "1.1", "command": "attach add", "effect": "written", "events": [7], "store_seq": 7, "warnings": [], "result": {"attachment": {"item": "TASK-002", "ref": "provider-spec.md", "hash": "sha256:a6c37494da9a9859361dce4e6dbebab44f5c26253eb14b405aa49a51b8c45cec"}}, "error": null}

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "blocked": false,
+  "errors": [],
+  "limit": "Structural facts only; no identity authentication, acceptance decision or state transition."
+}

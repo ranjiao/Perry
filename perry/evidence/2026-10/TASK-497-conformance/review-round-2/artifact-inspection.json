@@ -1,0 +1,11 @@
+{
+  "reference": "../docs/design/spec.md",
+  "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+  "resolved": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project/docs/design/spec.md",
+  "confinement": true,
+  "pinned_hash_match": true,
+  "native_approval": "design_draft; no approval_ref",
+  "domain_validity": "current, revision 2",
+  "escaped_symlink": "Reject per recorded pre-removal escape; no opening target through that ref",
+  "retained_untracked_bytes": "before capture\n"
+}

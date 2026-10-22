@@ -1,0 +1,163 @@
+{
+  "calls": 26,
+  "all_explicit_root_store": true,
+  "all_exit_zero": true,
+  "calls_detail": [
+    {
+      "command_record": "01-init.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "02-template.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "03-create.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "04-create.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "05-create.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "06-create.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "07-get-TASK-002.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "08-attach.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "09-get-TASK-003.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "10-attach.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "11-get-TASK-002.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "12-provider-done.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "13-paged-query.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "14-paged-query.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "15-paged-query.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "16-paged-query.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "17-recheck-before.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "18-recheck-after.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "19-create.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "20-get-DESIGN-001.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    },
+    {
+      "command_record": "21-resume-init.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-isolated.db"
+    },
+    {
+      "command_record": "22-resume-template.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-isolated.db"
+    },
+    {
+      "command_record": "23-resume-existing-task.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-isolated.db"
+    },
+    {
+      "command_record": "24-resume-post-choice-query.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-isolated.db"
+    },
+    {
+      "command_record": "25-resume-reconciled-query.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/resume-isolated.db"
+    },
+    {
+      "command_record": "26-final-native.command.json",
+      "exit": 0,
+      "root": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project",
+      "store": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/isolated.db"
+    }
+  ]
+}

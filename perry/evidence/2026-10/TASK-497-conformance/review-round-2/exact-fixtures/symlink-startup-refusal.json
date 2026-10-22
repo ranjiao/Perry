@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "recovery": {
+    "blocking": true,
+    "errors": [
+      {
+        "path": "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project/perry",
+        "error": "safety path is a symlink: /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/design024-v4-round2-ldy25fp7/exact-fixtures/project/perry/outside-link"
+      }
+    ]
+  },
+  "interrupted": [],
+  "draft_errors": []
+}

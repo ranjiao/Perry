@@ -1,0 +1,33 @@
+{
+  "source_candidate": "45c1d1f0c2e76ef85481b5f36933b106fa00f93d",
+  "product_paths": [
+    "SKILL.md",
+    "work/SKILL.md",
+    "decide/SKILL.md",
+    "reference/project-contract.md",
+    "reference/config.md",
+    "reference/kernel.md",
+    "reference/glossary.md",
+    "reference/operating-rules.md",
+    "work/reference/review.md",
+    "work/reference/delegate.md",
+    "work/reference/dispatch.md",
+    "work/reference/git-boundaries.md",
+    "reference/adoption.md",
+    "reference/adoption-sources.md",
+    "reference/new-projects.md",
+    "reference/identity-lookup.md",
+    "templates/internal/adoption_dossier_TEMPLATE.md",
+    "work/reference/acceptance.md",
+    "work/reference/task-close.md",
+    "reference/snapshot.md",
+    "work/templates/evidence_TEMPLATE.md",
+    "work/templates/handoff_TEMPLATE.md",
+    "work/templates/acceptance_TEMPLATE.md",
+    "work/templates/README.md"
+  ],
+  "links_checked": 58,
+  "protected_files": 74,
+  "protected_match": true,
+  "whitespace": "pass"
+}
